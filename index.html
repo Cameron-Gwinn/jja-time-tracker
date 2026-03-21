@@ -4222,16 +4222,7 @@ async function runApp() {
   const pill=document.getElementById(`pill-${currentApp}`);
   if(pill) pill.classList.add('active');
   renderSidebarNav();
-  const hash=window.location.hash||'#dashboard';
-  const timeRoutes=['#dashboard','#designers','#hours','#projects','#clients','#settings'];
-  const expRoutes=['#exp-items','#exp-settings','#projects','#clients'];
-  const invRoutes=['#invoices','#generate','#exp-invoices','#exp-generate'];
-  const anaRoutes=['#analytics','#exp-analytics','#projects','#clients'];
-  if(currentApp==='time'&&!timeRoutes.includes(hash)) window.location.hash='#dashboard';
-  else if(currentApp==='expenses'&&!expRoutes.includes(hash)) window.location.hash='#exp-items';
-  else if(currentApp==='invoicing'&&!invRoutes.includes(hash)) window.location.hash='#invoices';
-  else if(currentApp==='analytics'&&!anaRoutes.includes(hash)) window.location.hash='#analytics';
-  else if(!window.location.hash) window.location.hash=APP_DEFAULT[currentApp];
+  navigate(APP_DEFAULT[currentApp]);
   render();
   if(loadTimer()?.running) startTimerDisplay();
   setTimeout(promptLinkDesigner, 1500);

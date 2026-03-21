@@ -1822,7 +1822,7 @@ function renderGenerate(){
       <div id="gi-preview"></div>
       <div style="display:flex;gap:10px">
         <button class="btn btn-ghost" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="previewGeneratedPDF()">👁 Preview Invoice</button>
-        <button class="btn btn-dark" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="generatePDF()">⬇ Download Invoice</button>
+        <button class="btn btn-dark" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="generatePDF()">✓ Save Invoice</button>
       </div>
     </div>`;
 
@@ -3529,7 +3529,7 @@ function renderExpGenerate() {
           <select id="eg-proj" onchange="rebuildExpGenPreview()">${projectOptsForClient(clients[0]?.id||'','')}</select></div>
       </div>
       <div id="exp-gen-preview"></div>
-      <button class="btn btn-dark" style="width:100%;justify-content:center;padding:12px;font-size:15px;margin-top:8px" onclick="generateExpPDF()">Download Expense Invoice PDF</button>
+      <button class="btn btn-dark" style="width:100%;justify-content:center;padding:12px;font-size:15px;margin-top:8px" onclick="generateExpPDF()">✓ Save Expense Invoice</button>
     </div>`;
 
   window._calStates = window._calStates || {time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
@@ -3650,8 +3650,19 @@ function generateExpPDF() {
   // Mark items as billed
   selected.forEach(item=>updateExpItem(item.id,{status:'billed',billedInvoiceId:invRecord.id}));
 
-  doc.save(`${invNum}-${c.name.replace(/\s+/g,'-')}-Expenses.pdf`);
-  toast(`${invNum} downloaded`);
+  _pendingInvDoc=doc;
+  _pendingInvFilename=`${invNum}-${c.name.replace(/\s+/g,'-')}-Expenses.pdf`;
+  showModal(`
+    <div class="modal-hd"><h2>Invoice Saved</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="padding:20px 24px 8px">
+      <p style="font-size:14px;margin-bottom:6px"><strong>${invNum}</strong> has been saved to Invoice History.</p>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:20px">Would you like to download a PDF of this invoice now?</p>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal();_pendingInvDoc=null;">No, maybe later</button>
+        <button class="btn btn-gold" onclick="if(_pendingInvDoc){_pendingInvDoc.save(_pendingInvFilename);toast(_pendingInvFilename.split('/').pop()+' downloaded');_pendingInvDoc=null;}closeModal();">Yes, Download PDF</button>
+      </div>
+    </div>
+  `);
 }
 
 /* ══════════════════════════════════════════════════════

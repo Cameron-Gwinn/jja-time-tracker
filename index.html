@@ -2747,8 +2747,9 @@ async function handleSignUp() {
 }
 async function handleSignOut() {
   if(_timerInterval) clearInterval(_timerInterval);
-  await _sb.auth.signOut();
-  _currentUser = null; _myDesignerId = null; _appInitialized = false;
+  try { await _sb.auth.signOut(); } catch(e) { console.warn('signOut error:', e); }
+  _currentUser = null; _myDesignerId = null; _firmId = null;
+  _firmName = null; _myRole = null; _firmInviteCode = null; _appInitialized = false;
   showAuthScreen();
 }
 function updateSidebarUser(user) {

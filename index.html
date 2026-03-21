@@ -747,6 +747,38 @@
   </div>
 </div>
 
+<!-- ── Firm Setup Screen ───────────────────────────── -->
+<div id="firm-screen" style="display:none;position:fixed;inset:0;z-index:9000;background:var(--bg);align-items:center;justify-content:center;padding:20px">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="auth-logo">JJ&amp;A</div>
+      <div class="auth-tagline">Studio Manager</div>
+    </div>
+    <h3 style="text-align:center;font-family:Georgia,serif;font-weight:normal;font-size:20px;margin-bottom:6px">Set Up Your Firm</h3>
+    <p style="text-align:center;color:var(--text2);font-size:13px;margin-bottom:22px;line-height:1.5">Create a new firm or join an existing one with an invite code.</p>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-create-firm" onclick="showFirmTab('create')">Create Firm</button>
+      <button class="auth-tab" id="tab-join-firm" onclick="showFirmTab('join')">Join Firm</button>
+    </div>
+    <div id="firm-pane-create">
+      <div class="form-group">
+        <label class="field-label">Firm Name</label>
+        <input type="text" id="firm-name-input" placeholder="e.g. JJ&amp;A Design Studio">
+      </div>
+      <div id="firm-err-create" class="auth-error" style="display:none"></div>
+      <button class="btn btn-gold auth-submit" onclick="handleCreateFirm()">Create Firm</button>
+    </div>
+    <div id="firm-pane-join" style="display:none">
+      <div class="form-group">
+        <label class="field-label">Invite Code</label>
+        <input type="text" id="firm-invite-input" placeholder="Enter 8-character code" style="text-transform:uppercase;letter-spacing:3px;font-family:monospace;font-size:15px">
+      </div>
+      <div id="firm-err-join" class="auth-error" style="display:none"></div>
+      <button class="btn btn-gold auth-submit" onclick="handleJoinFirm()">Join Firm</button>
+    </div>
+  </div>
+</div>
+
 <aside id="sidebar">
   <div id="sidebar-brand">
     <div class="firm" id="sb-firm">JJ&amp;A Design Studio</div>
@@ -801,7 +833,7 @@ const load  = (k,fb) => { if(k in _cache) return _cache[k]; try { return JSON.pa
 const store = (k,v)  => {
   _cache[k] = v;
   localStorage.setItem(k, JSON.stringify(v));
-  if(_sb && SYNC_KEYS.has(k))(async()=>{ try{ await _sb.from('app_data').upsert({key:k,value:v,updated_at:new Date().toISOString()}); }catch(e){ console.error('Supabase write error:',e); } })();
+  if(_sb && _firmId && SYNC_KEYS.has(k))(async()=>{ try{ await _sb.from('app_data').upsert({firm_id:_firmId,key:k,value:v,updated_at:new Date().toISOString()}); }catch(e){ console.error('Supabase write error:',e); } })();
 };
 
 const loadEntries   = () => load(K.entries,   []);
@@ -2129,6 +2161,23 @@ function renderSettings(){
       </div>
     </div>
 
+    <div class="card" style="max-width:640px;margin-bottom:18px">
+      <h2 style="margin-bottom:6px">Team Access</h2>
+      <p class="col2 fs12" style="margin-bottom:16px">Share your invite code with other designers to give them access to <strong>${esc(_firmName||'your firm')}</strong>. All team members share the same data.</p>
+      <div class="form-group">
+        <label class="field-label">Your Role</label>
+        <div style="font-size:13px;font-weight:600;text-transform:capitalize;color:var(--accent-dk)">${_myRole||'—'}</div>
+      </div>
+      <div class="form-group">
+        <label class="field-label">Invite Code</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" value="${esc(_firmInviteCode||'—')}" readonly style="letter-spacing:3px;font-family:monospace;font-size:16px;font-weight:700;flex:1">
+          <button class="btn btn-ghost" onclick="copyInviteCode()">Copy</button>
+        </div>
+        <p style="font-size:11.5px;color:var(--text2);margin-top:6px">New team members enter this code on the "Join Firm" screen after creating their account.</p>
+      </div>
+    </div>
+
     <div class="danger-zone" style="max-width:640px">
       <h3>Danger Zone</h3>
       <p class="col2 fs12" style="margin-bottom:12px">This permanently deletes all data and cannot be undone.</p>
@@ -2423,6 +2472,93 @@ window.confirmLinkDesigner = async () => {
   const val = document.getElementById('link-des-sel').value;
   if(val) await saveMyProfile(val);
   closeModal();
+};
+
+/* ── Firm Context ─────────────────────── */
+let _firmId         = null;
+let _firmName       = null;
+let _myRole         = null;
+let _firmInviteCode = null;
+
+async function loadFirmContext() {
+  if(!_sb||!_currentUser) return false;
+  try {
+    const { data } = await _sb
+      .from('firm_members')
+      .select('firm_id, role, firms(id, name, invite_code)')
+      .eq('user_id', _currentUser.id)
+      .maybeSingle();
+    if(data?.firm_id) {
+      _firmId         = data.firm_id;
+      _myRole         = data.role;
+      _firmName       = data.firms?.name;
+      _firmInviteCode = data.firms?.invite_code;
+      return true;
+    }
+    return false;
+  } catch(e) { return false; }
+}
+function showFirmScreen() {
+  const el = document.getElementById('firm-screen');
+  if(el){ el.style.display='flex'; }
+  document.body.classList.add('auth-only');
+}
+function hideFirmScreen() {
+  const el = document.getElementById('firm-screen');
+  if(el){ el.style.display='none'; }
+  document.body.classList.remove('auth-only');
+}
+function showFirmTab(tab) {
+  document.getElementById('firm-pane-create').style.display = tab==='create' ? '' : 'none';
+  document.getElementById('firm-pane-join').style.display   = tab==='join'   ? '' : 'none';
+  document.getElementById('tab-create-firm').classList.toggle('active', tab==='create');
+  document.getElementById('tab-join-firm').classList.toggle('active', tab==='join');
+}
+async function handleCreateFirm() {
+  const name  = document.getElementById('firm-name-input').value.trim();
+  const errEl = document.getElementById('firm-err-create');
+  errEl.style.display = 'none';
+  if(!name){ errEl.textContent='Please enter a firm name.'; errEl.style.display=''; return; }
+  try {
+    const { data: firm, error: e1 } = await _sb.from('firms')
+      .insert({ name, owner_id: _currentUser.id }).select().single();
+    if(e1) throw e1;
+    const { error: e2 } = await _sb.from('firm_members')
+      .insert({ user_id: _currentUser.id, firm_id: firm.id, role: 'owner' });
+    if(e2) throw e2;
+    _firmId = firm.id; _firmName = firm.name; _myRole = 'owner'; _firmInviteCode = firm.invite_code;
+    hideFirmScreen();
+    updateSidebarFirm();
+    await runApp();
+    toast(`Firm "${name}" created!`);
+  } catch(e) { errEl.textContent = e.message||'Failed to create firm.'; errEl.style.display=''; }
+}
+async function handleJoinFirm() {
+  const code  = document.getElementById('firm-invite-input').value.trim().toUpperCase();
+  const errEl = document.getElementById('firm-err-join');
+  errEl.style.display = 'none';
+  if(!code){ errEl.textContent='Please enter an invite code.'; errEl.style.display=''; return; }
+  try {
+    const { data: firm, error: e1 } = await _sb.from('firms')
+      .select('id, name, invite_code').eq('invite_code', code).maybeSingle();
+    if(e1||!firm){ errEl.textContent='Invalid invite code. Check with your firm owner.'; errEl.style.display=''; return; }
+    const { error: e2 } = await _sb.from('firm_members')
+      .insert({ user_id: _currentUser.id, firm_id: firm.id, role: 'member' });
+    if(e2) throw e2;
+    _firmId = firm.id; _firmName = firm.name; _myRole = 'member'; _firmInviteCode = firm.invite_code;
+    hideFirmScreen();
+    updateSidebarFirm();
+    await runApp();
+    toast(`Joined "${firm.name}"!`);
+  } catch(e) { errEl.textContent = e.message||'Failed to join firm.'; errEl.style.display=''; }
+}
+function updateSidebarFirm() {
+  const el = document.getElementById('sb-firm');
+  if(el && _firmName) el.textContent = _firmName;
+}
+window.copyInviteCode = () => {
+  if(!_firmInviteCode) return;
+  navigator.clipboard.writeText(_firmInviteCode).then(()=>toast('Invite code copied!'));
 };
 
 /* ── Cloud Timer Sync ──────────────────── */
@@ -3540,9 +3676,9 @@ function discardTimerEntry() {
 updateSidebarFirm();
 
 async function initSupabaseData() {
-  if(!_sb) return;
+  if(!_sb || !_firmId) return;
   try {
-    const {data,error} = await _sb.from('app_data').select('*');
+    const {data,error} = await _sb.from('app_data').select('*').eq('firm_id', _firmId);
     if(error){console.error('Supabase load error:',error);return;}
     data.forEach(row=>{
       _cache[row.key] = row.value;
@@ -3552,9 +3688,9 @@ async function initSupabaseData() {
 }
 
 function initRealtime() {
-  if(!_sb) return;
-  _sb.channel('app_data_sync')
-    .on('postgres_changes',{event:'*',schema:'public',table:'app_data'}, payload=>{
+  if(!_sb || !_firmId) return;
+  _sb.channel(`firm_${_firmId}_sync`)
+    .on('postgres_changes',{event:'*',schema:'public',table:'app_data',filter:`firm_id=eq.${_firmId}`}, payload=>{
       if(!payload.new) return;
       const {key,value} = payload.new;
       if(!SYNC_KEYS.has(key)) return;
@@ -3600,11 +3736,19 @@ _sb.auth.onAuthStateChange(async (event, session) => {
     if(!_appInitialized) {
       _appInitialized = true;
       await loadMyProfile();
+      const hasFirm = await loadFirmContext();
+      if(!hasFirm) {
+        showFirmScreen();
+        return;
+      }
+      updateSidebarFirm();
       await syncTimerFromCloud();
       await runApp();
     }
   } else if(event === 'SIGNED_OUT') {
-    _currentUser = null; _myDesignerId = null; _appInitialized = false;
+    _currentUser = null; _myDesignerId = null; _firmId = null;
+    _firmName = null; _myRole = null; _firmInviteCode = null;
+    _appInitialized = false;
     stopTimerDisplay();
     showAuthScreen();
   }

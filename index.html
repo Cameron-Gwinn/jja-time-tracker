@@ -553,7 +553,7 @@ const load  = (k,fb) => { if(k in _cache) return _cache[k]; try { return JSON.pa
 const store = (k,v)  => {
   _cache[k] = v;
   localStorage.setItem(k, JSON.stringify(v));
-  if(_sb && SYNC_KEYS.has(k)) _sb.from('app_data').upsert({key:k, value:v, updated_at:new Date().toISOString()}).catch(e=>console.error('Supabase write error:',e));
+  if(_sb && SYNC_KEYS.has(k))(async()=>{ try{ await _sb.from('app_data').upsert({key:k,value:v,updated_at:new Date().toISOString()}); }catch(e){ console.error('Supabase write error:',e); } })();
 };
 
 const loadEntries   = () => load(K.entries,   []);

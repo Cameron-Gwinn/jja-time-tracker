@@ -654,6 +654,40 @@
     .cal-legend-swatch.billed   { background: #E8F4EC; border-color: #4D9966; }
     .cal-empty-msg { text-align: center; padding: 28px 16px; color: var(--text2); font-size: 14px; }
     .cal-empty-msg .cal-ei { font-size: 30px; margin-bottom: 8px; opacity: 0.4; }
+
+    /* ── Auth Screen ──────────────────────────────────── */
+    #auth-screen {
+      position: fixed; inset: 0; z-index: 9000;
+      background: var(--bg); display: flex;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .auth-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 40px 36px;
+      width: 100%; max-width: 400px; box-shadow: var(--shadow-lg);
+    }
+    .auth-brand { text-align: center; margin-bottom: 28px; }
+    .auth-logo { font-family: Georgia, serif; font-size: 30px; color: var(--accent-dk); letter-spacing: 3px; }
+    .auth-tagline { font-size: 11px; color: var(--text2); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 5px; }
+    .auth-tabs { display: flex; border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; margin-bottom: 22px; }
+    .auth-tab { flex: 1; padding: 7px; border: none; background: transparent; border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--text2); transition: all .15s; }
+    .auth-tab.active { background: var(--accent); color: #fff; font-weight: 600; }
+    .auth-error { color: var(--danger); font-size: 12px; padding: 8px 10px; background: var(--danger-bg); border-radius: var(--radius); margin-bottom: 12px; border: 1px solid rgba(139,58,58,0.15); }
+    .auth-submit { width: 100%; justify-content: center; margin-top: 4px; padding: 10px; font-size: 14px; }
+    .auth-confirm-msg { text-align: center; padding: 16px 0; color: var(--text2); line-height: 1.8; font-size: 14px; }
+    /* hide app shell until authenticated */
+    .auth-only #sidebar,
+    .auth-only #main,
+    .auth-only #mobile-hamburger,
+    .auth-only #mobile-fab-area { display: none !important; }
+
+    /* ── Sidebar User Area ──────────────────────────── */
+    #sb-user { padding: 10px 14px 8px; border-top: 1px solid rgba(255,255,255,0.07); }
+    .sb-user-name { font-size: 11.5px; color: var(--sidebar-text); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+    .sb-user-email { font-size: 10px; color: var(--sidebar-muted); margin-bottom: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .btn-signout { width: 100%; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: var(--sidebar-muted); font-size: 11px; padding: 5px 10px; border-radius: 5px; cursor: pointer; transition: all .15s; text-align: center; }
+    .btn-signout:hover { color: var(--sidebar-text); border-color: rgba(255,255,255,0.25); }
+
     @media (max-width: 800px) {
       .cal-day { min-height: 46px; font-size: 11.5px; padding: 5px 1px 4px; }
       .cal-day-num { font-size: 11.5px; }
@@ -662,7 +696,56 @@
     }
   </style>
 </head>
-<body>
+<body class="auth-only">
+
+<!-- ── Auth Screen ─────────────────────────────────── -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="auth-logo">JJ&amp;A</div>
+      <div class="auth-tagline">Studio Manager</div>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-signin" onclick="showAuthTab('signin')">Sign In</button>
+      <button class="auth-tab" id="tab-signup" onclick="showAuthTab('signup')">Sign Up</button>
+    </div>
+    <div id="auth-pane-signin">
+      <div class="form-group">
+        <label class="field-label">Email</label>
+        <input type="email" id="auth-email" placeholder="you@studio.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="field-label">Password</label>
+        <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div id="auth-err-si" class="auth-error" style="display:none"></div>
+      <button class="btn btn-gold auth-submit" onclick="handleSignIn()">Sign In</button>
+    </div>
+    <div id="auth-pane-signup" style="display:none">
+      <div class="form-group">
+        <label class="field-label">Full Name</label>
+        <input type="text" id="auth-name" placeholder="Your Name" autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label class="field-label">Email</label>
+        <input type="email" id="auth-email-su" placeholder="you@studio.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="field-label">Password</label>
+        <input type="password" id="auth-pw-su" placeholder="Min. 6 characters" autocomplete="new-password">
+      </div>
+      <div id="auth-err-su" class="auth-error" style="display:none"></div>
+      <button class="btn btn-gold auth-submit" onclick="handleSignUp()">Create Account</button>
+    </div>
+    <div id="auth-pane-confirm" style="display:none">
+      <div class="auth-confirm-msg">
+        <div style="font-size:38px;margin-bottom:14px">✉️</div>
+        <p>Check your email to confirm your account, then sign in.</p>
+        <button class="btn btn-ghost" style="margin-top:16px" onclick="showAuthTab('signin')">Back to Sign In</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <aside id="sidebar">
   <div id="sidebar-brand">
@@ -692,6 +775,7 @@
     </div>
   </div>
   <nav id="sidebar-nav"></nav>
+  <div id="sb-user"></div>
   <button id="dm-toggle" onclick="toggleDarkMode()" title="Toggle dark mode">◑</button>
 </aside>
 
@@ -2245,6 +2329,115 @@ function highlightNav() {
 }
 
 /* ══════════════════════════════════════════════════════
+   AUTH
+══════════════════════════════════════════════════════ */
+let _currentUser    = null;
+let _myDesignerId   = null;
+let _appInitialized = false;
+
+function showAuthScreen() {
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.body.classList.add('auth-only');
+}
+function hideAuthScreen() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.body.classList.remove('auth-only');
+}
+function showAuthTab(tab) {
+  document.getElementById('auth-pane-signin').style.display  = tab==='signin' ? '' : 'none';
+  document.getElementById('auth-pane-signup').style.display  = tab==='signup' ? '' : 'none';
+  document.getElementById('auth-pane-confirm').style.display = 'none';
+  document.getElementById('tab-signin').classList.toggle('active', tab==='signin');
+  document.getElementById('tab-signup').classList.toggle('active', tab==='signup');
+}
+async function handleSignIn() {
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl    = document.getElementById('auth-err-si');
+  errEl.style.display = 'none';
+  if(!email||!password){ errEl.textContent='Please enter your email and password.'; errEl.style.display=''; return; }
+  const { error } = await _sb.auth.signInWithPassword({ email, password });
+  if(error){ errEl.textContent=error.message; errEl.style.display=''; }
+}
+async function handleSignUp() {
+  const name     = document.getElementById('auth-name').value.trim();
+  const email    = document.getElementById('auth-email-su').value.trim();
+  const password = document.getElementById('auth-pw-su').value;
+  const errEl    = document.getElementById('auth-err-su');
+  errEl.style.display = 'none';
+  if(!name||!email||!password){ errEl.textContent='Please fill in all fields.'; errEl.style.display=''; return; }
+  if(password.length<6){ errEl.textContent='Password must be at least 6 characters.'; errEl.style.display=''; return; }
+  const { error } = await _sb.auth.signUp({ email, password, options:{ data:{ full_name:name } } });
+  if(error){ errEl.textContent=error.message; errEl.style.display=''; return; }
+  document.getElementById('auth-pane-signup').style.display  = 'none';
+  document.getElementById('auth-pane-confirm').style.display = '';
+}
+async function handleSignOut() {
+  if(_timerInterval) clearInterval(_timerInterval);
+  await _sb.auth.signOut();
+  _currentUser = null; _myDesignerId = null; _appInitialized = false;
+  showAuthScreen();
+}
+function updateSidebarUser(user) {
+  const el = document.getElementById('sb-user');
+  if(!el) return;
+  const name  = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+  const email = user?.email || '';
+  el.innerHTML = `<div class="sb-user-name">${esc(name)}</div><div class="sb-user-email">${esc(email)}</div><button class="btn-signout" onclick="handleSignOut()">Sign Out</button>`;
+}
+
+/* ── Designer Profile Link ─────────────── */
+async function loadMyProfile() {
+  if(!_sb||!_currentUser) return;
+  try {
+    const { data } = await _sb.from('user_profiles').select('designer_id').eq('user_id',_currentUser.id).maybeSingle();
+    if(data?.designer_id) _myDesignerId = data.designer_id;
+  } catch(e) {}
+}
+async function saveMyProfile(designerId) {
+  _myDesignerId = designerId;
+  if(!_sb||!_currentUser) return;
+  await _sb.from('user_profiles').upsert({ user_id:_currentUser.id, designer_id:designerId, updated_at:new Date().toISOString() });
+}
+function promptLinkDesigner() {
+  if(_myDesignerId) return;
+  const designers = loadDesigners();
+  if(!designers.length) return;
+  const opts = designers.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  showModal(`
+    <div class="modal-hd"><h2>Who Are You?</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="color:var(--text2);margin-bottom:18px;font-size:13px;line-height:1.6">Link your account to your designer profile so the timer automatically tracks your time.</p>
+    <div class="form-group">
+      <label class="field-label">Select Your Profile</label>
+      <select id="link-des-sel">
+        <option value="">— Not a designer / skip —</option>
+        ${opts}
+      </select>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Skip</button>
+      <button class="btn btn-gold" onclick="confirmLinkDesigner()">Confirm</button>
+    </div>`);
+}
+window.confirmLinkDesigner = async () => {
+  const val = document.getElementById('link-des-sel').value;
+  if(val) await saveMyProfile(val);
+  closeModal();
+};
+
+/* ── Cloud Timer Sync ──────────────────── */
+async function syncTimerFromCloud() {
+  if(!_sb||!_currentUser) return;
+  try {
+    const { data } = await _sb.from('user_timers').select('timer_data').eq('user_id',_currentUser.id).maybeSingle();
+    if(data?.timer_data?.running) {
+      _cache['tt_timer'] = data.timer_data;
+      localStorage.setItem('tt_timer', JSON.stringify(data.timer_data));
+    }
+  } catch(e) {}
+}
+
+/* ══════════════════════════════════════════════════════
    INDEXEDDB — VENDOR FILES (local fallback for old files)
 ══════════════════════════════════════════════════════ */
 let _db = null;
@@ -3133,9 +3326,16 @@ window.addEventListener('hashchange',render);
 /* ══════════════════════════════════════════════════════
    TIMER
 ══════════════════════════════════════════════════════ */
-const loadTimer  = () => load('tt_timer', null);
-const saveTimerData = t => store('tt_timer', t);
-const clearTimerData = () => localStorage.removeItem('tt_timer');
+const loadTimer     = () => load('tt_timer', null);
+const saveTimerData = t => {
+  store('tt_timer', t);
+  if(_sb && _currentUser)(async()=>{ try{ await _sb.from('user_timers').upsert({user_id:_currentUser.id,timer_data:t,updated_at:new Date().toISOString()}); }catch(e){} })();
+};
+const clearTimerData = () => {
+  localStorage.removeItem('tt_timer');
+  delete _cache['tt_timer'];
+  if(_sb && _currentUser)(async()=>{ try{ await _sb.from('user_timers').delete().eq('user_id',_currentUser.id); }catch(e){} })();
+};
 let _timerInterval = null;
 
 function fmtElapsed(ms) {
@@ -3196,7 +3396,7 @@ function openTimerModal() {
   if(!clients.length){toast('Please add a client first');navigate('#clients');return;}
   const cliId=clients[0]?.id||'';
   const projs=getProjectsByClient(cliId);
-  const desSel=designers.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  const desSel=designers.map(d=>`<option value="${d.id}" ${d.id===_myDesignerId?'selected':''}>${esc(d.name)}</option>`).join('');
   const projContent=projs.length
     ?`<select id="t-proj">${projectOptsForClient(cliId,'')}</select>`
     :`<input type="text" id="t-proj-text" placeholder="e.g. Brand Identity">`;
@@ -3366,8 +3566,8 @@ function initRealtime() {
     .subscribe();
 }
 
-// Restore app state
-(async function initApp(){
+// App boot — called once after successful auth
+async function runApp() {
   await initSupabaseData();
   initRealtime();
   const cta=document.getElementById('sidebar-cta');
@@ -3376,7 +3576,6 @@ function initRealtime() {
   const pill=document.getElementById(`pill-${currentApp}`);
   if(pill) pill.classList.add('active');
   renderSidebarNav();
-  // If hash doesn't match current app, navigate to default
   const hash=window.location.hash||'#dashboard';
   const timeRoutes=['#dashboard','#designers','#hours','#projects','#clients','#settings'];
   const expRoutes=['#exp-items','#exp-settings','#projects','#clients'];
@@ -3388,13 +3587,38 @@ function initRealtime() {
   else if(currentApp==='analytics'&&!anaRoutes.includes(hash)) window.location.hash='#analytics';
   else if(!window.location.hash) window.location.hash=APP_DEFAULT[currentApp];
   render();
-})();
+  if(loadTimer()?.running) startTimerDisplay();
+  setTimeout(promptLinkDesigner, 1500);
+}
 
-// Resume timer display if one was running
-if(loadTimer()?.running) startTimerDisplay();
+// Auth state listener — handles sign-in, sign-out, and session restore
+_sb.auth.onAuthStateChange(async (event, session) => {
+  if(session?.user) {
+    _currentUser = session.user;
+    updateSidebarUser(_currentUser);
+    hideAuthScreen();
+    if(!_appInitialized) {
+      _appInitialized = true;
+      await loadMyProfile();
+      await syncTimerFromCloud();
+      await runApp();
+    }
+  } else if(event === 'SIGNED_OUT') {
+    _currentUser = null; _myDesignerId = null; _appInitialized = false;
+    stopTimerDisplay();
+    showAuthScreen();
+  }
+});
 
-// Init dark mode on load
+// Dark mode runs before auth so the login screen respects the setting
 initDarkMode();
+
+// Check for an existing session immediately on page load
+(async () => {
+  const { data: { session } } = await _sb.auth.getSession();
+  if(!session) showAuthScreen();
+  // If session exists, onAuthStateChange fires with INITIAL_SESSION and handles boot
+})();
 </script>
 </body>
 </html>

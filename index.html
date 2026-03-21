@@ -204,6 +204,28 @@
       width: 500px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
       box-shadow: var(--shadow-lg);
     }
+
+    /* PDF Preview Modal */
+    #pdf-preview-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(14,14,12,0.75);
+      z-index: 600; align-items: center; justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+    #pdf-preview-overlay.open { display: flex; }
+    #pdf-preview-box {
+      background: var(--card); border-radius: 10px; overflow: hidden;
+      width: 98vw; height: 96vh;
+      display: flex; flex-direction: column; box-shadow: var(--shadow-lg);
+    }
+    #pdf-preview-header {
+      display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    #pdf-preview-title { font-weight: 600; font-size: 14px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #pdf-preview-frame { flex: 1; width: 100%; border: none; background: #525659; }
+    @media(max-width:600px){
+      #pdf-preview-box { width: 100%; height: 100%; border-radius: 0; }
+    }
     .modal-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .modal-hd h2 { font-size: 20px; }
     .modal-x { background: none; border: none; font-size: 22px; color: var(--text2); cursor: pointer; line-height: 1; padding: 2px 5px; border-radius: 4px; }
@@ -392,9 +414,21 @@
     .price-preview .pp-row { display: flex; justify-content: space-between; padding: 3px 0; }
     .price-preview .pp-total { display: flex; justify-content: space-between; padding-top: 8px; margin-top: 4px; border-top: 1px solid var(--border); font-family: Georgia, serif; font-size: 16px; }
     .exp-inv-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
-    .exp-inv-card-hd { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; cursor: pointer; border-bottom: 1px solid transparent; }
+    .exp-inv-card-hd { display: flex; justify-content: space-between; align-items: flex-start; padding: 15px 20px; cursor: pointer; border-bottom: 1px solid transparent; gap: 16px; }
     .exp-inv-card-hd.open { border-bottom-color: var(--border); }
     .exp-inv-card-hd:hover { background: #FDFCFA; }
+    .exp-inv-card-info { flex: 1; min-width: 0; }
+    .exp-inv-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+    .exp-inv-status-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .exp-inv-action-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .exp-inv-detail-body { padding: 14px 20px; }
+    .exp-inv-detail-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 16px; }
+    .exp-inv-detail-row:last-of-type { border-bottom: none; }
+    .exp-inv-detail-left { flex: 1; min-width: 0; }
+    .exp-inv-detail-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .exp-inv-detail-meta { font-size: 11.5px; color: var(--text2); margin-top: 2px; }
+    .exp-inv-detail-amount { font-size: 13px; font-weight: 600; color: var(--accent-dk); flex-shrink: 0; padding-top: 2px; }
+    .exp-inv-file-btn { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
 
     /* ── Dark mode ──────────────────────────────────── */
     body.dark-mode {
@@ -714,6 +748,18 @@
   </style>
 </head>
 <body class="auth-only">
+
+<!-- ── PDF Preview Overlay ────────────────────────── -->
+<div id="pdf-preview-overlay">
+  <div id="pdf-preview-box">
+    <div id="pdf-preview-header">
+      <span id="pdf-preview-title">Preview</span>
+      <a id="pdf-preview-dl" class="btn btn-ghost btn-sm">⬇ Download</a>
+      <button class="btn btn-ghost btn-sm" onclick="closePDFPreview()">✕ Close</button>
+    </div>
+    <iframe id="pdf-preview-frame" title="PDF Preview"></iframe>
+  </div>
+</div>
 
 <!-- ── Auth Screen ─────────────────────────────────── -->
 <div id="auth-screen">
@@ -1073,10 +1119,10 @@ function filterEntries({clientId='',designerId='',projectId='',start='',end='',s
    UI HELPERS
 ══════════════════════════════════════════════════════ */
 let _tt;
-function toast(msg) {
+function toast(msg, duration=2800) {
   const el=document.getElementById('toast');
   el.textContent=msg; el.classList.add('show');
-  clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),2800);
+  clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),duration);
 }
 function showModal(html) {
   const ov=document.createElement('div'); ov.className='overlay';
@@ -1085,6 +1131,38 @@ function showModal(html) {
   document.body.appendChild(ov);
 }
 function closeModal(){ const m=document.querySelector('.overlay'); if(m)m.remove(); }
+
+// PDF preview modal — works for generated jsPDF docs and remote/blob URLs
+let _pdfPreviewBlob = null;
+function showPDFPreview(srcOrDoc, title, filename) {
+  const ov=document.getElementById('pdf-preview-overlay');
+  const frame=document.getElementById('pdf-preview-frame');
+  const dlBtn=document.getElementById('pdf-preview-dl');
+  document.getElementById('pdf-preview-title').textContent=title||'Preview';
+  // Free previous blob URL if any
+  if(_pdfPreviewBlob){URL.revokeObjectURL(_pdfPreviewBlob);_pdfPreviewBlob=null;}
+  let url;
+  if(typeof srcOrDoc === 'string'){
+    url = srcOrDoc;
+    dlBtn.href=url; dlBtn.download=filename||'file.pdf'; dlBtn.setAttribute('target','_blank');
+  } else {
+    // jsPDF doc object
+    const blob=srcOrDoc.output('blob');
+    url=URL.createObjectURL(blob);
+    _pdfPreviewBlob=url;
+    dlBtn.onclick=()=>{ const a=document.createElement('a');a.href=url;a.download=filename||'invoice.pdf';a.click(); };
+    dlBtn.removeAttribute('href'); dlBtn.removeAttribute('target');
+  }
+  frame.src=url;
+  ov.classList.add('open');
+  ov.onclick=e=>{ if(e.target===ov)closePDFPreview(); };
+}
+function closePDFPreview(){
+  const ov=document.getElementById('pdf-preview-overlay');
+  ov.classList.remove('open');
+  document.getElementById('pdf-preview-frame').src='';
+  if(_pdfPreviewBlob){URL.revokeObjectURL(_pdfPreviewBlob);_pdfPreviewBlob=null;}
+}
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function updateSidebarFirm(){ document.getElementById('sb-firm').textContent=loadSettings().firmName||'JJ&A Design Studio'; }
 
@@ -1686,7 +1764,8 @@ function renderInvoices(){
               ${isPaid?`<span class="badge-paid">✓ Paid ${inv.paidAt?fmtDate(inv.paidAt.split('T')[0]):''}</span>`:`<span class="badge-unpaid">Unpaid</span>`}
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();${isPaid?`markInvoicePaid('${inv.id}',false)`:`markInvoicePaid('${inv.id}',true)`}">${isPaid?'↩ Unpaid':'💵 Mark Paid'}</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();emailInvoice('${inv.id}')">✉ Email</button>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();redownloadTimePDF('${inv.id}')">⬇ Re-download PDF</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewTimePDF('${inv.id}')">👁 Preview PDF</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();redownloadTimePDF('${inv.id}')">⬇ Download PDF</button>
             </div>
           </div>
         </div>
@@ -1738,7 +1817,10 @@ function renderGenerate(){
         <div class="form-group"><label class="field-label" for="gi-e">To</label><input type="date" id="gi-e" value="${we}" onchange="updateGenPreview()"></div>
       </div></div>
       <div id="gi-preview"></div>
-      <button class="btn btn-dark" style="width:100%;justify-content:center;padding:12px;font-size:15px" onclick="generatePDF()">Download PDF Invoice</button>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="previewGeneratedPDF()">👁 Preview Invoice</button>
+        <button class="btn btn-dark" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="generatePDF()">⬇ Download Invoice</button>
+      </div>
     </div>`;
 
   window._gen={rangeKey:'week',start:ws,end:we};
@@ -1890,7 +1972,7 @@ function buildTimePDF(entries, settings, invMeta, tplId) {
   return {doc, totH, totA};
 }
 
-async function generatePDF(){
+function _buildGeneratedPDFDoc() {
   const clientId=document.getElementById('gi-cli').value;
   const designerId=document.getElementById('gi-des').value;
   const projectId=document.getElementById('gi-proj').value;
@@ -1899,11 +1981,25 @@ async function generatePDF(){
   const c=getClientById(clientId), designer=designerId?getDesignerById(designerId):null;
   const entries=filterEntries({clientId,designerId,projectId,start,end});
   const settings=loadSettings();
-  if(!entries.length){toast('No entries for this period');return;}
+  if(!entries.length){toast('No entries for this period');return null;}
   const invNum=`${settings.invoicePrefix}-${String(settings.invoiceNext).padStart(4,'0')}`;
   const issueDate=todayStr(), dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+(settings.paymentTerms||14));
   const dueDate=dueD.toISOString().split('T')[0];
   const {doc,totH,totA}=buildTimePDF(entries,settings,{invNum,client:c,designer,start,end,issueDate,dueDate},settings.invoiceTemplate||'classic');
+  return {doc,totH,totA,invNum,c,clientId,designerId,projectId,start,end,settings};
+}
+
+function previewGeneratedPDF() {
+  const result=_buildGeneratedPDFDoc();
+  if(!result) return;
+  const {doc, invNum, c} = result;
+  showPDFPreview(doc, `Preview: ${invNum}`, `${invNum}-${c.name.replace(/\s+/g,'-')}.pdf`);
+}
+
+async function generatePDF(){
+  const result=_buildGeneratedPDFDoc();
+  if(!result) return;
+  const {doc,totH,totA,invNum,c,clientId,designerId,projectId,start,end,settings}=result;
   const invRecord={id:uid(),invoiceNumber:invNum,clientId,designerId:designerId||null,projectId:projectId||null,startDate:start,endDate:end,totalHours:totH,totalAmount:totA,generatedAt:new Date().toISOString()};
   const il=loadInvoices(); il.push(invRecord); saveInvoices(il);
   settings.invoiceNext+=1; saveSettings(settings);
@@ -1923,6 +2019,20 @@ window.redownloadTimePDF = invId => {
   const {doc}=buildTimePDF(entries,settings,{invNum:inv.invoiceNumber,client:c,designer,start:inv.startDate,end:inv.endDate,issueDate,dueDate:dueD.toISOString().split('T')[0]},settings.invoiceTemplate||'classic');
   doc.save(`${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}.pdf`);
   toast(`${inv.invoiceNumber} re-downloaded`);
+};
+
+window.previewTimePDF = invId => {
+  const inv=loadInvoices().find(i=>i.id===invId);
+  if(!inv){toast('Invoice record not found');return;}
+  const c=getClientById(inv.clientId), designer=inv.designerId?getDesignerById(inv.designerId):null;
+  const entries=filterEntries({clientId:inv.clientId,designerId:inv.designerId||'',projectId:inv.projectId||'',start:inv.startDate,end:inv.endDate});
+  const settings=loadSettings();
+  if(!entries.length){toast('No entries found for this invoice period');return;}
+  const issueDate=inv.generatedAt.split('T')[0];
+  const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+(settings.paymentTerms||14));
+  const {doc}=buildTimePDF(entries,settings,{invNum:inv.invoiceNumber,client:c,designer,start:inv.startDate,end:inv.endDate,issueDate,dueDate:dueD.toISOString().split('T')[0]},settings.invoiceTemplate||'classic');
+  const filename=`${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}.pdf`;
+  showPDFPreview(doc, inv.invoiceNumber, filename);
 };
 
 /* ══════════════════════════════════════════════════════
@@ -2809,14 +2919,10 @@ async function uploadToSupabase(itemId, fileData) {
   const safeName = name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
   const path = `${itemId}/${Date.now()}-${safeName}`;
 
-  // Upload the raw File object directly
   const { error } = await _sb.storage.from(SUPABASE_BUCKET).upload(path, file, {
     contentType: type, upsert: true
   });
   if(error) throw error;
-
-  const { data } = _sb.storage.from(SUPABASE_BUCKET).getPublicUrl(path);
-  const publicUrl = data.publicUrl;
 
   // Remove old file from Supabase if replacing
   const existing = getExpItemById(itemId);
@@ -2824,9 +2930,18 @@ async function uploadToSupabase(itemId, fileData) {
     _sb.storage.from(SUPABASE_BUCKET).remove([existing.filePath]).catch(()=>{});
   }
 
-  updateExpItem(itemId, { hasFile: true, hasPdf: true, fileName: name, fileType: type, fileUrl: publicUrl, filePath: path });
+  // Store filePath only — signed URLs generated on demand so they never expire in storage
+  updateExpItem(itemId, { hasFile: true, hasPdf: true, fileName: name, fileType: type, fileUrl: null, filePath: path });
   toast(`✓ ${name} uploaded`);
   renderExpItems();
+}
+
+// Generate a 1-hour signed URL for a private-bucket file
+async function getSignedUrl(filePath) {
+  if(!_sb || !filePath) return null;
+  const { data, error } = await _sb.storage.from(SUPABASE_BUCKET).createSignedUrl(filePath, 3600);
+  if(error) { console.error('Signed URL error:', error); return null; }
+  return data.signedUrl;
 }
 
 async function deleteSupabaseFile(filePath) {
@@ -2934,7 +3049,7 @@ window.updateExpPreview = () => {
 let _pendingFileData = null;
 window.handleExpFileUpload = input => {
   const f=input.files[0]; if(!f) return;
-  if(f.size>50*1024*1024){toast('File too large (max 50 MB)');return;}
+  if(f.size>10*1024*1024){toast('File too large (max 10 MB)');return;}
   // Store the raw File object — Supabase uploads it directly without base64 conversion
   _pendingFileData={file:f, name:f.name, size:f.size, type:f.type};
   const s=document.getElementById('ei-pdf-status');
@@ -2945,28 +3060,37 @@ window.handleExpFileUpload = input => {
 window.handleExpPdfUpload = window.handleExpFileUpload;
 
 window.viewExpFile = async id => {
-  // Prefer Supabase-hosted URL stored on the expense item
   const item = loadExpItems().find(i=>i.id===id);
-  if(item?.fileUrl){
+
+  // Resolve the URL: prefer signed URL (private bucket), fall back to stored public URL (legacy)
+  let url = null;
+  if(item?.filePath) {
+    toast('Loading…');
+    url = await getSignedUrl(item.filePath);
+    if(!url){ toast('Could not load file — please try again'); return; }
+  } else if(item?.fileUrl) {
+    url = item.fileUrl;
+  }
+
+  if(url) {
     const ext=(item.fileName||'').split('.').pop().toLowerCase();
     if(['jpg','jpeg','png','gif','webp','heic'].includes(ext)){
-      showModal(`<div class="modal-hd"><h2>📎 ${esc(item.fileName)}</h2><button class="modal-x" onclick="closeModal()">×</button></div><img src="${item.fileUrl}" style="width:100%;border-radius:6px;margin-top:4px"><div class="form-actions" style="margin-top:12px"><button class="btn btn-ghost" onclick="closeModal()">Close</button><a class="btn btn-dark" href="${item.fileUrl}" download="${esc(item.fileName)}" target="_blank">Download</a></div>`);
+      showModal(`<div class="modal-hd"><h2>📎 ${esc(item.fileName)}</h2><button class="modal-x" onclick="closeModal()">×</button></div><img src="${url}" style="width:100%;border-radius:6px;margin-top:4px"><div class="form-actions" style="margin-top:12px"><button class="btn btn-ghost" onclick="closeModal()">Close</button><a class="btn btn-dark" href="${url}" download="${esc(item.fileName)}" target="_blank">Download</a></div>`);
     } else if(ext==='pdf'||item.fileType==='application/pdf'){
-      const win=window.open();
-      win.document.write(`<html><body style="margin:0"><iframe src="${item.fileUrl}" width="100%" height="100%" style="border:none;position:fixed;inset:0"></iframe></body></html>`);
+      showPDFPreview(url, item.fileName||'Attachment', item.fileName||'attachment.pdf');
     } else {
-      window.open(item.fileUrl,'_blank');
+      window.open(url,'_blank');
     }
     return;
   }
+
   // Fallback: IndexedDB (locally stored legacy files)
   const file=await idbGet(id);
   if(!file){toast('Attachment not found');return;}
   if(file.type&&file.type.startsWith('image/')){
     showModal(`<div class="modal-hd"><h2>📎 ${esc(file.name)}</h2><button class="modal-x" onclick="closeModal()">×</button></div><img src="${file.data}" style="width:100%;border-radius:6px;margin-top:4px"><div class="form-actions" style="margin-top:12px"><button class="btn btn-ghost" onclick="closeModal()">Close</button><button class="btn btn-dark" onclick="downloadAttachment('${id}')">Download</button></div>`);
   } else if(file.type==='application/pdf'||file.name?.endsWith('.pdf')){
-    const win=window.open();
-    win.document.write(`<html><body style="margin:0"><iframe src="${file.data}" width="100%" height="100%" style="border:none;position:fixed;inset:0"></iframe></body></html>`);
+    showPDFPreview(file.data, file.name||'Attachment', file.name||'attachment.pdf');
   } else {
     downloadAttachment(id, file);
   }
@@ -2976,9 +3100,11 @@ window.viewExpPdf = window.viewExpFile;
 
 window.downloadAttachment = async (id, file) => {
   const item = loadExpItems().find(i=>i.id===id);
-  if(item?.fileUrl){
-    const a=document.createElement('a'); a.href=item.fileUrl; a.download=item.fileName||'attachment'; a.target='_blank'; a.click();
-    return;
+  if(item?.filePath){
+    const url = await getSignedUrl(item.filePath);
+    if(url){ const a=document.createElement('a'); a.href=url; a.download=item.fileName||'attachment'; a.target='_blank'; a.click(); return; }
+  } else if(item?.fileUrl){
+    const a=document.createElement('a'); a.href=item.fileUrl; a.download=item.fileName||'attachment'; a.target='_blank'; a.click(); return;
   }
   const f = file || await idbGet(id);
   if(!f){toast('File not found');return;}
@@ -2987,10 +3113,10 @@ window.downloadAttachment = async (id, file) => {
 
 function fileBadgeHtml(item) {
   if(!item.hasPdf&&!item.hasFile) return '';
-  const ext=(item.fileName||'').split('.').pop().toLowerCase();
-  const cls=ext==='pdf'?'pdf':['jpg','jpeg','png','gif','webp','heic'].includes(ext)?'img':['doc','docx'].includes(ext)?'doc':'other';
-  const icon=cls==='pdf'?'📄':cls==='img'?'🖼':'📎';
-  return `<button class="file-badge ${cls}" onclick="viewExpFile('${item.id}')">${icon} ${esc(item.fileName||'View File')}</button>`;
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+    <button class="btn btn-ghost btn-sm" onclick="viewExpFile('${item.id}')">👁 Preview File</button>
+    <button class="btn btn-ghost btn-sm" onclick="downloadAttachment('${item.id}')">⬇ Download File</button>
+  </div>`;
 }
 
 function saveExpItemForm(editId) {
@@ -3016,7 +3142,9 @@ function saveExpItemForm(editId) {
       const fd=_pendingFileData;
       toast('Uploading attachment…');
       uploadToSupabase(itemId, fd).catch(err=>{
-        console.error('Supabase upload failed, falling back to local storage', err);
+        console.error('Supabase upload failed:', err);
+        const msg = err?.message||err?.error_description||err?.statusCode||String(err);
+        toast(`Upload failed: ${msg}. Check Supabase storage bucket.`, 6000);
         idbPut({id:itemId,...fd,uploadedAt:new Date().toISOString()}).then(()=>{
           updateExpItem(itemId,{hasPdf:true,hasFile:true,fileName:fd.name,fileType:fd.type});
           renderExpItems();
@@ -3130,53 +3258,236 @@ window.confirmDelExpItem = id => {
 };
 
 /* ══════════════════════════════════════════════════════
+   PDF BUILDERS — EXPENSE INVOICES
+══════════════════════════════════════════════════════ */
+function _getExpInvItems(inv) {
+  const live=(inv.itemIds||[]).map(id=>getExpItemById(id)).filter(Boolean);
+  return live.length ? live : (inv.items||[]);
+}
+
+function buildClientExpPDFDoc(inv) {
+  const c=getClientById(inv.clientId), proj=inv.projectId?getProjectById(inv.projectId):null;
+  const s=loadSettings();
+  const items=_getExpInvItems(inv);
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
+  const PW=215.9,M=20,R=PW-M;
+
+  // Firm header
+  doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
+  doc.text(s.firmName||'Your Firm',M,26);
+  let iy=32;
+  if(s.firmAddress){doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);doc.text(s.firmAddress,M,iy);iy+=5;}
+  if(s.firmEmail){doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);doc.text(s.firmEmail,M,iy);}
+
+  // Invoice label
+  doc.setFontSize(22);doc.setFont('helvetica','bold');doc.setTextColor(196,168,122);
+  doc.text('INVOICE',R,26,{align:'right'});
+  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+  doc.text(`Invoice #: ${inv.invoiceNumber}`,R,33,{align:'right'});
+  doc.text(`Date: ${fmtDateLong(inv.generatedAt.split('T')[0])}`,R,38,{align:'right'});
+  const dueD=new Date(inv.generatedAt); dueD.setDate(dueD.getDate()+(s.paymentTerms||14));
+  doc.text(`Due: ${fmtDateLong(dueD.toISOString().split('T')[0])}`,R,43,{align:'right'});
+
+  doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,52,R,52);
+
+  // Bill To
+  doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,59);
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c?.name||'?',M,65);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
+  let by=71;
+  if(c?.contactName){doc.text(c.contactName,M,by);by+=5;}
+  if(c?.email){doc.text(c.email,M,by);}
+  if(proj){doc.setFontSize(8.5);doc.setTextColor(90,85,80);doc.text(`Project: ${proj.name}`,R,65,{align:'right'});}
+
+  // Items table
+  let total=0;
+  const body=items.map(item=>{
+    const ct=item.vendorAmount!=null?calcItem(item).clientTotal:item.clientTotal;
+    total+=ct;
+    return[item.date?fmtDate(item.date):'',CAT_LABELS[item.category]||item.category||'',item.description||'',cur(ct)];
+  });
+  doc.autoTable({startY:88,head:[['Date','Category','Description','Amount']],body,
+    margin:{left:M,right:M},
+    styles:{fontSize:8.5,cellPadding:3.5,textColor:[30,28,24]},
+    headStyles:{fillColor:[30,28,24],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
+    columnStyles:{0:{cellWidth:24},1:{cellWidth:26},2:{cellWidth:'auto',overflow:'linebreak'},3:{cellWidth:28,halign:'right'}},
+    alternateRowStyles:{fillColor:[249,248,245]}});
+
+  const aft=doc.lastAutoTable.finalY+8;
+  doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
+  doc.text('Total Due:',R-40,aft+10);
+  doc.setTextColor(168,140,94);doc.text(cur(total),R,aft+10,{align:'right'});
+
+  doc.setDrawColor(220,215,205);doc.line(M,256,R,256);
+  doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
+  doc.text(`Thank you for your business. Payment due within ${s.paymentTerms||14} days.`,PW/2,261,{align:'center'});
+  doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(195,190,183);
+  doc.text('Billed via jasejonesinvoicing.com',PW/2,268,{align:'center'});
+
+  return doc;
+}
+
+function buildInternalExpPDFDoc(inv) {
+  const c=getClientById(inv.clientId), proj=inv.projectId?getProjectById(inv.projectId):null;
+  const s=loadSettings();
+  const items=_getExpInvItems(inv);
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
+  const PW=215.9,M=16,R=PW-M;
+
+  // Header row
+  doc.setFontSize(15);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
+  doc.text(s.firmName||'Your Firm',M,20);
+  doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(139,60,60);
+  doc.text('INTERNAL COST BREAKDOWN',R,20,{align:'right'});
+
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+  doc.text(`Ref: ${inv.invoiceNumber}  ·  ${fmtDateLong(inv.generatedAt.split('T')[0])}`,M,27);
+
+  // Red warning banner
+  doc.setFillColor(251,235,232);doc.roundedRect(M,31,R-M,10,1,1,'F');
+  doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(139,60,60);
+  doc.text('INTERNAL USE ONLY — DO NOT DISTRIBUTE TO CLIENT',PW/2,37.5,{align:'center'});
+
+  // Client / project
+  doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
+  doc.text(c?.name||'?',M,48);
+  doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
+  if(proj){doc.text(`Project: ${proj.name}`,M,54);}
+
+  // Table
+  let totV=0,totM=0,totA=0,totC=0;
+  const body=items.map(item=>{
+    const calc=item.vendorAmount!=null
+      ? calcItem(item)
+      : {vendorAmount:item.clientTotal,markupAmt:0,adminAmt:0,clientTotal:item.clientTotal};
+    totV+=calc.vendorAmount;totM+=calc.markupAmt;totA+=calc.adminAmt;totC+=calc.clientTotal;
+    return[
+      item.vendorName||'—',
+      CAT_LABELS[item.category]||item.category||'—',
+      item.description||'',
+      item.date?fmtDate(item.date):'—',
+      cur(calc.vendorAmount),
+      item.markupPct?`${item.markupPct}%`:'—',
+      item.adminFeePct?`${item.adminFeePct}%`:'—',
+      cur(calc.clientTotal)
+    ];
+  });
+  const startY=proj?60:54;
+  doc.autoTable({
+    startY,
+    head:[['Vendor','Category','Description','Date','Vendor $','Markup','Admin','Client $']],
+    body,
+    margin:{left:M,right:M},
+    styles:{fontSize:7.5,cellPadding:2.5,textColor:[30,28,24]},
+    headStyles:{fillColor:[139,60,60],textColor:[255,255,255],fontStyle:'bold',fontSize:7},
+    columnStyles:{
+      0:{cellWidth:28},1:{cellWidth:20},2:{cellWidth:'auto',overflow:'linebreak'},
+      3:{cellWidth:18},4:{cellWidth:20,halign:'right'},
+      5:{cellWidth:14,halign:'right'},6:{cellWidth:14,halign:'right'},7:{cellWidth:22,halign:'right'}
+    },
+    alternateRowStyles:{fillColor:[249,248,245]}
+  });
+
+  // Totals box
+  const aft=doc.lastAutoTable.finalY+6;
+  const boxH=10+(totM>0?6:0)+(totA>0?6:0)+8;
+  doc.setFillColor(249,248,245);doc.roundedRect(R-72,aft,72,boxH,1,1,'F');
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+  let ty=aft+7;
+  doc.text('Vendor Total:',R-70,ty);doc.setTextColor(20,20,18);doc.text(cur(totV),R-2,ty,{align:'right'});
+  if(totM>0){ty+=6;doc.setTextColor(100,100,95);doc.text('+ Markup:',R-70,ty);doc.setTextColor(20,20,18);doc.text(cur(totM),R-2,ty,{align:'right'});}
+  if(totA>0){ty+=6;doc.setTextColor(100,100,95);doc.text('+ Admin Fees:',R-70,ty);doc.setTextColor(20,20,18);doc.text(cur(totA),R-2,ty,{align:'right'});}
+  ty+=9;doc.setFontSize(9.5);doc.setFont('helvetica','bold');doc.setTextColor(168,140,94);
+  doc.text('Client Total:',R-70,ty);doc.text(cur(totC),R-2,ty,{align:'right'});
+
+  // Footer
+  doc.setDrawColor(220,215,205);doc.line(M,256,R,256);
+  doc.setFontSize(7);doc.setFont('helvetica','bold');doc.setTextColor(139,60,60);
+  doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY',PW/2,261,{align:'center'});
+  doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(195,190,183);
+  doc.text('Billed via jasejonesinvoicing.com',PW/2,267,{align:'center'});
+
+  return doc;
+}
+
+/* ══════════════════════════════════════════════════════
    VIEW — EXPENSE INVOICES HISTORY
 ══════════════════════════════════════════════════════ */
 function renderExpInvoices() {
   const invoices=[...loadExpInvoices()].sort((a,b)=>b.generatedAt.localeCompare(a.generatedAt));
   document.getElementById('app').innerHTML=`
     <div class="page-head"><div><h1>Expense Invoices</h1><div class="sub">All generated expense invoices</div></div></div>
-    <div class="filters"><label class="field-label">Client</label><select id="exinv-f-cli" onchange="rebuildExpInvList()">${clientOpts('','All Clients')}</select></div>
+    <div class="filters">
+      <label class="field-label">Client</label>
+      <select id="exinv-f-cli" onchange="rebuildExpInvList()">${clientOpts('','All Clients')}</select>
+    </div>
     <div id="exp-inv-list"></div>`;
 
   window.rebuildExpInvList = () => {
     const cliId=document.getElementById('exinv-f-cli').value;
     const list=invoices.filter(i=>!cliId||i.clientId===cliId);
     const el=document.getElementById('exp-inv-list');
-    if(!list.length){el.innerHTML=`<div class="empty"><div class="e-icon">◻</div><p>No expense invoices yet.</p><button class="btn btn-gold" onclick="navigate('#exp-generate')">Generate First Invoice</button></div>`;return;}
+    if(!list.length){
+      el.innerHTML=`<div class="empty"><div class="e-icon">◻</div><p>No expense invoices yet.</p><button class="btn btn-gold" onclick="navigate('#exp-generate')">Generate First Invoice</button></div>`;
+      return;
+    }
     el.innerHTML=list.map(inv=>{
       const c=getClientById(inv.clientId), proj=inv.projectId?getProjectById(inv.projectId):null;
+      // Build inline detail rows for the dropdown
+      const detailItems=_getExpInvItems(inv);
+      const detailRows=detailItems.map(item=>{
+        const liveItem=getExpItemById(item.id)||item;
+        const hasFile=liveItem.filePath||liveItem.fileUrl||liveItem.hasPdf||liveItem.hasFile;
+        return `<div class="exp-inv-detail-row">
+          <div class="exp-inv-detail-left">
+            <div class="exp-inv-detail-name">${esc(item.description||'')}</div>
+            <div class="exp-inv-detail-meta">${esc(item.vendorName||'?')} · ${CAT_LABELS[item.category]||item.category||''}${item.date?` · ${fmtDate(item.date)}`:''}</div>
+            ${hasFile?`<div class="exp-inv-file-btn">
+              <button class="btn btn-ghost btn-sm" onclick="viewExpFile('${item.id}')">👁 Preview File</button>
+              <button class="btn btn-ghost btn-sm" onclick="downloadAttachment('${item.id}')">⬇ Download File</button>
+            </div>`:''}
+          </div>
+          <div class="exp-inv-detail-amount gold-txt">${cur(item.clientTotal)}</div>
+        </div>`;
+      }).join('');
+
       return `<div class="exp-inv-card">
         <div class="exp-inv-card-hd" onclick="toggleExpInvDetail('${inv.id}',this)">
-          <div><div class="inv-num">${esc(inv.invoiceNumber)}</div>
-            <div class="inv-client">${esc(c?.name||'?')}${proj?` · ${esc(proj.name)}`:''}</div>
-            <div class="inv-client col2 fs12">Generated ${fmtDate(inv.generatedAt.split('T')[0])}</div></div>
-          <div class="inv-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <div class="exp-inv-card-info">
+            <div class="inv-num">${esc(inv.invoiceNumber)}</div>
+            <div class="inv-client">${esc(c?.name||'?')}${proj?` · <span style="color:var(--text2)">${esc(proj.name)}</span>`:''}</div>
+            <div class="col2 fs12" style="margin-top:2px">Generated ${fmtDate(inv.generatedAt.split('T')[0])} · ${inv.itemCount||0} item${(inv.itemCount||0)!==1?'s':''}</div>
+          </div>
+          <div class="exp-inv-card-right">
             <div class="inv-amt">${cur(inv.clientTotal)}</div>
-            <div class="inv-meta">${inv.itemCount} item${inv.itemCount!==1?'s':''}</div>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">
-              <span class="badge badge-invoiced" style="font-size:10px">Billed</span>
-              ${inv.paid?`<span class="badge-paid">✓ Paid ${inv.paidAt?fmtDate(inv.paidAt.split('T')[0]):''}</span>`:`<span class="badge-unpaid">Unpaid</span>`}
+            <div class="exp-inv-status-row">
+              ${inv.paid
+                ?`<span class="badge-paid">✓ Paid${inv.paidAt?` ${fmtDate(inv.paidAt.split('T')[0])}`:''}</span>`
+                :`<span class="badge-unpaid">Unpaid</span>`}
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();${inv.paid?`markExpInvoicePaid('${inv.id}',false)`:`markExpInvoicePaid('${inv.id}',true)`}">${inv.paid?'↩ Unpaid':'💵 Mark Paid'}</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();emailExpInvoice('${inv.id}')">✉ Email</button>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewInternalExpInv('${inv.id}')">Preview</button>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();redownloadExpPDF('${inv.id}')">⬇ Client PDF</button>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();downloadInternalExpPDF('${inv.id}')">⬇ Internal PDF</button>
+            </div>
+            <div class="exp-inv-action-row">
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewInternalExpInv('${inv.id}')">👁 Preview Invoice</button>
+              <button class="btn btn-dark btn-sm" onclick="event.stopPropagation();downloadClientExpPDF('${inv.id}')">⬇ Client Invoice</button>
             </div>
           </div>
         </div>
-        <div id="expinvd-${inv.id}" style="display:none;padding:16px 20px">
-          ${(inv.items||[]).map(item=>{
-            const liveItem=getExpItemById(item.id);
-            const fileBadge=(liveItem?.hasPdf||liveItem?.hasFile)?`<button class="file-badge ${(liveItem.fileName||'').split('.').pop().toLowerCase()==='pdf'?'pdf':['jpg','jpeg','png','gif','webp'].includes((liveItem.fileName||'').split('.').pop().toLowerCase())?'img':'other'}" onclick="viewExpFile('${item.id}')">📎 ${esc(liveItem.fileName||'View')}</button>`:'';
-            return `<div class="inv-preview-row"><span><strong>${esc(item.description)}</strong> ${fileBadge}<br><span class="col2 fs12">${esc(item.vendorName||'?')} · ${CAT_LABELS[item.category]||item.category||''}</span></span><span class="gold-txt">${cur(item.clientTotal)}</span></div>`;
-          }).join('')}
+        <div id="expinvd-${inv.id}" class="exp-inv-detail-body" style="display:none">
+          ${detailRows}
           <div class="inv-total-row"><span>Total</span><span class="gold-txt">${cur(inv.clientTotal)}</span></div>
         </div>
       </div>`;
     }).join('');
   };
-  window.toggleExpInvDetail=(id,hd)=>{const el=document.getElementById(`expinvd-${id}`);const o=el.style.display!=='none';el.style.display=o?'none':'block';hd.classList.toggle('open',!o);};
+  window.toggleExpInvDetail=(id,hd)=>{
+    const el=document.getElementById(`expinvd-${id}`);
+    const o=el.style.display!=='none';
+    el.style.display=o?'none':'block';
+    hd.classList.toggle('open',!o);
+  };
   rebuildExpInvList();
 }
 
@@ -3334,40 +3645,49 @@ function generateExpPDF() {
 }
 
 /* ══════════════════════════════════════════════════════
-   INTERNAL EXPENSE INVOICE PREVIEW & REDOWNLOAD
+   EXPENSE INVOICE ACTIONS
 ══════════════════════════════════════════════════════ */
 window.previewInternalExpInv = id => {
   const inv=loadExpInvoices().find(i=>i.id===id);
   if(!inv){toast('Invoice not found');return;}
   const c=getClientById(inv.clientId), proj=inv.projectId?getProjectById(inv.projectId):null;
-  // Try to get live items first, fall back to snapshot
-  const liveItems=(inv.itemIds||[]).map(id=>getExpItemById(id)).filter(Boolean);
-  const displayItems=liveItems.length?liveItems:(inv.items||[]);
+  const items=_getExpInvItems(inv);
   let totV=0,totM=0,totAdm=0,totC=0;
-  const rows=displayItems.map(item=>{
-    const calc=item.vendorAmount!=null?calcItem(item):{vendorAmount:item.clientTotal,markupAmt:0,adminAmt:0,clientTotal:item.clientTotal};
+  const rows=items.map(item=>{
+    const calc=item.vendorAmount!=null
+      ? calcItem(item)
+      : {vendorAmount:item.clientTotal,markupAmt:0,adminAmt:0,clientTotal:item.clientTotal};
     totV+=calc.vendorAmount; totM+=calc.markupAmt; totAdm+=calc.adminAmt; totC+=calc.clientTotal;
+    const liveItem=getExpItemById(item.id)||item;
+    const hasFile=liveItem.filePath||liveItem.fileUrl||liveItem.hasPdf||liveItem.hasFile;
     return `<div class="internal-inv-row">
       <div style="flex:1">
-        <div style="font-weight:600">${esc(item.vendorName||item.description||'?')}</div>
+        <div style="font-weight:600">${esc(item.vendorName||'?')}</div>
         <div class="col2 fs12">${esc(item.description||'')}${item.category?` · ${CAT_LABELS[item.category]||item.category}`:''}</div>
-        ${(item.markupPct>0)?`<div class="col2 fs12">Markup: ${item.markupPct}%</div>`:''}
-        ${(item.adminFeePct>0)?`<div class="col2 fs12">Admin: ${item.adminFeePct}%</div>`:''}
+        ${item.markupPct>0?`<div class="col2 fs12">Markup: ${item.markupPct}%</div>`:''}
+        ${item.adminFeePct>0?`<div class="col2 fs12">Admin: ${item.adminFeePct}%</div>`:''}
+        ${hasFile?`<div style="margin-top:5px;display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="viewExpFile('${item.id}')">👁 Preview File</button>
+          <button class="btn btn-ghost btn-sm" onclick="downloadAttachment('${item.id}')">⬇ Download File</button>
+        </div>`:''}
       </div>
-      <div style="text-align:right;white-space:nowrap;font-size:13px">
-        <div>Vendor: <strong>${cur(calc.vendorAmount)}</strong></div>
+      <div style="text-align:right;white-space:nowrap;font-size:13px;padding-left:12px">
+        <div class="col2 fs12">Vendor: ${cur(calc.vendorAmount)}</div>
         ${calc.markupAmt>0?`<div class="col2 fs12">+Markup: ${cur(calc.markupAmt)}</div>`:''}
         ${calc.adminAmt>0?`<div class="col2 fs12">+Admin: ${cur(calc.adminAmt)}</div>`:''}
-        <div class="gold-txt fw7" style="margin-top:2px">${cur(calc.clientTotal)}</div>
+        <div class="gold-txt fw7" style="margin-top:3px;font-size:14px">${cur(calc.clientTotal)}</div>
       </div>
     </div>`;
   }).join('');
   showModal(`
-    <div class="modal-hd"><h2>Internal Invoice — ${esc(inv.invoiceNumber)}</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="modal-hd"><h2>Invoice — ${esc(inv.invoiceNumber)}</h2><button class="modal-x" onclick="closeModal()">×</button></div>
     <div class="internal-badge">INTERNAL — Do not share with client</div>
-    <div style="font-size:13px;margin-bottom:14px"><strong>${esc(c?.name||'?')}</strong>${proj?` · ${esc(proj.name)}`:''}<br><span class="col2 fs12">Generated ${fmtDate(inv.generatedAt.split('T')[0])}</span></div>
-    <div style="border:1px solid var(--border);border-radius:var(--radius);padding:4px 16px">${rows}</div>
-    <div class="price-preview" style="margin-top:14px">
+    <div style="font-size:13px;margin-bottom:14px">
+      <strong>${esc(c?.name||'?')}</strong>${proj?` · ${esc(proj.name)}`:''}<br>
+      <span class="col2 fs12">Generated ${fmtDate(inv.generatedAt.split('T')[0])}</span>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:var(--radius);padding:4px 16px;margin-bottom:14px">${rows}</div>
+    <div class="price-preview">
       <div class="pp-row"><span class="col2">Total Vendor Cost</span><span>${cur(totV)}</span></div>
       ${totM>0?`<div class="pp-row"><span class="col2">Total Markup</span><span>+${cur(totM)}</span></div>`:''}
       ${totAdm>0?`<div class="pp-row"><span class="col2">Total Admin Fees</span><span>+${cur(totAdm)}</span></div>`:''}
@@ -3375,94 +3695,33 @@ window.previewInternalExpInv = id => {
     </div>
     <div class="form-actions" style="margin-top:16px">
       <button class="btn btn-ghost" onclick="closeModal()">Close</button>
-      <button class="btn btn-ghost" onclick="downloadInternalExpPDF('${id}')">⬇ Internal PDF</button>
-      <button class="btn btn-dark" onclick="redownloadExpPDF('${id}')">⬇ Client PDF</button>
+      <button class="btn btn-ghost" onclick="closeModal();downloadInternalExpPDF('${id}')">⬇ Internal PDF</button>
+      <button class="btn btn-dark" onclick="closeModal();downloadClientExpPDF('${id}')">⬇ Client Invoice</button>
     </div>`);
 };
 
+// Download internal PDF using shared builder
 window.downloadInternalExpPDF = id => {
   const inv=loadExpInvoices().find(i=>i.id===id);
   if(!inv){toast('Invoice not found');return;}
-  const c=getClientById(inv.clientId), proj=inv.projectId?getProjectById(inv.projectId):null;
-  const s=loadSettings();
-  const liveItems=(inv.itemIds||[]).map(id=>getExpItemById(id)).filter(Boolean);
-  const items=liveItems.length?liveItems:(inv.items||[]);
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
-  const PW=215.9,M=20,R=PW-M;
-  doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
-  doc.text(s.firmName||'Your Firm',M,26);
-  doc.setFontSize(14);doc.setFont('helvetica','bold');doc.setTextColor(139,60,60);
-  doc.text('INTERNAL COST BREAKDOWN',R,26,{align:'right'});
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
-  doc.text(`Invoice Ref: ${inv.invoiceNumber}`,R,33,{align:'right'});
-  doc.text(`Date: ${fmtDateLong(inv.generatedAt.split('T')[0])}`,R,38,{align:'right'});
-  doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,48,R,48);
-  doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(139,60,60);
-  doc.text('⚠ INTERNAL USE ONLY — DO NOT SHARE WITH CLIENT',PW/2,55,{align:'center'});
-  doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
-  doc.text(c?.name||'?',M,63);
-  if(proj) doc.text(`Project: ${proj.name}`,M,69);
-  let totV=0,totM=0,totA=0,totC=0;
-  const body=items.map(item=>{
-    const calc=item.vendorAmount!=null?calcItem(item):{vendorAmount:item.clientTotal,markupAmt:0,adminAmt:0,clientTotal:item.clientTotal};
-    totV+=calc.vendorAmount;totM+=calc.markupAmt;totA+=calc.adminAmt;totC+=calc.clientTotal;
-    return[item.vendorName||'?',CAT_LABELS[item.category]||'',item.description||'',cur(calc.vendorAmount),`${item.markupPct||0}%`,`${item.adminFeePct||0}%`,cur(calc.clientTotal)];
-  });
-  doc.autoTable({startY:76,head:[['Vendor','Category','Description','Vendor $','Markup','Admin','Client $']],body,margin:{left:M,right:M},
-    styles:{fontSize:8,cellPadding:3,textColor:[30,28,24]},
-    headStyles:{fillColor:[139,60,60],textColor:[255,255,255],fontStyle:'bold',fontSize:7.5},
-    columnStyles:{0:{cellWidth:26},1:{cellWidth:24},2:{cellWidth:'auto',overflow:'linebreak'},3:{cellWidth:22,halign:'right'},4:{cellWidth:16,halign:'right'},5:{cellWidth:16,halign:'right'},6:{cellWidth:24,halign:'right'}},
-    alternateRowStyles:{fillColor:[249,248,245]}});
-  const aft=doc.lastAutoTable.finalY+6;
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
-  doc.text(`Vendor Total: ${cur(totV)}`,R-55,aft+6);doc.text(`Markup: ${cur(totM)}`,R-55,aft+11);doc.text(`Admin: ${cur(totA)}`,R-55,aft+16);
-  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(168,140,94);doc.text(`Client Total: ${cur(totC)}`,R,aft+6,{align:'right'});
+  const c=getClientById(inv.clientId);
+  const doc=buildInternalExpPDFDoc(inv);
   doc.save(`INTERNAL-${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}.pdf`);
   closeModal(); toast('Internal PDF downloaded');
 };
 
-window.redownloadExpPDF = id => {
+// Download client-facing PDF using shared builder
+window.downloadClientExpPDF = id => {
   const inv=loadExpInvoices().find(i=>i.id===id);
   if(!inv){toast('Invoice not found');return;}
-  const c=getClientById(inv.clientId), proj=inv.projectId?getProjectById(inv.projectId):null;
-  const s=loadSettings();
-  const liveItems=(inv.itemIds||[]).map(id=>getExpItemById(id)).filter(Boolean);
-  const items=liveItems.length?liveItems:(inv.items||[]);
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
-  const PW=215.9,M=20,R=PW-M;
-  doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(s.firmName||'Your Firm',M,26);
-  let iy=32; if(s.firmAddress){doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);doc.text(s.firmAddress,M,iy);iy+=5;}
-  if(s.firmEmail){doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);doc.text(s.firmEmail,M,iy);}
-  doc.setFontSize(22);doc.setFont('helvetica','bold');doc.setTextColor(196,168,122);doc.text('INVOICE',R,26,{align:'right'});
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
-  doc.text(`Invoice #: ${inv.invoiceNumber}`,R,33,{align:'right'});doc.text(`Date: ${fmtDateLong(inv.generatedAt.split('T')[0])}`,R,38,{align:'right'});
-  doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,52,R,52);
-  doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,59);
-  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c?.name||'?',M,65);
-  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
-  let by=71; if(c?.contactName){doc.text(c.contactName,M,by);by+=5;} if(c?.email){doc.text(c.email,M,by);}
-  if(proj){doc.setFontSize(8.5);doc.text(`Project: ${proj.name}`,R,65,{align:'right'});}
-  let total=0;
-  const body=items.map(item=>{
-    const ct=item.vendorAmount!=null?calcItem(item).clientTotal:item.clientTotal;
-    total+=ct; return[item.date?fmtDate(item.date):'',CAT_LABELS[item.category]||item.category||'',item.description||'',cur(ct)];
-  });
-  doc.autoTable({startY:88,head:[['Date','Category','Description','Amount']],body,margin:{left:M,right:M},
-    styles:{fontSize:8.5,cellPadding:3.5,textColor:[30,28,24]},headStyles:{fillColor:[30,28,24],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
-    columnStyles:{0:{cellWidth:24},1:{cellWidth:26},2:{cellWidth:'auto',overflow:'linebreak'},3:{cellWidth:28,halign:'right'}},alternateRowStyles:{fillColor:[249,248,245]}});
-  const aft=doc.lastAutoTable.finalY+8;
-  doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text('Total Due:',R-40,aft+10);
-  doc.setTextColor(168,140,94);doc.text(cur(total),R,aft+10,{align:'right'});
-  doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
-  doc.setDrawColor(220,215,205);doc.line(M,256,R,256);
-  doc.text('Thank you for your business. Payment due within 14 days.',PW/2,261,{align:'center'});
-  doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(195,190,183);
-  doc.text('Billed via jasejonesinvoicing.com',PW/2,268,{align:'center'});
+  const c=getClientById(inv.clientId);
+  const doc=buildClientExpPDFDoc(inv);
   doc.save(`${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}-Expenses.pdf`);
-  closeModal(); toast(`${inv.invoiceNumber} re-downloaded`);
+  toast(`${inv.invoiceNumber} downloaded`);
 };
+
+// Keep old name as alias for backward compatibility
+window.redownloadExpPDF = window.downloadClientExpPDF;
 
 /* ══════════════════════════════════════════════════════
    VIEW — EXPENSE SETTINGS

@@ -545,8 +545,16 @@
    STORAGE
 ══════════════════════════════════════════════════════ */
 const K = { entries:'tt_entries', clients:'tt_clients', designers:'tt_designers', projects:'tt_projects', invoices:'tt_invoices', settings:'tt_settings' };
-const load  = (k,fb) => { try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch { return fb; } };
-const store = (k,v)  => localStorage.setItem(k, JSON.stringify(v));
+
+const SYNC_KEYS = new Set(['tt_entries','tt_clients','tt_designers','tt_projects','tt_invoices','tt_settings','tt_expense_items','tt_expense_invoices','tt_expense_settings']);
+const _cache = {};
+
+const load  = (k,fb) => { if(k in _cache) return _cache[k]; try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch { return fb; } };
+const store = (k,v)  => {
+  _cache[k] = v;
+  localStorage.setItem(k, JSON.stringify(v));
+  if(_sb && SYNC_KEYS.has(k)) _sb.from('app_data').upsert({key:k, value:v, updated_at:new Date().toISOString()}).catch(e=>console.error('Supabase write error:',e));
+};
 
 const loadEntries   = () => load(K.entries,   []);
 const loadClients   = () => load(K.clients,   []);
@@ -2900,8 +2908,37 @@ function discardTimerEntry() {
 ══════════════════════════════════════════════════════ */
 updateSidebarFirm();
 
+async function initSupabaseData() {
+  if(!_sb) return;
+  try {
+    const {data,error} = await _sb.from('app_data').select('*');
+    if(error){console.error('Supabase load error:',error);return;}
+    data.forEach(row=>{
+      _cache[row.key] = row.value;
+      localStorage.setItem(row.key, JSON.stringify(row.value));
+    });
+  } catch(e){ console.error('Supabase init error:',e); }
+}
+
+function initRealtime() {
+  if(!_sb) return;
+  _sb.channel('app_data_sync')
+    .on('postgres_changes',{event:'*',schema:'public',table:'app_data'}, payload=>{
+      if(!payload.new) return;
+      const {key,value} = payload.new;
+      if(!SYNC_KEYS.has(key)) return;
+      _cache[key] = value;
+      localStorage.setItem(key, JSON.stringify(value));
+      render();
+      toast('↻ Synced');
+    })
+    .subscribe();
+}
+
 // Restore app state
-(function initApp(){
+(async function initApp(){
+  await initSupabaseData();
+  initRealtime();
   const cta=document.getElementById('sidebar-cta');
   cta.style.display = currentApp==='time' ? '' : 'none';
   document.querySelectorAll('.app-pill').forEach(b=>b.classList.remove('active'));

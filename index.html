@@ -1039,12 +1039,15 @@ function entryRate(e) {
 const entryAmount = e => e.hours * entryRate(e);
 
 function isInvoiced(entry) {
-  return loadInvoices().some(inv =>
-    inv.clientId === entry.clientId &&
-    entry.date >= inv.startDate &&
-    entry.date <= inv.endDate &&
-    (!inv.designerId || inv.designerId === entry.designerId)
-  );
+  return loadInvoices().some(inv => {
+    // New invoices: exact entry ID match (created after the fix)
+    if (inv.entryIds) return inv.entryIds.includes(entry.id);
+    // Legacy invoices: fall back to date-range check for backward compatibility
+    return inv.clientId === entry.clientId &&
+      entry.date >= inv.startDate &&
+      entry.date <= inv.endDate &&
+      (!inv.designerId || inv.designerId === entry.designerId);
+  });
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1986,7 +1989,7 @@ function _buildGeneratedPDFDoc() {
   const issueDate=todayStr(), dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+(settings.paymentTerms||14));
   const dueDate=dueD.toISOString().split('T')[0];
   const {doc,totH,totA}=buildTimePDF(entries,settings,{invNum,client:c,designer,start,end,issueDate,dueDate},settings.invoiceTemplate||'classic');
-  return {doc,totH,totA,invNum,c,clientId,designerId,projectId,start,end,settings};
+  return {doc,totH,totA,invNum,c,clientId,designerId,projectId,start,end,settings,entries};
 }
 
 function previewGeneratedPDF() {
@@ -1996,15 +1999,27 @@ function previewGeneratedPDF() {
   showPDFPreview(doc, `Preview: ${invNum}`, `${invNum}-${c.name.replace(/\s+/g,'-')}.pdf`);
 }
 
+let _pendingInvDoc=null, _pendingInvFilename='';
 async function generatePDF(){
   const result=_buildGeneratedPDFDoc();
   if(!result) return;
-  const {doc,totH,totA,invNum,c,clientId,designerId,projectId,start,end,settings}=result;
-  const invRecord={id:uid(),invoiceNumber:invNum,clientId,designerId:designerId||null,projectId:projectId||null,startDate:start,endDate:end,totalHours:totH,totalAmount:totA,generatedAt:new Date().toISOString()};
+  const {doc,totH,totA,invNum,c,clientId,designerId,projectId,start,end,settings,entries}=result;
+  const invRecord={id:uid(),invoiceNumber:invNum,clientId,designerId:designerId||null,projectId:projectId||null,startDate:start,endDate:end,totalHours:totH,totalAmount:totA,entryIds:entries.map(e=>e.id),generatedAt:new Date().toISOString()};
   const il=loadInvoices(); il.push(invRecord); saveInvoices(il);
   settings.invoiceNext+=1; saveSettings(settings);
-  doc.save(`${invNum}-${c.name.replace(/\s+/g,'-')}.pdf`);
-  toast(`${invNum} downloaded`);
+  _pendingInvDoc=doc;
+  _pendingInvFilename=`${invNum}-${c.name.replace(/\s+/g,'-')}.pdf`;
+  showModal(`
+    <div class="modal-hd"><h2>Invoice Saved</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="padding:20px 24px 8px">
+      <p style="font-size:14px;margin-bottom:6px"><strong>${invNum}</strong> has been saved to Invoice History.</p>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:20px">Would you like to download a PDF of this invoice now?</p>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal();_pendingInvDoc=null;">No, maybe later</button>
+        <button class="btn btn-gold" onclick="if(_pendingInvDoc){_pendingInvDoc.save(_pendingInvFilename);toast(_pendingInvFilename.split('/').pop()+' downloaded');_pendingInvDoc=null;}closeModal();">Yes, Download PDF</button>
+      </div>
+    </div>
+  `);
 }
 
 window.redownloadTimePDF = invId => {
@@ -4164,8 +4179,28 @@ function initRealtime() {
 }
 
 // App boot — called once after successful auth
+// One-time migration: stamp entryIds onto invoices that predate the per-entry tracking fix
+function migrateInvoiceEntryIds() {
+  const invoices = loadInvoices();
+  const needsMigration = invoices.some(inv => !inv.entryIds);
+  if (!needsMigration) return;
+  const entries = loadEntries();
+  const updated = invoices.map(inv => {
+    if (inv.entryIds) return inv;
+    const matched = entries.filter(e =>
+      e.clientId === inv.clientId &&
+      e.date >= inv.startDate &&
+      e.date <= inv.endDate &&
+      (!inv.designerId || inv.designerId === e.designerId)
+    );
+    return {...inv, entryIds: matched.map(e => e.id)};
+  });
+  saveInvoices(updated);
+}
+
 async function runApp() {
   await initSupabaseData();
+  migrateInvoiceEntryIds();
   initRealtime();
   const cta=document.getElementById('sidebar-cta');
   cta.style.display = currentApp==='time' ? '' : 'none';

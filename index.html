@@ -601,6 +601,33 @@
 
     /* Section divider */
     .section-hd { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); margin: 26px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+    /* ── Billing Calendar ───────────────────────────── */
+    .billing-cal { user-select: none; }
+    .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .cal-nav-title { font-family: Georgia, serif; font-size: 16px; }
+    .cal-nav-btn { background: none; border: 1px solid var(--border); color: var(--text2); width: 32px; height: 32px; border-radius: var(--radius); cursor: pointer; font-size: 18px; display: inline-flex; align-items: center; justify-content: center; transition: all .15s; line-height: 1; padding: 0; }
+    .cal-nav-btn:hover { border-color: var(--text); color: var(--text); }
+    .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
+    .cal-dow { text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text2); padding: 4px 0 8px; }
+    .cal-day { min-height: 46px; display: flex; flex-direction: column; align-items: center; padding: 5px 2px 4px; border-radius: 6px; font-size: 12.5px; transition: background .12s; }
+    .cal-day.other-month { opacity: 0.25; }
+    .cal-day.today { background: var(--accent-lt); }
+    .cal-day.today .cal-day-num { color: var(--accent-dk); font-weight: 700; }
+    .cal-day-num { line-height: 1; margin-bottom: 4px; }
+    .cal-dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
+    .cal-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .cal-dot.unbilled { background: var(--accent-dk); }
+    .cal-dot.billed   { background: var(--invoiced); }
+    .cal-legend { display: flex; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text2); flex-wrap: wrap; }
+    .cal-legend-item { display: flex; align-items: center; gap: 6px; }
+    .cal-empty-msg { text-align: center; padding: 28px 16px; color: var(--text2); font-size: 14px; }
+    .cal-empty-msg .cal-ei { font-size: 30px; margin-bottom: 8px; opacity: 0.4; }
+    @media (max-width: 800px) {
+      .cal-day { min-height: 38px; font-size: 11px; padding: 4px 1px 3px; }
+      .cal-dot { width: 5px; height: 5px; }
+      .cal-dow { font-size: 9px; letter-spacing: 0; }
+    }
   </style>
 </head>
 <body>
@@ -1404,6 +1431,17 @@ function renderGenerate(){
   const [ws,we]=weekRange(0);
   document.getElementById('app').innerHTML=`
     <div class="page-head"><div><h1>Generate Invoice</h1><div class="sub">Select a client and period to create a PDF invoice</div></div></div>
+    <div class="card" style="max-width:600px;margin-bottom:16px">
+      <div class="card-head" style="margin-bottom:14px"><h2>Billing Calendar</h2></div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="field-label">Client</label>
+        <select id="cal-cli" onchange="refreshBillingCal('time')">
+          <option value="">— Select a client —</option>
+          ${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div id="billing-cal-wrap"><div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div></div>
+    </div>
     <div class="card" style="max-width:600px">
       <div class="form-group"><label class="field-label" for="gi-cli">Client</label><select id="gi-cli" onchange="updateGenPreview()">${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
       <div class="form-group"><label class="field-label" for="gi-des">Designer (optional)</label><select id="gi-des" onchange="updateGenPreview()">${designerOpts('','All Designers')}</select></div>
@@ -1426,6 +1464,7 @@ function renderGenerate(){
     </div>`;
 
   window._gen={rangeKey:'week',start:ws,end:we};
+  window._calStates={time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
   window.onGenRange=()=>{const k=document.querySelector('input[name="gi-r"]:checked').value;window._gen.rangeKey=k;document.getElementById('gi-custom').style.display=k==='custom'?'block':'none';if(k!=='custom'){const[s,e]=rangeFromKey(k);window._gen.start=s;window._gen.end=e;}updateGenPreview();};
   window.updateGenPreview=()=>{
     const clientId=document.getElementById('gi-cli').value;
@@ -2481,6 +2520,17 @@ function renderExpGenerate() {
 
   document.getElementById('app').innerHTML=`
     <div class="page-head"><div><h1>Generate Expense Invoice</h1><div class="sub">Select filed items to invoice a client</div></div></div>
+    <div class="card" style="max-width:640px;margin-bottom:16px">
+      <div class="card-head" style="margin-bottom:14px"><h2>Billing Calendar</h2></div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="field-label">Client</label>
+        <select id="exp-cal-cli" onchange="refreshBillingCal('exp')">
+          <option value="">— Select a client —</option>
+          ${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div id="exp-billing-cal-wrap"><div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div></div>
+    </div>
     <div class="card" style="max-width:640px">
       <div class="form-row">
         <div class="form-group"><label class="field-label" for="eg-cli">Client</label>
@@ -2492,6 +2542,7 @@ function renderExpGenerate() {
       <button class="btn btn-dark" style="width:100%;justify-content:center;padding:12px;font-size:15px;margin-top:8px" onclick="generateExpPDF()">Download Expense Invoice PDF</button>
     </div>`;
 
+  window._calStates = window._calStates || {time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
   window.refreshExpGenProj = () => {
     const cliId=document.getElementById('eg-cli').value;
     const sel=document.getElementById('eg-proj');
@@ -2810,6 +2861,102 @@ function renderExpAnalytics() {
   const catNames=Object.keys(byCat).map(k=>CAT_LABELS[k]||k),catVals=Object.values(byCat);
   window._charts.expCat=new Chart(document.getElementById('ch-expCat'),{type:'bar',data:{labels:catNames,datasets:[{label:'Client Total',data:catVals,backgroundColor:CHART_PALETTE,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#F2F0EB'}},x:{grid:{display:false}}}}});
 }
+
+/* ══════════════════════════════════════════════════════
+   BILLING CALENDAR
+══════════════════════════════════════════════════════ */
+const CAL_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const CAL_DAYS=['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+function buildBillingCalendarHTML(calKey, year, month, dateMap) {
+  const today=todayStr();
+  const first=new Date(year,month,1);
+  const last=new Date(year,month+1,0);
+  const wrapId=calKey==='time'?'billing-cal-wrap':'exp-billing-cal-wrap';
+  const cliId=calKey==='time'?'cal-cli':'exp-cal-cli';
+
+  let cells='';
+  CAL_DAYS.forEach(d=>cells+=`<div class="cal-dow">${d}</div>`);
+
+  // Leading blanks from previous month
+  const startDow=first.getDay();
+  for(let i=0;i<startDow;i++){
+    const pd=new Date(year,month,i-startDow+1);
+    cells+=`<div class="cal-day other-month"><span class="cal-day-num">${pd.getDate()}</span></div>`;
+  }
+
+  // Days of current month
+  for(let d=1;d<=last.getDate();d++){
+    const ds=`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isT=ds===today;
+    const info=dateMap.get(ds);
+    let dots='';
+    if(info){
+      if(info.unbilled>0) dots+=`<span class="cal-dot unbilled" title="${info.unbilled} unbilled entr${info.unbilled===1?'y':'ies'}"></span>`;
+      if(info.billed>0)   dots+=`<span class="cal-dot billed"   title="${info.billed} billed entr${info.billed===1?'y':'ies'}"></span>`;
+    }
+    cells+=`<div class="cal-day${isT?' today':''}"><span class="cal-day-num">${d}</span><div class="cal-dots">${dots}</div></div>`;
+  }
+
+  // Trailing blanks
+  const endDow=last.getDay();
+  for(let i=endDow+1;i<7;i++) cells+=`<div class="cal-day other-month"><span class="cal-day-num">${i-endDow}</span></div>`;
+
+  return `<div class="billing-cal">
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="shiftBillingCal('${calKey}',-1)">&#8249;</button>
+      <span class="cal-nav-title">${CAL_MONTHS[month]} ${year}</span>
+      <button class="cal-nav-btn" onclick="shiftBillingCal('${calKey}',1)">&#8250;</button>
+    </div>
+    <div class="cal-grid">${cells}</div>
+    <div class="cal-legend">
+      <div class="cal-legend-item"><span class="cal-dot unbilled"></span> Needs billing</div>
+      <div class="cal-legend-item"><span class="cal-dot billed"></span> Already billed</div>
+    </div>
+  </div>`;
+}
+
+window.refreshBillingCal = calKey => {
+  const cliId=document.getElementById(calKey==='time'?'cal-cli':'exp-cal-cli').value;
+  const wrapId=calKey==='time'?'billing-cal-wrap':'exp-billing-cal-wrap';
+  const wrap=document.getElementById(wrapId);
+  if(!wrap) return;
+  if(!cliId){wrap.innerHTML=`<div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div>`;return;}
+
+  // Build dateMap
+  const dateMap=new Map();
+  if(calKey==='time'){
+    loadEntries().filter(e=>e.clientId===cliId).forEach(e=>{
+      if(!dateMap.has(e.date)) dateMap.set(e.date,{unbilled:0,billed:0});
+      const m=dateMap.get(e.date);
+      isInvoiced(e)?m.billed++:m.unbilled++;
+    });
+  } else {
+    loadExpItems().filter(i=>i.clientId===cliId&&i.date).forEach(i=>{
+      if(!dateMap.has(i.date)) dateMap.set(i.date,{unbilled:0,billed:0});
+      const m=dateMap.get(i.date);
+      i.status==='billed'?m.billed++:m.unbilled++;
+    });
+  }
+
+  if(!window._calStates) window._calStates={time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
+  window._calStates[`${calKey}_dateMap`]=dateMap;
+  const {year,month}=window._calStates[calKey];
+  wrap.innerHTML=buildBillingCalendarHTML(calKey,year,month,dateMap);
+};
+
+window.shiftBillingCal = (calKey,dir) => {
+  if(!window._calStates) return;
+  const st=window._calStates[calKey];
+  st.month+=dir;
+  if(st.month>11){st.month=0;st.year++;}
+  if(st.month<0){st.month=11;st.year--;}
+  const dateMap=window._calStates[`${calKey}_dateMap`];
+  if(!dateMap) return;
+  const wrapId=calKey==='time'?'billing-cal-wrap':'exp-billing-cal-wrap';
+  const wrap=document.getElementById(wrapId);
+  if(wrap) wrap.innerHTML=buildBillingCalendarHTML(calKey,st.year,st.month,dateMap);
+};
 
 /* ══════════════════════════════════════════════════════
    ROUTER

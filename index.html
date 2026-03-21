@@ -464,9 +464,35 @@
       .card { padding: 14px 12px; }
       .card-head { flex-wrap: wrap; gap: 8px; }
 
-      /* Tables — horizontal scroll with touch */
-      .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius); }
-      table { min-width: 520px; }
+      /* Tables — card layout, zero horizontal scroll */
+      .tbl-wrap { overflow-x: visible !important; }
+      table { display: block; min-width: 0 !important; width: 100%; }
+      thead { display: none !important; }
+      tbody { display: flex; flex-direction: column; gap: 8px; }
+      tbody tr {
+        display: flex; flex-direction: column;
+        background: var(--card); border-radius: var(--radius);
+        padding: 12px 14px; box-shadow: var(--shadow);
+        border: 1px solid var(--border);
+      }
+      tbody tr:hover td { background: transparent !important; }
+      tbody td {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 5px 0; border: none !important;
+        border-bottom: 1px solid var(--border) !important;
+        font-size: 13px; gap: 8px; min-height: 28px;
+      }
+      tbody td:last-child { border-bottom: none !important; padding-top: 8px; }
+      tbody td::before {
+        content: attr(data-label); font-size: 10px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.6px;
+        color: var(--text2); flex-shrink: 0; min-width: 70px;
+      }
+      tbody td[data-label=""]::before,
+      tbody td:not([data-label])::before { display: none; }
+      tbody td[data-label=""] { justify-content: flex-end; border-bottom: none !important; padding-top: 4px; }
+      .tbl-footer { display: flex !important; flex-direction: row !important; justify-content: space-between !important; background: var(--bg2) !important; border-radius: var(--radius); padding: 10px 14px !important; margin-top: 4px; font-weight: 600; font-size: 13px; border: 1px solid var(--border); }
+      .tbl-footer td { display: inline !important; border: none !important; padding: 0 !important; background: transparent !important; }
 
       /* Forms */
       .form-row { display: flex; flex-direction: column; gap: 12px; }
@@ -499,7 +525,6 @@
       .stat .val { font-size: 20px; }
       .kpi-val { font-size: 15px; }
       .card { padding: 12px 10px; }
-      table { min-width: 480px; }
     }
 
     /* ── Payment badges ─────────────────────────────── */
@@ -2765,11 +2790,24 @@ function renderExpAnalytics() {
 ══════════════════════════════════════════════════════ */
 const ROUTES={'#dashboard':renderDashboard,'#designers':renderDesigners,'#hours':renderHours,'#projects':renderProjects,'#clients':renderClients,'#invoices':renderInvoices,'#generate':renderGenerate,'#analytics':renderAnalytics,'#settings':renderSettings,'#exp-items':renderExpItems,'#exp-generate':renderExpGenerate,'#exp-invoices':renderExpInvoices,'#exp-settings':renderExpSettings,'#exp-analytics':renderExpAnalytics};
 function navigate(hash){window.location.hash=hash;closeMobileMenu();}
+function labelTableCells() {
+  if(window.innerWidth > 800) return;
+  document.querySelectorAll('table').forEach(tbl => {
+    const headers = [...tbl.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    tbl.querySelectorAll('tbody tr:not(.tbl-footer)').forEach(row => {
+      [...row.querySelectorAll('td')].forEach((td, i) => {
+        td.setAttribute('data-label', headers[i] || '');
+      });
+    });
+  });
+}
+
 function render(){
   destroyCharts();
   const hash=window.location.hash||'#dashboard';
   highlightNav();
   (ROUTES[hash]||renderDashboard)();
+  setTimeout(labelTableCells, 0);
 }
 window.addEventListener('hashchange',render);
 

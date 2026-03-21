@@ -3882,6 +3882,8 @@ updateSidebarFirm();
 
 async function initSupabaseData() {
   if(!_sb || !_firmId) return;
+  // Clear local cache so old browser data doesn't bleed into a fresh firm
+  SYNC_KEYS.forEach(k => { delete _cache[k]; localStorage.removeItem(k); });
   try {
     const {data,error} = await _sb.from('app_data').select('*').eq('firm_id', _firmId);
     if(error){console.error('Supabase load error:',error);return;}

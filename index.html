@@ -356,7 +356,7 @@
     .completed-section-hd::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
     /* App Switcher */
-    #app-switcher { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; gap: 4px; }
+    #app-switcher { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
     .app-pill {
       flex: 1; padding: 6px 2px; background: transparent; color: var(--sidebar-muted);
       border: 1px solid rgba(255,255,255,0.1); border-radius: 20px;
@@ -426,6 +426,29 @@
     #mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 149; }
     #mobile-overlay.show { display: block; }
 
+    /* ── Mobile dashboard compact stats ────────────── */
+    .mobile-stats-row { display: none; }
+    .mec { display: none; }
+    @media (max-width: 800px) {
+      .mobile-stats-row { display: flex; align-items: stretch; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 16px; overflow: hidden; }
+      .mstat { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px 6px; }
+      .mstat-val { font-family: Georgia, serif; font-size: 22px; color: var(--text); line-height: 1; margin-bottom: 4px; }
+      .mstat-lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); text-align: center; line-height: 1.3; }
+      .mstat-accent .mstat-val { color: var(--accent-dk); }
+      .mstat-div { width: 1px; background: var(--border); margin: 10px 0; flex-shrink: 0; }
+      .mec { display: block; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+      .mec:last-child { border-bottom: none; }
+      .mec-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 8px; }
+      .mec-client { font-size: 14px; font-weight: 600; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .mec-meta { font-size: 12px; color: var(--text2); }
+      /* Hide desktop stats/table on mobile dashboard */
+      .dash-desktop-only { display: none !important; }
+    }
+    @media (min-width: 801px) {
+      /* Hide mobile-only elements on desktop */
+      .dash-mobile-only { display: none !important; }
+    }
+
     /* ── Mobile Timer FAB ───────────────────────────── */
     #mobile-fab-area { display: none; position: fixed; bottom: 24px; right: 20px; flex-direction: column; align-items: flex-end; gap: 8px; z-index: 400; }
     #fab-elapsed-pill { background: var(--text); color: #fff; font-family: 'SF Mono','Fira Code',Menlo,monospace; font-size: 13px; padding: 5px 13px; border-radius: 20px; display: none; letter-spacing: 1.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); white-space: nowrap; }
@@ -453,9 +476,6 @@
 
       /* Main content — full width, space for hamburger + FAB clearance */
       #main { margin-left: 0 !important; padding: 60px 14px 96px !important; width: 100%; min-width: 0; }
-
-      /* Simplify stats on mobile — hide financial stats */
-      .stat-hide-mobile { display: none !important; }
 
       /* Hide amount/revenue columns in card layout */
       tbody td[data-label="Amount"] { display: none !important; }
@@ -652,6 +672,7 @@
   <div id="app-switcher">
     <button class="app-pill active" id="pill-time" onclick="switchApp('time')">Time</button>
     <button class="app-pill" id="pill-expenses" onclick="switchApp('expenses')">Expenses</button>
+    <button class="app-pill" id="pill-invoicing" onclick="switchApp('invoicing')">Invoices</button>
     <button class="app-pill" id="pill-analytics" onclick="switchApp('analytics')">Analytics</button>
   </div>
   <div id="sidebar-cta">
@@ -1086,28 +1107,63 @@ function confirmDelEntry(id){
    VIEW — DASHBOARD
 ══════════════════════════════════════════════════════ */
 function renderDashboard(){
-  const [ws,we]=weekRange(0);
-  const all=loadEntries(), week=all.filter(e=>e.date>=ws&&e.date<=we);
-  const wH=week.reduce((s,e)=>s+e.hours,0);
-  const wR=week.reduce((s,e)=>s+entryAmount(e),0);
-  const wC=new Set(week.map(e=>e.clientId)).size;
-  const wU=week.filter(e=>!isInvoiced(e)).reduce((s,e)=>s+entryAmount(e),0);
+  const [ms,me]=monthRange(0);
+  const now=new Date();
+  const mLabel=CAL_MONTHS[now.getMonth()]+' '+now.getFullYear();
+  const all=loadEntries(), month=all.filter(e=>e.date>=ms&&e.date<=me);
+  const mH=month.reduce((s,e)=>s+e.hours,0);
+  const mR=month.reduce((s,e)=>s+entryAmount(e),0);
+  const mC=new Set(month.map(e=>e.clientId)).size;
+  const mU=month.filter(e=>!isInvoiced(e)).reduce((s,e)=>s+entryAmount(e),0);
+  const mUH=month.filter(e=>!isInvoiced(e)).reduce((s,e)=>s+e.hours,0);
   const recent=[...all].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
 
+  // Mobile compact entry cards
+  const mobileEntries=recent.length?recent.map(e=>{
+    const c=getClientById(e.clientId),inv=isInvoiced(e);
+    const proj=entryProjectName(e);
+    return `<div class="mec">
+      <div class="mec-top">
+        <span class="mec-client">${esc(c?.name||'?')}</span>
+        <span class="badge ${inv?'badge-invoiced':'badge-unbilled'}" style="font-size:10px;flex-shrink:0">${inv?'Invoiced':'Unbilled'}</span>
+      </div>
+      <div class="mec-meta">${fmtDate(e.date)} &middot; ${e.hours}h${proj&&proj!=='—'?` &middot; ${esc(proj)}`:''}</div>
+    </div>`;
+  }).join(''):`<div style="padding:22px 14px;text-align:center;color:var(--text2);font-size:13px">No entries yet — tap the clock button or <strong>+ Log</strong> to start</div>`;
+
+  // Desktop table rows
   const rows=recent.length?recent.map(e=>{
-    const c=getClientById(e.clientId), d=e.designerId?getDesignerById(e.designerId):null, inv=isInvoiced(e);
+    const c=getClientById(e.clientId),d=e.designerId?getDesignerById(e.designerId):null,inv=isInvoiced(e);
     return `<tr><td>${fmtDate(e.date)}</td><td><strong>${esc(c?.name||'?')}</strong></td><td class="col2">${d?esc(d.name):'—'}</td><td>${esc(entryProjectName(e))}</td><td>${e.hours}h</td><td class="gold-txt">${cur(entryAmount(e))}</td><td>${inv?'<span class="badge badge-invoiced">Invoiced</span>':'<span class="badge badge-unbilled">Unbilled</span>'}</td></tr>`;
   }).join(''):`<tr><td colspan="7" class="col2" style="text-align:center;padding:24px">No entries yet — click <strong>Log Time</strong> to get started</td></tr>`;
 
   document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Dashboard</h1><div class="sub">Week of ${fmtDate(ws)} – ${fmtDate(we)}</div></div><button class="btn btn-gold" onclick="openEntryModal()">+ Log Time</button></div>
-    <div class="stats">
-      <div class="stat"><div class="val">${wH.toFixed(1)}</div><div class="lbl">Hours this week</div></div>
-      <div class="stat"><div class="val">${wC}</div><div class="lbl">Active clients</div></div>
-      <div class="stat stat-hide-mobile"><div class="val gold">${cur(wR)}</div><div class="lbl">Revenue this week</div></div>
-      <div class="stat stat-hide-mobile"><div class="val gold">${cur(wU)}</div><div class="lbl">Unbilled this week</div></div>
+    <div class="page-head"><div><h1>Dashboard</h1><div class="sub">${mLabel}</div></div>
+      <button class="btn btn-gold dash-desktop-only" onclick="openEntryModal()">+ Log Time</button>
+      <button class="btn btn-gold dash-mobile-only" onclick="openEntryModal()" style="padding:8px 14px;font-size:13px">+ Log</button>
     </div>
-    <div class="card"><div class="card-head"><h2>Recent Entries</h2></div>
+    <!-- Mobile compact summary -->
+    <div class="mobile-stats-row dash-mobile-only">
+      <div class="mstat"><div class="mstat-val">${mH.toFixed(1)}</div><div class="mstat-lbl">hrs this<br>month</div></div>
+      <div class="mstat-div"></div>
+      <div class="mstat"><div class="mstat-val">${mC}</div><div class="mstat-lbl">active<br>clients</div></div>
+      <div class="mstat-div"></div>
+      <div class="mstat mstat-accent"><div class="mstat-val">${mUH.toFixed(1)}h</div><div class="mstat-lbl">unbilled<br>hrs</div></div>
+    </div>
+    <!-- Desktop stats grid -->
+    <div class="stats dash-desktop-only">
+      <div class="stat"><div class="val">${mH.toFixed(1)}</div><div class="lbl">Hours this month</div></div>
+      <div class="stat"><div class="val">${mC}</div><div class="lbl">Active clients</div></div>
+      <div class="stat"><div class="val gold">${cur(mR)}</div><div class="lbl">Revenue this month</div></div>
+      <div class="stat"><div class="val gold">${cur(mU)}</div><div class="lbl">Unbilled this month</div></div>
+    </div>
+    <!-- Mobile compact recent entries -->
+    <div class="card dash-mobile-only" style="padding:0;overflow:hidden">
+      <div style="padding:12px 14px 10px;border-bottom:1px solid var(--border)"><h2 style="font-size:15px">Recent Entries</h2></div>
+      ${mobileEntries}
+    </div>
+    <!-- Desktop recent entries table -->
+    <div class="card dash-desktop-only"><div class="card-head"><h2>Recent Entries</h2></div>
       <div class="tbl-wrap"><table>
         <thead><tr><th>Date</th><th>Client</th><th>Designer</th><th>Project</th><th>Hours</th><th>Amount</th><th>Status</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -2134,23 +2190,25 @@ const NAV_TIME = `
   <div class="nav-section">Work</div>
   <a href="#projects"><span class="icon">◧</span> Projects</a>
   <a href="#clients"><span class="icon">◎</span> Clients</a>
-  <div class="nav-section">Billing</div>
-  <a href="#invoices"><span class="icon">◻</span> Invoices</a>
-  <a href="#generate"><span class="icon">↗</span> Generate Invoice</a>
   <div class="nav-section">System</div>
   <a href="#settings"><span class="icon">◦</span> Settings</a>`;
 
 const NAV_EXPENSES = `
   <div class="nav-section">Expenses</div>
   <a href="#exp-items"><span class="icon">◧</span> Expense Items</a>
-  <a href="#exp-generate"><span class="icon">↗</span> Generate Invoice</a>
-  <div class="nav-section">History</div>
-  <a href="#exp-invoices"><span class="icon">◻</span> Expense Invoices</a>
   <div class="nav-section">Work</div>
   <a href="#projects"><span class="icon">◧</span> Projects</a>
   <a href="#clients"><span class="icon">◎</span> Clients</a>
   <div class="nav-section">System</div>
   <a href="#exp-settings"><span class="icon">◦</span> Settings</a>`;
+
+const NAV_INVOICING = `
+  <div class="nav-section">Time Invoices</div>
+  <a href="#invoices"><span class="icon">◻</span> Invoice History</a>
+  <a href="#generate"><span class="icon">↗</span> Generate Invoice</a>
+  <div class="nav-section">Expense Invoices</div>
+  <a href="#exp-invoices"><span class="icon">◻</span> Expense History</a>
+  <a href="#exp-generate"><span class="icon">↗</span> Generate Expense</a>`;
 
 const NAV_ANALYTICS = `
   <div class="nav-section">Analytics</div>
@@ -2159,7 +2217,7 @@ const NAV_ANALYTICS = `
   <a href="#projects"><span class="icon">◧</span> Projects</a>
   <a href="#clients"><span class="icon">◎</span> Clients</a>`;
 
-const APP_DEFAULT = { time:'#dashboard', expenses:'#exp-items', analytics:'#analytics' };
+const APP_DEFAULT = { time:'#dashboard', expenses:'#exp-items', invoicing:'#invoices', analytics:'#analytics' };
 
 function switchApp(app) {
   currentApp = app;
@@ -2174,9 +2232,10 @@ function switchApp(app) {
 
 function renderSidebarNav() {
   const nav = document.getElementById('sidebar-nav');
-  if (currentApp === 'time')      nav.innerHTML = NAV_TIME;
-  else if (currentApp === 'expenses') nav.innerHTML = NAV_EXPENSES;
-  else nav.innerHTML = NAV_ANALYTICS;
+  if (currentApp === 'time')           nav.innerHTML = NAV_TIME;
+  else if (currentApp === 'expenses')  nav.innerHTML = NAV_EXPENSES;
+  else if (currentApp === 'invoicing') nav.innerHTML = NAV_INVOICING;
+  else                                 nav.innerHTML = NAV_ANALYTICS;
   highlightNav();
 }
 
@@ -3319,11 +3378,13 @@ function initRealtime() {
   renderSidebarNav();
   // If hash doesn't match current app, navigate to default
   const hash=window.location.hash||'#dashboard';
-  const timeRoutes=['#dashboard','#designers','#hours','#projects','#clients','#invoices','#generate','#settings'];
-  const expRoutes=['#exp-items','#exp-generate','#exp-invoices','#exp-settings','#projects','#clients'];
+  const timeRoutes=['#dashboard','#designers','#hours','#projects','#clients','#settings'];
+  const expRoutes=['#exp-items','#exp-settings','#projects','#clients'];
+  const invRoutes=['#invoices','#generate','#exp-invoices','#exp-generate'];
   const anaRoutes=['#analytics','#exp-analytics','#projects','#clients'];
   if(currentApp==='time'&&!timeRoutes.includes(hash)) window.location.hash='#dashboard';
   else if(currentApp==='expenses'&&!expRoutes.includes(hash)) window.location.hash='#exp-items';
+  else if(currentApp==='invoicing'&&!invRoutes.includes(hash)) window.location.hash='#invoices';
   else if(currentApp==='analytics'&&!anaRoutes.includes(hash)) window.location.hash='#analytics';
   else if(!window.location.hash) window.location.hash=APP_DEFAULT[currentApp];
   render();

@@ -655,6 +655,23 @@
     .cal-empty-msg { text-align: center; padding: 28px 16px; color: var(--text2); font-size: 14px; }
     .cal-empty-msg .cal-ei { font-size: 30px; margin-bottom: 8px; opacity: 0.4; }
 
+    /* ── Invoice Template Selector ───────────────────── */
+    .tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+    .tpl-card { border: 2px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; transition: border-color .15s, box-shadow .15s; position: relative; }
+    .tpl-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(196,168,122,0.25); }
+    .tpl-card.locked { cursor: default; }
+    .tpl-card-preview { height: 72px; position: relative; overflow: hidden; }
+    .tpl-card-hdr { height: 26px; }
+    .tpl-card-body { padding: 5px 7px; display: flex; flex-direction: column; gap: 3px; }
+    .tpl-card-line { height: 2.5px; border-radius: 1px; background: #ddd; }
+    .tpl-card-foot { padding: 5px 8px 6px; font-size: 10.5px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; background: var(--card); border-top: 1px solid var(--border); }
+    .tpl-badge { font-size: 9px; padding: 1px 5px; border-radius: 10px; font-weight: 700; letter-spacing: 0.3px; }
+    .tpl-badge-free { background: #EAF2EC; color: #2D6A4F; }
+    .tpl-badge-pro  { background: #FBF5E8; color: #A88C5E; }
+    .tpl-badge-lock { background: #f0f0f0; color: #999; }
+    .tpl-check { position: absolute; top: 5px; right: 5px; width: 16px; height: 16px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #fff; font-weight: 700; }
+    .tpl-pro-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.55); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+
     /* ── Auth Screen ──────────────────────────────────── */
     #auth-screen {
       position: fixed; inset: 0; z-index: 9000;
@@ -836,12 +853,88 @@ const store = (k,v)  => {
   if(_sb && _firmId && SYNC_KEYS.has(k))(async()=>{ try{ await _sb.from('app_data').upsert({firm_id:_firmId,key:k,value:v,updated_at:new Date().toISOString()}); }catch(e){ console.error('Supabase write error:',e); } })();
 };
 
+/* ══════════════════════════════════════════════════════
+   INVOICE TEMPLATES
+══════════════════════════════════════════════════════ */
+// Color values: [R,G,B] arrays or 'brand' (resolved at render time from settings.brandColor)
+const INVOICE_TEMPLATES = [
+  // ── FREE (3) ───────────────────────────────────────
+  { id:'classic',     name:'Classic',      plan:'free', layout:'standard',
+    hdrBg:null,            hdrFg:[20,20,18],    invColor:[196,168,122],
+    tblHdr:[30,28,24],     tblHdrFg:[255,255,255], tblStripe:[249,248,245],
+    accent:[196,168,122],  divider:[220,215,205] },
+  { id:'modern',      name:'Modern',       plan:'free', layout:'standard',
+    hdrBg:null,            hdrFg:[20,20,18],    invColor:'brand',
+    tblHdr:'brand',        tblHdrFg:[255,255,255], tblStripe:[250,250,250],
+    accent:'brand',        divider:[220,220,220] },
+  { id:'minimal',     name:'Minimal',      plan:'free', layout:'standard',
+    hdrBg:null,            hdrFg:[40,40,40],    invColor:[40,40,40],
+    tblHdr:[240,240,238],  tblHdrFg:[40,40,40],   tblStripe:[252,252,252],
+    accent:[40,40,40],     divider:[200,200,200] },
+  // ── PRO (12) ──────────────────────────────────────
+  { id:'executive',   name:'Executive',    plan:'pro',  layout:'header-bar',
+    hdrBg:[27,42,74],      hdrFg:[255,255,255], invColor:[255,255,255],
+    tblHdr:[27,42,74],     tblHdrFg:[255,255,255], tblStripe:[247,249,252],
+    accent:[27,42,74],     divider:[200,210,230] },
+  { id:'boutique',    name:'Boutique',     plan:'pro',  layout:'standard',
+    hdrBg:null,            hdrFg:[80,40,50],    invColor:[180,110,130],
+    tblHdr:[230,180,195],  tblHdrFg:[80,40,50],   tblStripe:[253,248,250],
+    accent:[180,110,130],  divider:[230,200,210] },
+  { id:'studio-dark', name:'Studio Dark',  plan:'pro',  layout:'header-bar',
+    hdrBg:[20,20,18],      hdrFg:[232,227,216], invColor:[196,168,122],
+    tblHdr:[40,38,34],     tblHdrFg:[232,227,216], tblStripe:[248,247,245],
+    accent:[196,168,122],  divider:[180,175,165] },
+  { id:'corporate',   name:'Corporate',    plan:'pro',  layout:'standard',
+    hdrBg:null,            hdrFg:[20,30,60],    invColor:[20,30,60],
+    tblHdr:[20,30,60],     tblHdrFg:[255,255,255], tblStripe:[245,247,252],
+    accent:[20,30,60],     divider:[180,190,215] },
+  { id:'luxe',        name:'Luxe',         plan:'pro',  layout:'header-bar',
+    hdrBg:[13,13,13],      hdrFg:[255,255,255], invColor:[196,168,122],
+    tblHdr:[30,28,24],     tblHdrFg:[196,168,122], tblStripe:[249,248,245],
+    accent:[196,168,122],  divider:[180,175,165] },
+  { id:'creative',    name:'Creative',     plan:'pro',  layout:'header-bar',
+    hdrBg:'brand',         hdrFg:[255,255,255], invColor:[255,255,255],
+    tblHdr:'brand',        tblHdrFg:[255,255,255], tblStripe:[250,250,250],
+    accent:'brand',        divider:[200,200,200] },
+  { id:'editorial',   name:'Editorial',    plan:'pro',  layout:'centered',
+    hdrBg:null,            hdrFg:[10,10,10],    invColor:[10,10,10],
+    tblHdr:[10,10,10],     tblHdrFg:[255,255,255], tblStripe:[250,250,250],
+    accent:[10,10,10],     divider:[190,190,190] },
+  { id:'sage',        name:'Sage',         plan:'pro',  layout:'standard',
+    hdrBg:null,            hdrFg:[30,60,45],    invColor:[61,107,79],
+    tblHdr:[61,107,79],    tblHdrFg:[255,255,255], tblStripe:[244,251,247],
+    accent:[61,107,79],    divider:[180,220,200] },
+  { id:'clean-pro',   name:'Clean Pro',    plan:'pro',  layout:'header-bar',
+    hdrBg:[242,240,235],   hdrFg:[26,25,22],    invColor:[26,25,22],
+    tblHdr:[210,206,198],  tblHdrFg:[26,25,22],   tblStripe:[250,249,247],
+    accent:[26,25,22],     divider:[200,196,188] },
+  { id:'charcoal',    name:'Charcoal',     plan:'pro',  layout:'header-bar',
+    hdrBg:[61,59,56],      hdrFg:[232,227,216], invColor:[196,168,122],
+    tblHdr:[80,78,74],     tblHdrFg:[232,227,216], tblStripe:[247,246,244],
+    accent:[196,168,122],  divider:[160,158,154] },
+  { id:'cobalt',      name:'Cobalt',       plan:'pro',  layout:'header-bar',
+    hdrBg:[27,58,107],     hdrFg:[255,255,255], invColor:[150,190,240],
+    tblHdr:[27,58,107],    tblHdrFg:[255,255,255], tblStripe:[245,248,255],
+    accent:[27,58,107],    divider:[180,200,230] },
+  { id:'signature',   name:'Signature',    plan:'pro',  layout:'centered',
+    hdrBg:null,            hdrFg:[20,20,18],    invColor:'brand',
+    tblHdr:'brand',        tblHdrFg:[255,255,255], tblStripe:[250,250,248],
+    accent:'brand',        divider:[220,215,205] },
+];
+
+let _firmPlan = 'free';
+
+function hexToRgb(hex) {
+  const h = hex.replace('#','');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+
 const loadEntries   = () => load(K.entries,   []);
 const loadClients   = () => load(K.clients,   []);
 const loadDesigners = () => load(K.designers, []);
 const loadProjects  = () => load(K.projects,  []);
 const loadInvoices  = () => load(K.invoices,  []);
-const loadSettings  = () => { const def={firmName:'JJ&A Design Studio',firmAddress:'',firmEmail:'',firmPhone:'',defaultRate:100,invoicePrefix:'INV',invoiceNext:1,currency:'USD',paymentTerms:14}; return {...def,...(load(K.settings,{})||{})}; };
+const loadSettings  = () => { const def={firmName:'JJ&A Design Studio',firmAddress:'',firmEmail:'',firmPhone:'',defaultRate:100,invoicePrefix:'INV',invoiceNext:1,currency:'USD',paymentTerms:14,invoiceTemplate:'classic',brandColor:'#C4A87A',logoUrl:null}; return {...def,...(load(K.settings,{})||{})}; };
 
 const saveEntries   = v => store(K.entries,   v);
 const saveClients   = v => store(K.clients,   v);
@@ -1669,9 +1762,135 @@ function renderGenerate(){
 }
 
 /* ══════════════════════════════════════════════════════
-   PDF GENERATOR
+   PDF GENERATOR — template-driven
 ══════════════════════════════════════════════════════ */
-function generatePDF(){
+function buildTimePDF(entries, settings, invMeta, tplId) {
+  const tpl   = INVOICE_TEMPLATES.find(t=>t.id===tplId) || INVOICE_TEMPLATES[0];
+  const brand = hexToRgb(settings.brandColor||'#C4A87A');
+  const rc    = c => c==='brand' ? brand : c;                // resolve 'brand' tokens
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
+  const PW=215.9, M=20, R=PW-M;
+  const {invNum,client:c,designer,start,end,issueDate,dueDate}=invMeta;
+  let tableStartY=88;
+
+  // ── LAYOUT: header-bar ───────────────────────────
+  if(tpl.layout==='header-bar'){
+    doc.setFillColor(...rc(tpl.hdrBg)); doc.rect(0,0,PW,44,'F');
+    let logoX=M;
+    if(settings.logoUrl){try{doc.addImage(settings.logoUrl,'PNG',M,6,26,26);logoX=M+30;}catch(e){}}
+    doc.setFontSize(15);doc.setFont('helvetica','bold');doc.setTextColor(...rc(tpl.hdrFg));
+    doc.text(settings.firmName||'Your Firm',logoX,18);
+    doc.setFontSize(7.5);doc.setFont('helvetica','normal');
+    const fg2=rc(tpl.hdrFg).map(v=>Math.min(255,v+70));doc.setTextColor(...fg2);
+    let hy=24;
+    if(settings.firmAddress){doc.text(settings.firmAddress,logoX,hy);hy+=5;}
+    if(settings.firmEmail){doc.text(settings.firmEmail,logoX,hy);}
+    doc.setFontSize(22);doc.setFont('helvetica','bold');doc.setTextColor(...rc(tpl.invColor));
+    doc.text('INVOICE',R,20,{align:'right'});
+    doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(...fg2);
+    doc.text(`# ${invNum}`,R,27,{align:'right'});
+    doc.text(`Date: ${fmtDateLong(issueDate)}`,R,33,{align:'right'});
+    doc.text(`Due: ${fmtDateLong(dueDate)}`,R,39,{align:'right'});
+    let curY=54;
+    doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,curY);curY+=6;
+    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c.name,M,curY);curY+=5;
+    doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
+    if(c.contactName){doc.text(c.contactName,M,curY);curY+=5;}
+    if(c.email){doc.text(c.email,M,curY);curY+=5;}
+    if(designer){doc.text(`Designer: ${designer.name}`,M,curY);curY+=5;}
+    doc.setFontSize(8);doc.setTextColor(130,125,118);
+    doc.text(`Billing Period: ${fmtDateLong(start)} – ${fmtDateLong(end)}`,R,58,{align:'right'});
+    tableStartY=Math.max(curY+4,76);
+
+  // ── LAYOUT: centered ─────────────────────────────
+  } else if(tpl.layout==='centered'){
+    let topY=settings.logoUrl?38:28;
+    if(settings.logoUrl){try{doc.addImage(settings.logoUrl,'PNG',PW/2-15,12,30,20);}catch(e){}}
+    doc.setFontSize(20);doc.setFont('helvetica','bold');doc.setTextColor(...rc(tpl.hdrFg));
+    doc.text(settings.firmName||'Your Firm',PW/2,topY,{align:'center'});
+    doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+    const sub=[settings.firmAddress,settings.firmEmail].filter(Boolean).join('  ·  ');
+    if(sub) doc.text(sub,PW/2,topY+6,{align:'center'});
+    doc.setDrawColor(...rc(tpl.divider));doc.setLineWidth(0.5);doc.line(M,topY+11,R,topY+11);
+    doc.setFontSize(14);doc.setFont('helvetica','bold');doc.setTextColor(...rc(tpl.invColor));
+    doc.text('INVOICE',PW/2,topY+20,{align:'center'});
+    doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(120,115,110);
+    doc.text(`${invNum}   ·   ${fmtDateLong(issueDate)}   ·   Due ${fmtDateLong(dueDate)}`,PW/2,topY+27,{align:'center'});
+    doc.setDrawColor(...rc(tpl.divider));doc.setLineWidth(0.3);doc.line(M,topY+32,R,topY+32);
+    const btoY=topY+41;
+    doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,btoY);
+    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c.name,M,btoY+6);
+    doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
+    let by=btoY+12;
+    if(c.contactName){doc.text(c.contactName,M,by);by+=5;}
+    if(c.email){doc.text(c.email,M,by);}
+    if(designer){doc.text(`Designer: ${designer.name}`,R,btoY+6,{align:'right'});}
+    doc.setFontSize(8);doc.setTextColor(130,125,118);
+    doc.text(`Period: ${fmtDateLong(start)} – ${fmtDateLong(end)}`,R,btoY+12,{align:'right'});
+    tableStartY=btoY+22;
+
+  // ── LAYOUT: standard ─────────────────────────────
+  } else {
+    let firmX=M;
+    if(settings.logoUrl){try{doc.addImage(settings.logoUrl,'PNG',M,14,24,24);firmX=M+28;}catch(e){}}
+    doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(...rc(tpl.hdrFg));
+    doc.text(settings.firmName||'Your Firm',firmX,26);
+    doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+    let iy=32;
+    if(settings.firmAddress){doc.text(settings.firmAddress,firmX,iy);iy+=5;}
+    if(settings.firmEmail){doc.text(settings.firmEmail,firmX,iy);iy+=5;}
+    if(settings.firmPhone){doc.text(settings.firmPhone,firmX,iy);}
+    doc.setFontSize(22);doc.setFont('helvetica','bold');doc.setTextColor(...rc(tpl.invColor));
+    doc.text('INVOICE',R,26,{align:'right'});
+    doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+    doc.text(`Invoice #: ${invNum}`,R,33,{align:'right'});
+    doc.text(`Date: ${fmtDateLong(issueDate)}`,R,38,{align:'right'});
+    doc.text(`Due: ${fmtDateLong(dueDate)}`,R,43,{align:'right'});
+    doc.setDrawColor(...rc(tpl.divider));doc.setLineWidth(0.4);doc.line(M,52,R,52);
+    doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,59);
+    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c.name,M,65);
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
+    let by=71;
+    if(c.contactName){doc.text(c.contactName,M,by);by+=5;}
+    if(c.email){doc.text(c.email,M,by);by+=5;}
+    if(designer){doc.text(`Designer: ${designer.name}`,M,by);}
+    doc.setFontSize(8.5);doc.setTextColor(130,125,118);
+    doc.text(`Billing Period: ${fmtDateLong(start)} – ${fmtDateLong(end)}`,R,65,{align:'right'});
+  }
+
+  // ── TABLE ────────────────────────────────────────
+  const body=entries.map(e=>{
+    const d=e.designerId?getDesignerById(e.designerId):null;
+    return[fmtDate(e.date),d?d.name:'—',entryProjectName(e),e.description,`${e.hours}h`,`${cur(entryRate(e))}/hr`,cur(entryAmount(e))];
+  });
+  doc.autoTable({startY:tableStartY,head:[['Date','Designer','Project','Description','Hours','Rate','Amount']],body,margin:{left:M,right:M},
+    styles:{fontSize:8.5,cellPadding:3.5,textColor:[30,28,24]},
+    headStyles:{fillColor:rc(tpl.tblHdr),textColor:rc(tpl.tblHdrFg),fontStyle:'bold',fontSize:8},
+    columnStyles:{0:{cellWidth:22},1:{cellWidth:25},2:{cellWidth:28},3:{cellWidth:'auto',overflow:'linebreak'},4:{cellWidth:14,halign:'right'},5:{cellWidth:20,halign:'right'},6:{cellWidth:22,halign:'right'}},
+    alternateRowStyles:{fillColor:rc(tpl.tblStripe)}});
+
+  // ── TOTALS ───────────────────────────────────────
+  const aft=doc.lastAutoTable.finalY+8;
+  const totH=entries.reduce((s,e)=>s+e.hours,0), totA=entries.reduce((s,e)=>s+entryAmount(e),0);
+  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(110,105,98);
+  doc.text('Total Hours:',R-40,aft);doc.text(`${totH.toFixed(1)}h`,R,aft,{align:'right'});
+  doc.setDrawColor(...rc(tpl.divider));doc.line(R-45,aft+4,R,aft+4);
+  doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text('Total Due:',R-40,aft+10);
+  doc.setTextColor(...rc(tpl.accent));doc.text(cur(totA),R,aft+10,{align:'right'});
+
+  // ── FOOTER + WATERMARK ───────────────────────────
+  const payTerms=settings.paymentTerms||14;
+  doc.setDrawColor(...rc(tpl.divider));doc.setLineWidth(0.3);doc.line(M,256,R,256);
+  doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
+  doc.text(`Thank you for your business. Payment due within ${payTerms} days.`,PW/2,261,{align:'center'});
+  doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(195,190,183);
+  doc.text('Billed via jasejonesinvoicing.com',PW/2,268,{align:'center'});
+
+  return {doc, totH, totA};
+}
+
+async function generatePDF(){
   const clientId=document.getElementById('gi-cli').value;
   const designerId=document.getElementById('gi-des').value;
   const projectId=document.getElementById('gi-proj').value;
@@ -1681,62 +1900,10 @@ function generatePDF(){
   const entries=filterEntries({clientId,designerId,projectId,start,end});
   const settings=loadSettings();
   if(!entries.length){toast('No entries for this period');return;}
-
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
-  const PW=215.9,M=20,R=PW-M;
   const invNum=`${settings.invoicePrefix}-${String(settings.invoiceNext).padStart(4,'0')}`;
-  const issueDate=todayStr(), dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+14);
+  const issueDate=todayStr(), dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+(settings.paymentTerms||14));
   const dueDate=dueD.toISOString().split('T')[0];
-
-  doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
-  doc.text(settings.firmName||'Your Firm',M,26);
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
-  let iy=32;
-  if(settings.firmAddress){doc.text(settings.firmAddress,M,iy);iy+=5;}
-  if(settings.firmEmail){doc.text(settings.firmEmail,M,iy);iy+=5;}
-  if(settings.firmPhone){doc.text(settings.firmPhone,M,iy);}
-
-  doc.setFontSize(22);doc.setFont('helvetica','bold');doc.setTextColor(196,168,122);
-  doc.text('INVOICE',R,26,{align:'right'});
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
-  doc.text(`Invoice #: ${invNum}`,R,33,{align:'right'});
-  doc.text(`Date: ${fmtDateLong(issueDate)}`,R,38,{align:'right'});
-  doc.text(`Due: ${fmtDateLong(dueDate)}`,R,43,{align:'right'});
-
-  doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,52,R,52);
-  doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,59);
-  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c.name,M,65);
-  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
-  let by=71;
-  if(c.contactName){doc.text(c.contactName,M,by);by+=5;}
-  if(c.email){doc.text(c.email,M,by);by+=5;}
-  if(designer){doc.text(`Designer: ${designer.name}`,M,by);}
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(130,125,118);
-  doc.text(`Billing Period: ${fmtDateLong(start)} – ${fmtDateLong(end)}`,R,65,{align:'right'});
-
-  const body=entries.map(e=>{
-    const d=e.designerId?getDesignerById(e.designerId):null;
-    return[fmtDate(e.date),d?d.name:'—',entryProjectName(e),e.description,`${e.hours}h`,`${cur(entryRate(e))}/hr`,cur(entryAmount(e))];
-  });
-
-  doc.autoTable({startY:88,head:[['Date','Designer','Project','Description','Hours','Rate','Amount']],body,margin:{left:M,right:M},
-    styles:{fontSize:8.5,cellPadding:3.5,textColor:[30,28,24]},
-    headStyles:{fillColor:[30,28,24],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
-    columnStyles:{0:{cellWidth:22},1:{cellWidth:25},2:{cellWidth:28},3:{cellWidth:'auto',overflow:'linebreak'},4:{cellWidth:14,halign:'right'},5:{cellWidth:20,halign:'right'},6:{cellWidth:22,halign:'right'}},
-    alternateRowStyles:{fillColor:[249,248,245]}});
-
-  const aft=doc.lastAutoTable.finalY+8;
-  const totH=entries.reduce((s,e)=>s+e.hours,0), totA=entries.reduce((s,e)=>s+entryAmount(e),0);
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(110,105,98);
-  doc.text('Total Hours:',R-40,aft);doc.text(`${totH.toFixed(1)}h`,R,aft,{align:'right'});
-  doc.setDrawColor(220,215,205);doc.line(R-45,aft+4,R,aft+4);
-  doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text('Total Due:',R-40,aft+10);
-  doc.setTextColor(168,140,94);doc.text(cur(totA),R,aft+10,{align:'right'});
-  doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
-  doc.setDrawColor(220,215,205);doc.line(M,258,R,258);
-  doc.text('Thank you for your business. Payment due within 14 days.',PW/2,263,{align:'center'});
-
+  const {doc,totH,totA}=buildTimePDF(entries,settings,{invNum,client:c,designer,start,end,issueDate,dueDate},settings.invoiceTemplate||'classic');
   const invRecord={id:uid(),invoiceNumber:invNum,clientId,designerId:designerId||null,projectId:projectId||null,startDate:start,endDate:end,totalHours:totH,totalAmount:totA,generatedAt:new Date().toISOString()};
   const il=loadInvoices(); il.push(invRecord); saveInvoices(il);
   settings.invoiceNext+=1; saveSettings(settings);
@@ -1747,67 +1914,13 @@ function generatePDF(){
 window.redownloadTimePDF = invId => {
   const inv=loadInvoices().find(i=>i.id===invId);
   if(!inv){toast('Invoice record not found');return;}
-  const c=getClientById(inv.clientId);
-  const designer=inv.designerId?getDesignerById(inv.designerId):null;
+  const c=getClientById(inv.clientId), designer=inv.designerId?getDesignerById(inv.designerId):null;
   const entries=filterEntries({clientId:inv.clientId,designerId:inv.designerId||'',projectId:inv.projectId||'',start:inv.startDate,end:inv.endDate});
   const settings=loadSettings();
   if(!entries.length){toast('No entries found for this invoice period');return;}
-
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
-  const PW=215.9,M=20,R=PW-M;
   const issueDate=inv.generatedAt.split('T')[0];
-  const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+14);
-  const dueDate=dueD.toISOString().split('T')[0];
-
-  doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
-  doc.text(settings.firmName||'Your Firm',M,26);
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
-  let iy=32;
-  if(settings.firmAddress){doc.text(settings.firmAddress,M,iy);iy+=5;}
-  if(settings.firmEmail){doc.text(settings.firmEmail,M,iy);iy+=5;}
-  if(settings.firmPhone){doc.text(settings.firmPhone,M,iy);}
-
-  doc.setFontSize(22);doc.setFont('helvetica','bold');doc.setTextColor(196,168,122);
-  doc.text('INVOICE',R,26,{align:'right'});
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
-  doc.text(`Invoice #: ${inv.invoiceNumber}`,R,33,{align:'right'});
-  doc.text(`Date: ${fmtDateLong(issueDate)}`,R,38,{align:'right'});
-  doc.text(`Due: ${fmtDateLong(dueDate)}`,R,43,{align:'right'});
-
-  doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,52,R,52);
-  doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,59);
-  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c?.name||'?',M,65);
-  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
-  let by=71;
-  if(c?.contactName){doc.text(c.contactName,M,by);by+=5;}
-  if(c?.email){doc.text(c.email,M,by);by+=5;}
-  if(designer){doc.text(`Designer: ${designer.name}`,M,by);}
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(130,125,118);
-  doc.text(`Billing Period: ${fmtDateLong(inv.startDate)} – ${fmtDateLong(inv.endDate)}`,R,65,{align:'right'});
-
-  const body=entries.map(e=>{
-    const d=e.designerId?getDesignerById(e.designerId):null;
-    return[fmtDate(e.date),d?d.name:'—',entryProjectName(e),e.description,`${e.hours}h`,`${cur(entryRate(e))}/hr`,cur(entryAmount(e))];
-  });
-
-  doc.autoTable({startY:88,head:[['Date','Designer','Project','Description','Hours','Rate','Amount']],body,margin:{left:M,right:M},
-    styles:{fontSize:8.5,cellPadding:3.5,textColor:[30,28,24]},
-    headStyles:{fillColor:[30,28,24],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
-    columnStyles:{0:{cellWidth:22},1:{cellWidth:25},2:{cellWidth:28},3:{cellWidth:'auto',overflow:'linebreak'},4:{cellWidth:14,halign:'right'},5:{cellWidth:20,halign:'right'},6:{cellWidth:22,halign:'right'}},
-    alternateRowStyles:{fillColor:[249,248,245]}});
-
-  const aft=doc.lastAutoTable.finalY+8;
-  const totH=entries.reduce((s,e)=>s+e.hours,0), totA=entries.reduce((s,e)=>s+entryAmount(e),0);
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(110,105,98);
-  doc.text('Total Hours:',R-40,aft);doc.text(`${totH.toFixed(1)}h`,R,aft,{align:'right'});
-  doc.setDrawColor(220,215,205);doc.line(R-45,aft+4,R,aft+4);
-  doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text('Total Due:',R-40,aft+10);
-  doc.setTextColor(168,140,94);doc.text(cur(totA),R,aft+10,{align:'right'});
-  doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
-  doc.setDrawColor(220,215,205);doc.line(M,258,R,258);
-  doc.text('Thank you for your business. Payment due within 14 days.',PW/2,263,{align:'center'});
-
+  const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+(settings.paymentTerms||14));
+  const {doc}=buildTimePDF(entries,settings,{invNum:inv.invoiceNumber,client:c,designer,start:inv.startDate,end:inv.endDate,issueDate,dueDate:dueD.toISOString().split('T')[0]},settings.invoiceTemplate||'classic');
   doc.save(`${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}.pdf`);
   toast(`${inv.invoiceNumber} re-downloaded`);
 };
@@ -2108,8 +2221,69 @@ function buildCombinedAnalytics(){
 function renderSettings(){
   const s=loadSettings();
   const isDark=document.body.classList.contains('dark-mode');
+  const brandHex=s.brandColor||'#C4A87A';
+
+  const tplCard=tpl=>{
+    const isLocked=tpl.plan==='pro'&&_firmPlan!=='pro';
+    const isSel=s.invoiceTemplate===tpl.id;
+    const hdrColor=Array.isArray(tpl.hdrBg)?`rgb(${tpl.hdrBg.join(',')})`:tpl.hdrBg==='brand'?brandHex:'#F2F0EB';
+    const acColor=tpl.accent==='brand'?brandHex:Array.isArray(tpl.accent)?`rgb(${tpl.accent.join(',')})`:brandHex;
+    return `<div class="tpl-card${isSel?' selected':''}${isLocked?' locked':''}"
+      onclick="${isLocked?"toast('Upgrade to Pro to unlock this template')":`selectTemplate('${tpl.id}')`}">
+      ${isSel?'<div class="tpl-check">✓</div>':''}
+      ${isLocked?'<div class="tpl-pro-overlay">🔒</div>':''}
+      <div class="tpl-card-preview">
+        <div class="tpl-card-hdr" style="background:${hdrColor}"></div>
+        <div class="tpl-card-body">
+          <div class="tpl-card-line" style="width:55%"></div>
+          <div class="tpl-card-line" style="width:35%"></div>
+          <div class="tpl-card-line" style="width:65%;background:${acColor};opacity:0.55"></div>
+        </div>
+      </div>
+      <div class="tpl-card-foot">
+        <span>${tpl.name}</span>
+        <span class="tpl-badge tpl-badge-${isLocked?'lock':tpl.plan}">${isLocked?'Pro':tpl.plan==='free'?'Free':'Pro'}</span>
+      </div>
+    </div>`;
+  };
+
   document.getElementById('app').innerHTML=`
     <div class="page-head"><div><h1>Settings</h1><div class="sub">Firm info, preferences, and data management</div></div></div>
+
+    <div class="card" style="max-width:760px;margin-bottom:18px">
+      <h2 style="margin-bottom:6px">Invoice Template</h2>
+      <p class="col2 fs12" style="margin-bottom:14px">Choose a design for your invoices. All future PDFs will use this template.</p>
+      <div class="tpl-grid">${INVOICE_TEMPLATES.map(tplCard).join('')}</div>
+      ${_firmPlan!=='pro'?`<div style="margin-top:14px;padding:10px 14px;background:var(--accent-lt);border-radius:var(--radius);font-size:12px;color:var(--accent-dk)">
+        <strong>12 Pro templates locked.</strong> Upgrade to Pro to unlock all templates and remove the watermark.
+      </div>`:''}
+    </div>
+
+    <div class="card" style="max-width:760px;margin-bottom:18px">
+      <h2 style="margin-bottom:16px">Branding</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label">Brand Color</label>
+          <div style="display:flex;gap:10px;align-items:center">
+            <input type="color" id="sf-brand-color" value="${brandHex}" style="width:44px;height:36px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;padding:2px" oninput="document.getElementById('sf-brand-hex').value=this.value">
+            <input type="text" id="sf-brand-hex" value="${brandHex}" maxlength="7" style="width:90px;font-family:monospace" oninput="syncBrandColor()">
+            <button class="btn btn-ghost" onclick="saveBrandColor()">Save</button>
+          </div>
+          <p style="font-size:11.5px;color:var(--text2);margin-top:6px">Accent color used on invoices for templates that support it.</p>
+        </div>
+        <div class="form-group">
+          <label class="field-label">Firm Logo</label>
+          ${s.logoUrl?`<div style="margin-bottom:8px"><img src="${s.logoUrl}" style="max-height:50px;max-width:160px;border-radius:4px;border:1px solid var(--border);padding:4px;background:#fff"></div>`:''}
+          <div style="display:flex;gap:8px">
+            <label class="btn btn-ghost" style="cursor:pointer;font-size:12px">${s.logoUrl?'↺ Change':'⬆ Upload'} Logo
+              <input type="file" accept="image/*" style="display:none" onchange="handleLogoUpload(this)">
+            </label>
+            ${s.logoUrl?`<button class="btn btn-ghost" style="font-size:12px" onclick="removeLogo()">Remove</button>`:''}
+          </div>
+          <p style="font-size:11.5px;color:var(--text2);margin-top:6px">Appears on all invoices. PNG or JPG, max 2MB.</p>
+        </div>
+      </div>
+    </div>
 
     <div class="card" style="max-width:640px;margin-bottom:18px">
       <h2 style="margin-bottom:16px">Firm Information</h2>
@@ -2204,6 +2378,31 @@ function saveBillingSettings(){
   saveSettings(s);
   toast('Billing settings saved');
 }
+/* ── Template / Branding settings helpers ── */
+window.selectTemplate = id => {
+  const tpl=INVOICE_TEMPLATES.find(t=>t.id===id); if(!tpl) return;
+  if(tpl.plan==='pro'&&_firmPlan!=='pro'){toast('Upgrade to Pro to unlock this template');return;}
+  const s=loadSettings(); s.invoiceTemplate=id; saveSettings(s);
+  renderSettings(); toast(`Template "${tpl.name}" selected`);
+};
+window.syncBrandColor = () => {
+  const hex=document.getElementById('sf-brand-hex').value.trim();
+  if(/^#[0-9A-Fa-f]{6}$/.test(hex)) document.getElementById('sf-brand-color').value=hex;
+};
+window.saveBrandColor = () => {
+  const hex=document.getElementById('sf-brand-hex').value.trim();
+  if(!/^#[0-9A-Fa-f]{6}$/.test(hex)){toast('Invalid color — use format #RRGGBB');return;}
+  const s=loadSettings(); s.brandColor=hex; saveSettings(s);
+  toast('Brand color saved');
+};
+window.handleLogoUpload = input => {
+  const file=input.files[0]; if(!file) return;
+  if(file.size>2*1024*1024){toast('Image must be under 2MB');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{ const s=loadSettings(); s.logoUrl=e.target.result; saveSettings(s); renderSettings(); toast('Logo saved'); };
+  reader.readAsDataURL(file);
+};
+window.removeLogo = () => { const s=loadSettings(); s.logoUrl=null; saveSettings(s); renderSettings(); toast('Logo removed'); };
 function exportData(){exportAllData();}
 function importData(input){importAllData(input);}
 function clearAll(){if(!confirm('Clear ALL data? Cannot be undone.'))return;['tt_entries','tt_clients','tt_designers','tt_projects','tt_invoices','tt_settings','tt_expense_items','tt_expense_invoices','tt_expense_settings'].forEach(k=>localStorage.removeItem(k));toast('All data cleared');render();}
@@ -2485,7 +2684,7 @@ async function loadFirmContext() {
   try {
     const { data } = await _sb
       .from('firm_members')
-      .select('firm_id, role, firms(id, name, invite_code)')
+      .select('firm_id, role, firms(id, name, invite_code, plan)')
       .eq('user_id', _currentUser.id)
       .maybeSingle();
     if(data?.firm_id) {
@@ -2493,6 +2692,7 @@ async function loadFirmContext() {
       _myRole         = data.role;
       _firmName       = data.firms?.name;
       _firmInviteCode = data.firms?.invite_code;
+      _firmPlan       = data.firms?.plan || 'free';
       return true;
     }
     return false;
@@ -3113,8 +3313,10 @@ function generateExpPDF() {
   doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
   doc.text('Total Due:',R-40,aft+10);doc.setTextColor(168,140,94);doc.text(cur(total),R,aft+10,{align:'right'});
   doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
-  doc.setDrawColor(220,215,205);doc.line(M,258,R,258);
-  doc.text('Thank you for your business. Payment due within 14 days.',PW/2,263,{align:'center'});
+  doc.setDrawColor(220,215,205);doc.line(M,256,R,256);
+  doc.text('Thank you for your business. Payment due within 14 days.',PW/2,261,{align:'center'});
+  doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(195,190,183);
+  doc.text('Billed via jasejonesinvoicing.com',PW/2,268,{align:'center'});
 
   // Save invoice record
   const invRecord={id:uid(),invoiceNumber:invNum,clientId:cliId,projectId:projId||null,
@@ -3254,7 +3456,10 @@ window.redownloadExpPDF = id => {
   doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text('Total Due:',R-40,aft+10);
   doc.setTextColor(168,140,94);doc.text(cur(total),R,aft+10,{align:'right'});
   doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
-  doc.setDrawColor(220,215,205);doc.line(M,258,R,258);doc.text('Thank you for your business. Payment due within 14 days.',PW/2,263,{align:'center'});
+  doc.setDrawColor(220,215,205);doc.line(M,256,R,256);
+  doc.text('Thank you for your business. Payment due within 14 days.',PW/2,261,{align:'center'});
+  doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(195,190,183);
+  doc.text('Billed via jasejonesinvoicing.com',PW/2,268,{align:'center'});
   doc.save(`${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}-Expenses.pdf`);
   closeModal(); toast(`${inv.invoiceNumber} re-downloaded`);
 };

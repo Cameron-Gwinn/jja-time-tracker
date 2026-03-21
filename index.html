@@ -3938,6 +3938,7 @@ function labelTableCells() {
 }
 
 function render(){
+  if(!_currentUser || !_firmId) { showAuthScreen(); return; }
   destroyCharts();
   const hash=window.location.hash||'#dashboard';
   highlightNav();
@@ -4239,20 +4240,38 @@ async function runApp() {
 // Auth state listener — handles sign-in, sign-out, and session restore
 _sb.auth.onAuthStateChange(async (event, session) => {
   if(session?.user) {
+    // Reject unconfirmed accounts — Supabase sets email_confirmed_at when confirmed
+    if(!session.user.email_confirmed_at) {
+      // Show the confirm-email pane and keep auth screen up
+      showAuthScreen();
+      document.getElementById('auth-pane-signin').style.display  = 'none';
+      document.getElementById('auth-pane-signup').style.display  = 'none';
+      document.getElementById('auth-pane-confirm').style.display = '';
+      return;
+    }
     _currentUser = session.user;
     updateSidebarUser(_currentUser);
-    hideAuthScreen();
     if(!_appInitialized) {
       _appInitialized = true;
-      await loadMyProfile();
-      const hasFirm = await loadFirmContext();
-      if(!hasFirm) {
-        showFirmScreen();
-        return;
+      try {
+        await loadMyProfile();
+        const hasFirm = await loadFirmContext();
+        if(!hasFirm) {
+          // Must join or create a firm — keep auth screen hidden, show firm screen
+          hideAuthScreen();
+          showFirmScreen();
+          return;
+        }
+        hideAuthScreen();
+        updateSidebarFirm();
+        await syncTimerFromCloud();
+        await runApp();
+      } catch(e) {
+        // Boot failed — reset so it retries on next auth event
+        console.error('App boot error:', e);
+        _appInitialized = false;
+        showAuthScreen();
       }
-      updateSidebarFirm();
-      await syncTimerFromCloud();
-      await runApp();
     }
   } else if(event === 'SIGNED_OUT') {
     _currentUser = null; _myDesignerId = null; _firmId = null;

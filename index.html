@@ -3140,15 +3140,10 @@ function saveExpItemForm(editId) {
     const itemId=editId||loadExpItems().slice(-1)[0]?.id;
     if(itemId){
       const fd=_pendingFileData;
-      toast('Uploading attachment…');
       uploadToSupabase(itemId, fd).catch(err=>{
         console.error('Supabase upload failed:', err);
         const msg = err?.message||err?.error_description||err?.statusCode||String(err);
-        toast(`Upload failed: ${msg}. Check Supabase storage bucket.`, 6000);
-        idbPut({id:itemId,...fd,uploadedAt:new Date().toISOString()}).then(()=>{
-          updateExpItem(itemId,{hasPdf:true,hasFile:true,fileName:fd.name,fileType:fd.type});
-          renderExpItems();
-        });
+        alert(`File upload failed:\n\n${msg}\n\nCheck the browser console for details, and verify your Supabase storage bucket policies.`);
       });
     }
     _pendingFileData=null;

@@ -1,0 +1,2930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JJ&A Time Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg:           #F9F8F5;
+      --bg2:          #F2F0EB;
+      --sidebar:      #141412;
+      --sidebar-text: #E8E3D8;
+      --sidebar-muted:#857F74;
+      --accent:       #C4A87A;
+      --accent-dk:    #A88C5E;
+      --accent-lt:    #F5ECD8;
+      --text:         #1A1916;
+      --text2:        #6B6660;
+      --border:       #E5E0D6;
+      --card:         #FFFFFF;
+      --invoiced:     #3D6B4F;
+      --invoiced-bg:  #EAF2EC;
+      --unbilled:     #A88C5E;
+      --unbilled-bg:  #FBF5E8;
+      --danger:       #8B3A3A;
+      --danger-bg:    #F8ECEC;
+      --shadow:       0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+      --shadow-lg:    0 4px 24px rgba(0,0,0,0.10);
+      --sidebar-w:    230px;
+      --radius:       8px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    h1, h2, h3 { font-family: Georgia, 'Times New Roman', serif; font-weight: normal; letter-spacing: -0.02em; }
+
+    /* Sidebar */
+    #sidebar {
+      width: var(--sidebar-w);
+      background: var(--sidebar);
+      color: var(--sidebar-text);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 200;
+    }
+    #sidebar-brand { padding: 26px 20px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    #sidebar-brand .firm { font-family: Georgia, serif; font-size: 16px; color: #fff; line-height: 1.2; }
+    #sidebar-brand .sub  { font-size: 10px; color: var(--sidebar-muted); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
+    #sidebar-cta { padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    #sb-normal { display: flex; flex-direction: column; gap: 7px; }
+    #sb-normal .btn-logtime {
+      width: 100%; background: var(--accent); color: var(--sidebar);
+      border: none; padding: 9px 14px; border-radius: var(--radius);
+      font-size: 12.5px; font-weight: 600; letter-spacing: 0.3px; cursor: pointer; transition: background .15s;
+    }
+    #sb-normal .btn-logtime:hover { background: var(--accent-dk); }
+    #sb-normal .btn-starttimer {
+      width: 100%; background: transparent; color: var(--sidebar-muted);
+      border: 1px solid rgba(255,255,255,0.1); padding: 7px 14px; border-radius: var(--radius);
+      font-size: 12px; font-weight: 500; cursor: pointer; transition: all .15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    #sb-normal .btn-starttimer:hover { color: var(--sidebar-text); border-color: rgba(255,255,255,0.25); }
+
+    /* Running timer state */
+    #sb-timer { display: none; }
+    .timer-live {
+      background: rgba(224,92,92,0.12); border: 1px solid rgba(224,92,92,0.25);
+      border-radius: var(--radius); padding: 12px 14px;
+    }
+    .timer-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .timer-dot {
+      width: 8px; height: 8px; background: #E05C5C; border-radius: 50%; flex-shrink: 0;
+      animation: timerPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes timerPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.85)} }
+    #sb-elapsed {
+      font-family: 'SF Mono', 'Fira Code', Menlo, monospace;
+      font-size: 20px; color: #fff; letter-spacing: 2px; line-height: 1;
+    }
+    #sb-timer-info { font-size: 11px; color: var(--sidebar-muted); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .btn-stoptimer {
+      width: 100%; background: #E05C5C; color: #fff;
+      border: none; padding: 8px 14px; border-radius: var(--radius);
+      font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background .15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-stoptimer:hover { background: #C44A4A; }
+
+    /* Timer review modal banner */
+    .timer-banner {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 16px; margin-bottom: 18px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .timer-banner .tb-time { font-family: 'SF Mono', Menlo, monospace; font-size: 18px; color: var(--text); font-weight: 700; }
+    .timer-banner .tb-arrow { color: var(--text2); font-size: 16px; }
+    .timer-banner .tb-billed { font-family: Georgia, serif; font-size: 16px; color: var(--accent-dk); }
+    #sidebar-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
+    #sidebar-nav .nav-section {
+      padding: 14px 20px 5px; font-size: 9.5px; color: var(--sidebar-muted);
+      text-transform: uppercase; letter-spacing: 1.5px;
+    }
+    #sidebar-nav a {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 20px; color: var(--sidebar-muted); text-decoration: none;
+      font-size: 13px; transition: color .15s, background .15s;
+      border-right: 2px solid transparent;
+    }
+    #sidebar-nav a .icon { font-size: 14px; width: 18px; text-align: center; }
+    #sidebar-nav a:hover  { color: var(--sidebar-text); background: rgba(255,255,255,0.04); }
+    #sidebar-nav a.active { color: #fff; background: rgba(196,168,122,0.12); border-right-color: var(--accent); }
+
+    /* Main */
+    #main { margin-left: var(--sidebar-w); flex: 1; padding: 34px 38px; min-height: 100vh; }
+
+    .page-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 26px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .page-head h1 { font-size: 26px; }
+    .page-head .sub { font-size: 13px; color: var(--text2); margin-top: 3px; }
+
+    /* Cards */
+    .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; margin-bottom: 16px; }
+    .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .card-head h2 { font-size: 16px; }
+
+    /* Stats */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+    .stat { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; }
+    .stat .val { font-family: Georgia, serif; font-size: 28px; color: var(--text); line-height: 1; margin-bottom: 4px; }
+    .stat .lbl { font-size: 10.5px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.8px; }
+    .stat .val.gold { color: var(--accent-dk); }
+
+    /* Table */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left; padding: 8px 13px;
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--text2); font-weight: 600; font-family: -apple-system, sans-serif;
+      border-bottom: 1px solid var(--border); background: var(--bg);
+    }
+    tbody td { padding: 10px 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #FDFCF9; }
+    .tbl-footer td { background: var(--bg2) !important; font-weight: 600; font-size: 13px; border-top: 1px solid var(--border) !important; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 7px 14px; border-radius: var(--radius); border: none;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: opacity .15s, background .15s; white-space: nowrap;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-gold    { background: var(--accent); color: var(--sidebar); }
+    .btn-dark    { background: var(--text); color: #fff; }
+    .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+    .btn-ghost:hover { color: var(--text); border-color: var(--text2); opacity: 1; }
+    .btn-danger  { background: var(--danger-bg); color: var(--danger); border: 1px solid #E8C8C8; }
+    .btn-sm      { padding: 4px 10px; font-size: 12px; }
+
+    /* Forms */
+    .form-group { margin-bottom: 15px; }
+    .form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    label.field-label {
+      display: block; font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.7px; color: var(--text2); margin-bottom: 5px;
+    }
+    input, select, textarea {
+      width: 100%; padding: 9px 12px; border: 1px solid var(--border);
+      border-radius: var(--radius); font-size: 14px; background: #fff;
+      color: var(--text); transition: border-color .15s, box-shadow .15s; font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-lt);
+    }
+    textarea { resize: vertical; min-height: 76px; }
+    .form-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 4px; }
+
+    /* Modal */
+    .overlay {
+      position: fixed; inset: 0; background: rgba(20,20,18,0.5);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 500; backdrop-filter: blur(2px);
+    }
+    .modal {
+      background: var(--card); border-radius: 12px; padding: 26px;
+      width: 500px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+    }
+    .modal-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-hd h2 { font-size: 20px; }
+    .modal-x { background: none; border: none; font-size: 22px; color: var(--text2); cursor: pointer; line-height: 1; padding: 2px 5px; border-radius: 4px; }
+    .modal-x:hover { background: var(--bg); color: var(--text); }
+
+    /* Badges */
+    .badge {
+      display: inline-flex; align-items: center; padding: 2px 9px;
+      border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+    }
+    .badge-invoiced { background: var(--invoiced-bg); color: var(--invoiced); }
+    .badge-unbilled { background: var(--unbilled-bg); color: var(--unbilled); }
+    .badge-gold     { background: var(--accent-lt); color: var(--accent-dk); }
+    .badge-dark     { background: var(--bg2); color: var(--text2); }
+    .badge-blue     { background: #EBF3FB; color: #2E6DA8; }
+
+    /* Filters */
+    .filters {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      margin-bottom: 18px; padding: 12px 16px;
+      background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    }
+    .filters select, .filters input[type="text"] { width: auto; font-size: 13px; padding: 6px 9px; }
+    .filters input[type="text"] { flex: 1; min-width: 140px; max-width: 220px; }
+    .filters label.field-label { margin: 0; white-space: nowrap; }
+    .filters .sep { width: 1px; height: 20px; background: var(--border); }
+
+    /* Client group */
+    .cgroup { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
+    .cgroup-hd { display: flex; justify-content: space-between; align-items: center; padding: 13px 18px; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border); }
+    .cgroup-hd:hover { background: #FDFCFA; }
+    .cgroup-hd .name  { font-family: Georgia, serif; font-size: 15px; }
+    .cgroup-hd .meta  { display: flex; gap: 18px; align-items: center; font-size: 13px; color: var(--text2); }
+    .cgroup-hd .meta strong { color: var(--accent-dk); }
+    .cgroup-hd .chevron { font-size: 11px; color: var(--text2); margin-left: 10px; transition: transform .2s; }
+    .cgroup-hd.collapsed .chevron { transform: rotate(-90deg); }
+
+    /* Designer card */
+    .designer-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
+    .designer-card-hd { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; }
+    .designer-card-hd .dname { font-family: Georgia, serif; font-size: 17px; }
+    .designer-card-hd .dmeta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .designer-card-hd .dright { display: flex; gap: 10px; align-items: center; }
+    .designer-card-hd .dstats { text-align: right; margin-right: 10px; }
+    .designer-card-hd .dstats .big { font-family: Georgia, serif; font-size: 19px; color: var(--accent-dk); }
+    .designer-card-hd .dstats .sm  { font-size: 10.5px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+    .designer-hours { border-top: 1px solid var(--border); }
+
+    /* Project card */
+    .proj-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 10px; }
+    .proj-card-hd { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; }
+    .proj-card .proj-name { font-family: Georgia, serif; font-size: 15px; }
+    .proj-card .proj-client { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .proj-card .proj-stats { display: flex; gap: 14px; align-items: center; font-size: 13px; color: var(--text2); }
+    .proj-card .proj-stats strong { color: var(--accent-dk); }
+
+    /* Invoice card */
+    .inv-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
+    .inv-card-hd { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; cursor: pointer; border-bottom: 1px solid transparent; }
+    .inv-card-hd.open { border-bottom-color: var(--border); }
+    .inv-card-hd:hover { background: #FDFCFA; }
+    .inv-card-hd .inv-num { font-family: Georgia, serif; font-size: 16px; }
+    .inv-card-hd .inv-client { font-size: 12.5px; color: var(--text2); margin-top: 2px; }
+    .inv-card-hd .inv-right  { text-align: right; }
+    .inv-card-hd .inv-amt   { font-family: Georgia, serif; font-size: 18px; color: var(--accent-dk); }
+    .inv-card-hd .inv-meta  { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .inv-detail { padding: 0; }
+
+    /* Analytics */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .chart-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; }
+    .chart-card h3 { font-size: 13px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; font-family: -apple-system, sans-serif; font-weight: 600; }
+    .chart-card canvas { max-height: 240px; }
+    .chart-full { grid-column: 1 / -1; }
+    .chart-card canvas.tall { max-height: 320px; }
+
+    .insight-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 18px; }
+    .insight { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; border-left: 3px solid var(--accent); }
+    .insight .i-val { font-family: Georgia, serif; font-size: 20px; color: var(--accent-dk); margin-bottom: 3px; }
+    .insight .i-lbl { font-size: 12px; color: var(--text2); }
+
+    .kw-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .kw-table th { text-align: left; padding: 7px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text2); font-weight: 600; border-bottom: 1px solid var(--border); }
+    .kw-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    .kw-table tr:last-child td { border: none; }
+    .kw-bar { height: 5px; background: var(--accent); border-radius: 3px; margin-top: 3px; transition: width .3s; }
+
+    /* Empty state */
+    .empty { text-align: center; padding: 56px 24px; color: var(--text2); }
+    .empty .e-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.5; }
+    .empty p { margin-bottom: 16px; font-size: 14px; }
+
+    /* Inv preview */
+    .inv-preview-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px; }
+    .inv-preview-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; gap: 12px; }
+    .inv-preview-row:last-child { border: none; }
+    .inv-preview-row .desc { color: var(--text2); font-size: 12px; }
+    .inv-total-row { display: flex; justify-content: space-between; padding: 10px 0 3px; font-family: Georgia, serif; font-size: 16px; }
+
+    /* Toast */
+    #toast { position: fixed; bottom: 26px; right: 26px; background: var(--text); color: #fff; padding: 11px 18px; border-radius: var(--radius); font-size: 13px; z-index: 1000; opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; pointer-events: none; max-width: 300px; }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    .danger-zone { border: 1px solid #EBCFCF; border-radius: var(--radius); padding: 16px 20px; background: #FDF6F6; }
+    .danger-zone h3 { font-family: inherit; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--danger); margin-bottom: 10px; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    .flex-gap { display: flex; gap: 10px; flex-wrap: wrap; }
+    .ml-auto { margin-left: auto; }
+    .fw7 { font-weight: 700; }
+    .fs12 { font-size: 12px; }
+    .col2 { color: var(--text2); }
+    .gold-txt { color: var(--accent-dk); font-family: Georgia, serif; }
+    .radio-group { display: flex; gap: 14px; flex-wrap: wrap; }
+    .radio-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; }
+    .radio-opt input { width: auto; }
+    .hint { font-size: 11.5px; color: var(--text2); margin-top: 5px; }
+    .proj-group { margin-bottom: 22px; }
+    .proj-group-label { font-family: Georgia, serif; font-size: 14px; color: var(--text2); margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+    /* Project status toggle */
+    .proj-toggle-wrap { display: flex; align-items: center; gap: 8px; }
+    .proj-toggle-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); white-space: nowrap; transition: color .2s; }
+    .proj-toggle-label.active-lbl  { color: var(--invoiced); }
+    .proj-toggle-label.done-lbl    { color: var(--accent-dk); }
+    .toggle-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; cursor: pointer; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute; inset: 0; border-radius: 22px;
+      background: var(--invoiced-bg); border: 1.5px solid var(--invoiced);
+      transition: background .25s, border-color .25s;
+    }
+    .toggle-thumb {
+      position: absolute; top: 3px; left: 3px;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--invoiced); transition: transform .25s, background .25s;
+    }
+    .toggle-switch input:checked ~ .toggle-track { background: var(--accent-lt); border-color: var(--accent); }
+    .toggle-switch input:checked ~ .toggle-thumb { transform: translateX(18px); background: var(--accent-dk); }
+
+    /* Completed project card */
+    .proj-card.completed { opacity: 0.72; }
+    .proj-card.completed .proj-name { text-decoration: line-through; color: var(--text2); }
+
+    /* Completed section header */
+    .completed-section-hd {
+      display: flex; align-items: center; gap: 10px; margin: 28px 0 12px;
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--text2);
+    }
+    .completed-section-hd::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* App Switcher */
+    #app-switcher { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; gap: 4px; }
+    .app-pill {
+      flex: 1; padding: 6px 2px; background: transparent; color: var(--sidebar-muted);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 20px;
+      font-size: 10.5px; font-weight: 600; cursor: pointer; transition: all .2s;
+      letter-spacing: 0.2px;
+    }
+    .app-pill:hover { color: var(--sidebar-text); border-color: rgba(255,255,255,0.28); }
+    .app-pill.active { background: var(--accent); color: var(--sidebar); border-color: var(--accent); }
+
+    /* Expense styles */
+    .exp-category { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; background: #EBF3FB; color: #2E6DA8; }
+    .exp-item-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 10px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+    .exp-item-card.billed { opacity: 0.65; }
+    .exp-item-left { flex: 1; min-width: 0; }
+    .exp-item-vendor { font-family: Georgia, serif; font-size: 15px; margin-bottom: 2px; }
+    .exp-item-desc { font-size: 12.5px; color: var(--text2); margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .exp-item-right { text-align: right; flex-shrink: 0; }
+    .exp-client-total { font-family: Georgia, serif; font-size: 19px; color: var(--accent-dk); }
+    .exp-vendor-price { font-size: 11.5px; color: var(--text2); margin-top: 2px; }
+    .exp-markup-info { font-size: 11px; color: var(--text2); margin-top: 2px; }
+    .exp-folder-group { margin-bottom: 22px; }
+    .exp-folder-hd { font-family: Georgia, serif; font-size: 14px; color: var(--text2); margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .badge-filed   { background: #EBF3FB; color: #2E6DA8; }
+    .badge-billed  { background: var(--invoiced-bg); color: var(--invoiced); }
+    .badge-category-furniture   { background: #FBF0E8; color: #8B5E3C; }
+    .badge-category-fabric      { background: #EDF8F0; color: #2D6A4F; }
+    .badge-category-contractor  { background: #F0EBF8; color: #6A3C8B; }
+    .badge-category-upholstery  { background: #FBF5E8; color: #8B7A3C; }
+    .badge-category-storage     { background: #EBF3FB; color: #2E6DA8; }
+    .badge-category-shipping    { background: #FBEBE8; color: #8B3C3C; }
+    .badge-category-other       { background: var(--bg2); color: var(--text2); }
+    .price-preview { background: var(--bg2); border-radius: var(--radius); padding: 12px 16px; margin-top: 12px; font-size: 13px; }
+    .price-preview .pp-row { display: flex; justify-content: space-between; padding: 3px 0; }
+    .price-preview .pp-total { display: flex; justify-content: space-between; padding-top: 8px; margin-top: 4px; border-top: 1px solid var(--border); font-family: Georgia, serif; font-size: 16px; }
+    .exp-inv-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
+    .exp-inv-card-hd { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; cursor: pointer; border-bottom: 1px solid transparent; }
+    .exp-inv-card-hd.open { border-bottom-color: var(--border); }
+    .exp-inv-card-hd:hover { background: #FDFCFA; }
+
+    /* ── Dark mode ──────────────────────────────────── */
+    body.dark-mode {
+      --bg: #1C1A17; --bg2: #242118; --card: #272420; --text: #EDE9E2; --text2: #9B9690;
+      --border: #38352E; --shadow: 0 1px 5px rgba(0,0,0,0.4); --accent: #C4A87A; --accent-dk: #D4B88A;
+      --invoiced: #5DA87A; --unbilled: #C4705A; --danger: #C05A5A;
+    }
+    body.dark-mode #sidebar { background: #0F0D0B; }
+    body.dark-mode .inv-card-hd:hover, body.dark-mode .exp-inv-card-hd:hover { background: #2F2C27; }
+    body.dark-mode input, body.dark-mode select, body.dark-mode textarea { background: #2A2720; border-color: var(--border); color: var(--text); }
+    body.dark-mode .modal-inner { background: var(--card); }
+    body.dark-mode .kw-bar { background: var(--accent); }
+    body.dark-mode .badge-invoiced { background: rgba(61,107,79,0.35); color: #6DBD8A; }
+    body.dark-mode .badge-unbilled { background: rgba(180,90,70,0.25); color: #D4806A; }
+    body.dark-mode .app-pill { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.6); }
+    body.dark-mode .app-pill.active { background: var(--accent); color: #1C1A17; }
+    body.dark-mode .price-preview { background: var(--bg2); border-color: var(--border); }
+    body.dark-mode .filters { background: var(--card); border-color: var(--border); }
+    body.dark-mode .chart-card { background: var(--card); }
+    body.dark-mode .table-wrap th { background: var(--bg2); }
+    body.dark-mode .kpi { background: var(--card); }
+
+    /* Dark mode toggle */
+    #dm-toggle { position: absolute; bottom: 14px; right: 14px; background: rgba(255,255,255,0.08); border: none; color: rgba(255,255,255,0.55); width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background .2s; }
+    #dm-toggle:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+    /* ── Mobile hamburger ───────────────────────────── */
+    #mobile-hamburger { display: none; position: fixed; top: 12px; left: 12px; z-index: 300; background: var(--text); color: #fff; border: none; width: 38px; height: 38px; border-radius: 8px; font-size: 18px; cursor: pointer; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+    #mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 149; }
+    #mobile-overlay.show { display: block; }
+
+    /* ── Mobile responsive ──────────────────────────── */
+    @media (max-width: 800px) {
+      body { overflow-x: hidden; }
+      #sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 150; transform: translateX(-100%); transition: transform .25s cubic-bezier(.4,0,.2,1); box-shadow: 4px 0 20px rgba(0,0,0,0.3); }
+      #sidebar.mobile-open { transform: translateX(0); }
+      #main { margin-left: 0 !important; padding-top: 56px; }
+      #mobile-hamburger { display: flex; }
+      .page { padding: 16px; }
+      .kpi-grid-6 { grid-template-columns: repeat(2,1fr); }
+      .kpi-grid-4 { grid-template-columns: repeat(2,1fr); }
+      .kpi-grid-3 { grid-template-columns: repeat(2,1fr); }
+      .charts-grid { grid-template-columns: 1fr !important; }
+      .chart-card.chart-full { grid-column: span 1 !important; }
+      .insight-cards { grid-template-columns: repeat(2,1fr); }
+      .form-row { flex-direction: column; }
+      .filters { flex-wrap: wrap; gap: 8px; }
+    }
+    @media (max-width: 480px) {
+      .kpi-grid-6, .kpi-grid-4, .kpi-grid-3 { grid-template-columns: 1fr 1fr; }
+      .insight-cards { grid-template-columns: 1fr 1fr; }
+      .analytics-tabs { flex-wrap: wrap; }
+    }
+
+    /* ── Payment badges ─────────────────────────────── */
+    .badge-paid { background: #EAF5EE; color: #2D7A4F; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; letter-spacing: 0.4px; }
+    .badge-unpaid { background: #FBF1E8; color: #8B5A2B; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; letter-spacing: 0.4px; }
+    body.dark-mode .badge-paid { background: rgba(45,122,79,0.25); color: #6DBD8A; }
+    body.dark-mode .badge-unpaid { background: rgba(139,90,43,0.25); color: #D4A06A; }
+
+    /* ── Recurring badge ────────────────────────────── */
+    .badge-recurring { background: #EBF3FB; color: #2E6DA8; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; letter-spacing: 0.3px; }
+    body.dark-mode .badge-recurring { background: rgba(46,109,168,0.2); color: #7AB4E0; }
+
+    /* Analytics tabs */
+    .analytics-tabs { display: flex; gap: 8px; margin-bottom: 22px; }
+    .atab { padding: 9px 22px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; box-shadow: var(--shadow); }
+    .atab:hover { color: var(--text); border-color: var(--text2); opacity: 1; }
+    .atab.active { background: var(--text); color: #fff; border-color: var(--text); }
+
+    /* KPI grids */
+    .kpi-grid { display: grid; gap: 12px; margin-bottom: 18px; }
+    .kpi-grid-6 { grid-template-columns: repeat(6,1fr); }
+    .kpi-grid-4 { grid-template-columns: repeat(4,1fr); }
+    .kpi-grid-3 { grid-template-columns: repeat(3,1fr); }
+    .kpi { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; border-left: 3px solid var(--border); }
+    .kpi.gold  { border-left-color: var(--accent); }
+    .kpi.green { border-left-color: var(--invoiced); }
+    .kpi.blue  { border-left-color: #4A7A9B; }
+    .kpi.red   { border-left-color: #8B3A3A; }
+    .kpi-val { font-family: Georgia, serif; font-size: 20px; color: var(--text); margin-bottom: 3px; line-height: 1.1; }
+    .kpi-val.gold  { color: var(--accent-dk); }
+    .kpi-val.green { color: var(--invoiced); }
+    .kpi-val.red   { color: var(--danger); }
+    .kpi-sub { font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text2); font-weight: 600; }
+    .kpi-note { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+    /* Charts 3-col */
+    .charts-grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 16px; }
+    .chart-card canvas.xtall { max-height: 380px; }
+
+    /* Internal invoice */
+    .internal-inv-row { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .internal-inv-row:last-child { border: none; }
+    .internal-badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; background: #FBEBE8; color: #8B3C3C; margin-bottom: 10px; }
+
+    /* File attachment badge */
+    .file-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; border: none; transition: opacity .15s; }
+    .file-badge:hover { opacity: 0.75; }
+    .file-badge.pdf   { background: #FBEBE8; color: #8B3C3C; }
+    .file-badge.img   { background: #EDF8F0; color: #2D6A4F; }
+    .file-badge.doc   { background: #EBF3FB; color: #2E6DA8; }
+    .file-badge.other { background: var(--bg2); color: var(--text2); }
+
+    /* Section divider */
+    .section-hd { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); margin: 26px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <div id="sidebar-brand">
+    <div class="firm" id="sb-firm">JJ&amp;A Design Studio</div>
+    <div class="sub">Studio Manager</div>
+  </div>
+  <div id="app-switcher">
+    <button class="app-pill active" id="pill-time" onclick="switchApp('time')">Time</button>
+    <button class="app-pill" id="pill-expenses" onclick="switchApp('expenses')">Expenses</button>
+    <button class="app-pill" id="pill-analytics" onclick="switchApp('analytics')">Analytics</button>
+  </div>
+  <div id="sidebar-cta">
+    <div id="sb-normal">
+      <button class="btn-logtime" onclick="openEntryModal()">+ Log Time</button>
+      <button class="btn-starttimer" onclick="openTimerModal()">⏱ Start Timer</button>
+    </div>
+    <div id="sb-timer">
+      <div class="timer-live">
+        <div class="timer-top">
+          <div class="timer-dot"></div>
+          <div id="sb-elapsed">00:00:00</div>
+        </div>
+        <div id="sb-timer-info">Starting…</div>
+        <button class="btn-stoptimer" onclick="stopTimer()">■ Stop &amp; Save</button>
+      </div>
+    </div>
+  </div>
+  <nav id="sidebar-nav"></nav>
+  <button id="dm-toggle" onclick="toggleDarkMode()" title="Toggle dark mode">◑</button>
+</aside>
+
+<button id="mobile-hamburger" onclick="toggleMobileMenu()">☰</button>
+<div id="mobile-overlay" onclick="closeMobileMenu()"></div>
+<main id="main"><div id="app"></div></main>
+<div id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════
+   STORAGE
+══════════════════════════════════════════════════════ */
+const K = { entries:'tt_entries', clients:'tt_clients', designers:'tt_designers', projects:'tt_projects', invoices:'tt_invoices', settings:'tt_settings' };
+const load  = (k,fb) => { try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch { return fb; } };
+const store = (k,v)  => localStorage.setItem(k, JSON.stringify(v));
+
+const loadEntries   = () => load(K.entries,   []);
+const loadClients   = () => load(K.clients,   []);
+const loadDesigners = () => load(K.designers, []);
+const loadProjects  = () => load(K.projects,  []);
+const loadInvoices  = () => load(K.invoices,  []);
+const loadSettings  = () => { const def={firmName:'JJ&A Design Studio',firmAddress:'',firmEmail:'',firmPhone:'',defaultRate:100,invoicePrefix:'INV',invoiceNext:1,currency:'USD',paymentTerms:14}; return {...def,...(load(K.settings,{})||{})}; };
+
+const saveEntries   = v => store(K.entries,   v);
+const saveClients   = v => store(K.clients,   v);
+const saveDesigners = v => store(K.designers, v);
+const saveProjects  = v => store(K.projects,  v);
+const saveInvoices  = v => store(K.invoices,  v);
+const saveSettings  = v => { store(K.settings, v); updateSidebarFirm(); };
+
+const uid = () => crypto.randomUUID();
+
+/* ══════════════════════════════════════════════════════
+   CRUD — DESIGNERS
+══════════════════════════════════════════════════════ */
+const getDesignerById = id => loadDesigners().find(d => d.id===id);
+const addDesigner    = d  => { const l=loadDesigners(); l.push({...d,id:uid(),createdAt:new Date().toISOString()}); saveDesigners(l); };
+const updateDesigner = (id,c) => saveDesigners(loadDesigners().map(d=>d.id===id?{...d,...c}:d));
+const deleteDesigner = id => saveDesigners(loadDesigners().filter(d=>d.id!==id));
+
+/* ══════════════════════════════════════════════════════
+   CRUD — CLIENTS
+══════════════════════════════════════════════════════ */
+const getClientById = id => loadClients().find(c => c.id===id);
+const addClient    = c  => { const l=loadClients(); l.push({...c,id:uid(),createdAt:new Date().toISOString()}); saveClients(l); };
+const updateClient = (id,c) => saveClients(loadClients().map(x=>x.id===id?{...x,...c}:x));
+const deleteClient = id => { saveClients(loadClients().filter(c=>c.id!==id)); saveEntries(loadEntries().filter(e=>e.clientId!==id)); saveProjects(loadProjects().filter(p=>p.clientId!==id)); };
+
+/* ══════════════════════════════════════════════════════
+   CRUD — PROJECTS
+══════════════════════════════════════════════════════ */
+const getProjectById     = id  => loadProjects().find(p => p.id===id);
+const getProjectsByClient = cid => loadProjects().filter(p => p.clientId===cid);
+const addProject    = p  => { const l=loadProjects(); l.push({...p,id:uid(),createdAt:new Date().toISOString()}); saveProjects(l); };
+const updateProject = (id,c) => saveProjects(loadProjects().map(p=>p.id===id?{...p,...c}:p));
+const deleteProject = id => { saveProjects(loadProjects().filter(p=>p.id!==id)); loadEntries().filter(e=>e.projectId===id).forEach(e=>updateEntry(e.id,{projectId:'',projectText:getProjectById(id)?.name||''})); };
+
+// Get project display name for an entry
+function entryProjectName(e) {
+  if (e.projectId) { const p=getProjectById(e.projectId); if(p) return p.name; }
+  return e.projectText || e.project || '—';
+}
+
+/* ══════════════════════════════════════════════════════
+   CRUD — ENTRIES
+══════════════════════════════════════════════════════ */
+const addEntry    = e  => { const l=loadEntries(); l.push({...e,id:uid(),createdAt:new Date().toISOString()}); saveEntries(l); };
+const updateEntry = (id,c) => saveEntries(loadEntries().map(e=>e.id===id?{...e,...c}:e));
+const deleteEntry = id => saveEntries(loadEntries().filter(e=>e.id!==id));
+
+/* ══════════════════════════════════════════════════════
+   CALCULATIONS
+══════════════════════════════════════════════════════ */
+function entryRate(e) {
+  if (e.designerId) { const d=getDesignerById(e.designerId); if(d) return d.hourlyRate; }
+  const c=getClientById(e.clientId); return c ? c.hourlyRate : 0;
+}
+const entryAmount = e => e.hours * entryRate(e);
+
+function isInvoiced(entry) {
+  return loadInvoices().some(inv =>
+    inv.clientId === entry.clientId &&
+    entry.date >= inv.startDate &&
+    entry.date <= inv.endDate &&
+    (!inv.designerId || inv.designerId === entry.designerId)
+  );
+}
+
+/* ══════════════════════════════════════════════════════
+   DATE UTILS
+══════════════════════════════════════════════════════ */
+const todayStr = () => new Date().toISOString().split('T')[0];
+
+function weekRange(offset=0) {
+  const now=new Date(); now.setDate(now.getDate()+offset*7);
+  const day=now.getDay(), mon=new Date(now); mon.setDate(now.getDate()-(day===0?6:day-1));
+  const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+  return [mon.toISOString().split('T')[0], sun.toISOString().split('T')[0]];
+}
+
+function monthRange(offset=0) {
+  const now=new Date(), y=now.getFullYear(), m=now.getMonth()+offset;
+  return [new Date(y,m,1).toISOString().split('T')[0], new Date(y,m+1,0).toISOString().split('T')[0]];
+}
+
+const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const ML=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const fmtDate     = iso => { if(!iso)return''; const [y,m,d]=iso.split('-'); return `${MS[+m-1]} ${+d}, ${y}`; };
+const fmtDateLong = iso => { if(!iso)return''; const [y,m,d]=iso.split('-'); return `${ML[+m-1]} ${+d}, ${y}`; };
+const CURRENCIES={USD:{symbol:'$',code:'USD',locale:'en-US'},EUR:{symbol:'€',code:'EUR',locale:'de-DE'},GBP:{symbol:'£',code:'GBP',locale:'en-GB'},CAD:{symbol:'CA$',code:'CAD',locale:'en-CA'},AUD:{symbol:'A$',code:'AUD',locale:'en-AU'},JPY:{symbol:'¥',code:'JPY',locale:'ja-JP'},CHF:{symbol:'CHF',code:'CHF',locale:'de-CH'}};
+const cur = n => { try { const s=loadSettings(); const c=CURRENCIES[s.currency||'USD']||CURRENCIES.USD; return new Intl.NumberFormat(c.locale,{style:'currency',currency:c.code,minimumFractionDigits:c.code==='JPY'?0:2}).format(+(n||0)); } catch { return '$'+Number(n||0).toFixed(2); } };
+
+function rangeFromKey(key) {
+  if(key==='week')     return weekRange(0);
+  if(key==='lastweek') return weekRange(-1);
+  if(key==='month')    return monthRange(0);
+  return ['',''];
+}
+
+// Get last N months labels + date ranges
+function lastNMonths(n=12) {
+  const months=[];
+  for(let i=n-1;i>=0;i--){
+    const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i);
+    const y=d.getFullYear(), m=d.getMonth();
+    months.push({label:`${MS[m]} ${y}`, start:new Date(y,m,1).toISOString().split('T')[0], end:new Date(y,m+1,0).toISOString().split('T')[0]});
+  }
+  return months;
+}
+
+// Get last N weeks labels + date ranges
+function lastNWeeks(n=8) {
+  const weeks=[];
+  for(let i=n-1;i>=0;i--){
+    const [s,e]=weekRange(-i);
+    weeks.push({label:fmtDate(s).replace(/,\s*\d{4}/,''), start:s, end:e});
+  }
+  return weeks;
+}
+
+/* ══════════════════════════════════════════════════════
+   FILTER ENTRIES
+══════════════════════════════════════════════════════ */
+function filterEntries({clientId='',designerId='',projectId='',start='',end='',status=''}={}) {
+  return loadEntries().filter(e => {
+    if(clientId   && e.clientId   !==clientId)   return false;
+    if(designerId && e.designerId !==designerId)  return false;
+    if(projectId  && e.projectId  !==projectId)   return false;
+    if(start && e.date<start) return false;
+    if(end   && e.date>end)   return false;
+    if(status==='invoiced' && !isInvoiced(e)) return false;
+    if(status==='unbilled' && isInvoiced(e))  return false;
+    return true;
+  }).sort((a,b)=>b.date.localeCompare(a.date));
+}
+
+/* ══════════════════════════════════════════════════════
+   UI HELPERS
+══════════════════════════════════════════════════════ */
+let _tt;
+function toast(msg) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),2800);
+}
+function showModal(html) {
+  const ov=document.createElement('div'); ov.className='overlay';
+  ov.innerHTML=`<div class="modal">${html}</div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)closeModal();});
+  document.body.appendChild(ov);
+}
+function closeModal(){ const m=document.querySelector('.overlay'); if(m)m.remove(); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function updateSidebarFirm(){ document.getElementById('sb-firm').textContent=loadSettings().firmName||'JJ&A Design Studio'; }
+
+function clientOpts(sel='',allLabel='All Clients'){
+  return `<option value="">${allLabel}</option>`+loadClients().map(c=>`<option value="${c.id}" ${c.id===sel?'selected':''}>${esc(c.name)}</option>`).join('');
+}
+function designerOpts(sel='',allLabel='All Designers'){
+  return `<option value="">${allLabel}</option>`+loadDesigners().map(d=>`<option value="${d.id}" ${d.id===sel?'selected':''}>${esc(d.name)}</option>`).join('');
+}
+function projectOptsForClient(clientId,sel=''){
+  const projs=getProjectsByClient(clientId);
+  if(!projs.length) return `<option value="">— no projects for this client —</option>`;
+  return `<option value="">Select a project…</option>`+projs.map(p=>`<option value="${p.id}" ${p.id===sel?'selected':''}>${esc(p.name)}</option>`).join('');
+}
+function allProjectOpts(sel='',allLabel='All Projects'){
+  return `<option value="">${allLabel}</option>`+loadProjects().map(p=>`<option value="${p.id}" ${p.id===sel?'selected':''}>${esc(p.name)}</option>`).join('');
+}
+
+/* ══════════════════════════════════════════════════════
+   ENTRY MODAL
+══════════════════════════════════════════════════════ */
+function openEntryModal(entryId) {
+  const clients=loadClients(), designers=loadDesigners();
+  if(!clients.length){ toast('Please add a client first'); navigate('#clients'); return; }
+  const e=entryId?loadEntries().find(x=>x.id===entryId):null;
+  const cliId=e?.clientId||clients[0]?.id||'';
+  const projs=getProjectsByClient(cliId);
+
+  const clientSel=clients.map(c=>`<option value="${c.id}" ${(e?.clientId||cliId)===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
+  const desSel=designers.length?`<div class="form-group"><label class="field-label" for="e-des">Designer</label><select id="e-des"><option value="">— unassigned —</option>${designers.map(d=>`<option value="${d.id}" ${e?.designerId===d.id?'selected':''}>${esc(d.name)}</option>`).join('')}</select></div>`:'';
+
+  const projRow = projs.length
+    ? `<div class="form-group"><label class="field-label" for="e-proj-sel">Project</label>
+        <select id="e-proj-sel">${projectOptsForClient(cliId, e?.projectId||'')}</select>
+        <p class="hint">Don't see it? <a href="#projects" style="color:var(--accent-dk)" onclick="closeModal();navigate('#projects')">Manage projects</a></p>
+       </div>`
+    : `<div class="form-group"><label class="field-label" for="e-proj-text">Project Name</label>
+        <input type="text" id="e-proj-text" placeholder="e.g. Logo Redesign" value="${esc(e?.projectText||e?.project||'')}">
+        <p class="hint"><a href="#projects" style="color:var(--accent-dk)" onclick="closeModal();navigate('#projects')">Create a project</a> for this client to use the dropdown.</p>
+       </div>`;
+
+  showModal(`
+    <div class="modal-hd"><h2>${e?'Edit Entry':'Log Time'}</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="form-row">
+      <div class="form-group"><label class="field-label" for="e-date">Date</label><input type="date" id="e-date" value="${e?e.date:todayStr()}"></div>
+      <div class="form-group"><label class="field-label" for="e-hrs">Hours</label><input type="number" id="e-hrs" step="0.25" min="0.25" max="24" placeholder="e.g. 2.5" value="${e?e.hours:''}"></div>
+    </div>
+    <div class="form-group">
+      <label class="field-label" for="e-client">Client</label>
+      <select id="e-client" onchange="refreshEntryProjects(this.value)">${clientSel}</select>
+    </div>
+    ${desSel}
+    <div id="e-proj-wrap">${projRow}</div>
+    <div class="form-group"><label class="field-label" for="e-desc">What did you work on?</label><textarea id="e-desc" placeholder="Brief description of the work completed...">${esc(e?.description||'')}</textarea></div>
+    <div class="form-group" style="display:flex;align-items:center;gap:10px">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+        <input type="checkbox" id="e-recurring" ${e?.recurring?'checked':''} onchange="document.getElementById('e-recur-freq').style.display=this.checked?'inline-block':'none'">
+        Recurring entry
+      </label>
+      <select id="e-recur-freq" style="display:${e?.recurring?'inline-block':'none'}">
+        <option value="weekly" ${e?.recurring==='weekly'?'selected':''}>Weekly</option>
+        <option value="monthly" ${e?.recurring==='monthly'?'selected':''}>Monthly</option>
+      </select>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveEntryForm('${entryId||''}')">Save Entry</button>
+    </div>
+  `);
+}
+
+window.refreshEntryProjects = cliId => {
+  const projs=getProjectsByClient(cliId);
+  const wrap=document.getElementById('e-proj-wrap');
+  if(projs.length){
+    wrap.innerHTML=`<div class="form-group"><label class="field-label" for="e-proj-sel">Project</label>
+      <select id="e-proj-sel">${projectOptsForClient(cliId,'')}</select>
+      <p class="hint">Don't see it? <a href="#projects" style="color:var(--accent-dk)" onclick="closeModal();navigate('#projects')">Manage projects</a></p>
+    </div>`;
+  } else {
+    wrap.innerHTML=`<div class="form-group"><label class="field-label" for="e-proj-text">Project Name</label>
+      <input type="text" id="e-proj-text" placeholder="e.g. Logo Redesign" value="">
+      <p class="hint"><a href="#projects" style="color:var(--accent-dk)" onclick="closeModal();navigate('#projects')">Create a project</a> for this client to use the dropdown.</p>
+    </div>`;
+  }
+};
+
+function saveEntryForm(editId) {
+  const date=document.getElementById('e-date').value;
+  const hours=parseFloat(document.getElementById('e-hrs').value);
+  const clientId=document.getElementById('e-client').value;
+  const desEl=document.getElementById('e-des');
+  const designerId=desEl?desEl.value:'';
+  const projSel=document.getElementById('e-proj-sel');
+  const projTxt=document.getElementById('e-proj-text');
+  const projectId  = projSel?projSel.value:'';
+  const projectText= projTxt?projTxt.value.trim():'';
+  const description=document.getElementById('e-desc').value.trim();
+  const recurringEl=document.getElementById('e-recurring');
+  const recurring=recurringEl?.checked?document.getElementById('e-recur-freq').value:'';
+  if(!date||!clientId||(!projectId&&!projectText)||isNaN(hours)||hours<=0||!description){ toast('Please fill in all fields'); return; }
+  const payload={date,hours,clientId,designerId,projectId,projectText,description,recurring};
+  if(editId) updateEntry(editId,payload); else addEntry(payload);
+  toast(editId?'Entry updated':'Time logged');
+  closeModal(); render();
+}
+
+window.logAgain = entryId => {
+  const entries=loadEntries();
+  const e=entries.find(x=>x.id===entryId);
+  if(!e) return;
+  const newEntry={...e, id:crypto.randomUUID(), date:todayStr(), recurring:e.recurring};
+  addEntry(newEntry);
+  toast('Entry logged again for today');
+  render();
+};
+
+/* ══════════════════════════════════════════════════════
+   DESIGNER MODAL
+══════════════════════════════════════════════════════ */
+function openDesignerModal(id){
+  const d=id?getDesignerById(id):null;
+  showModal(`<div class="modal-hd"><h2>${d?'Edit Designer':'Add Designer'}</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="form-group"><label class="field-label" for="d-name">Full Name</label><input type="text" id="d-name" value="${esc(d?.name||'')}"></div>
+    <div class="form-group"><label class="field-label" for="d-rate">Hourly Rate ($/hr)</label><input type="number" id="d-rate" step="0.01" min="0" value="${d?d.hourlyRate:loadSettings().defaultRate}"></div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveDesignerForm('${id||''}')">Save</button></div>`);
+}
+function saveDesignerForm(editId){
+  const name=document.getElementById('d-name').value.trim();
+  const hourlyRate=parseFloat(document.getElementById('d-rate').value);
+  if(!name){toast('Name required');return;} if(isNaN(hourlyRate)||hourlyRate<0){toast('Invalid rate');return;}
+  if(editId) updateDesigner(editId,{name,hourlyRate}); else addDesigner({name,hourlyRate});
+  toast(editId?'Designer updated':'Designer added'); closeModal(); render();
+}
+
+/* ══════════════════════════════════════════════════════
+   PROJECT MODAL
+══════════════════════════════════════════════════════ */
+function openProjectModal(id, preClientId=''){
+  const p=id?getProjectById(id):null;
+  showModal(`<div class="modal-hd"><h2>${p?'Edit Project':'Add Project'}</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="form-group"><label class="field-label" for="p-name">Project Name</label><input type="text" id="p-name" placeholder="e.g. Brand Identity 2026" value="${esc(p?.name||'')}"></div>
+    <div class="form-group"><label class="field-label" for="p-client">Client</label><select id="p-client">${loadClients().map(c=>`<option value="${c.id}" ${(p?.clientId||preClientId)===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+    <div class="form-group"><label class="field-label" for="p-desc">Description (optional)</label><textarea id="p-desc" style="min-height:60px" placeholder="Brief description of this project...">${esc(p?.description||'')}</textarea></div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveProjectForm('${id||''}')">Save Project</button></div>`);
+}
+function saveProjectForm(editId){
+  const name=document.getElementById('p-name').value.trim();
+  const clientId=document.getElementById('p-client').value;
+  const description=document.getElementById('p-desc').value.trim();
+  if(!name){toast('Project name required');return;} if(!clientId){toast('Select a client');return;}
+  if(editId) updateProject(editId,{name,clientId,description}); else addProject({name,clientId,description});
+  toast(editId?'Project updated':'Project added'); closeModal(); render();
+}
+
+/* ══════════════════════════════════════════════════════
+   CLIENT MODAL
+══════════════════════════════════════════════════════ */
+function openClientModal(id){
+  const c=id?getClientById(id):null;
+  const s=loadSettings();
+  showModal(`<div class="modal-hd"><h2>${c?'Edit Client':'Add Client'}</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="form-group"><label class="field-label" for="c-name">Company / Client Name</label><input type="text" id="c-name" value="${esc(c?.name||'')}"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="field-label" for="c-con">Contact Name</label><input type="text" id="c-con" value="${esc(c?.contactName||'')}"></div>
+      <div class="form-group"><label class="field-label" for="c-em">Email</label><input type="email" id="c-em" value="${esc(c?.email||'')}"></div>
+    </div>
+    <div class="form-group"><label class="field-label" for="c-rate">Default Hourly Rate ($/hr)</label><input type="number" id="c-rate" step="0.01" min="0" value="${c?c.hourlyRate:s.defaultRate}"></div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveClientForm('${id||''}')">Save</button></div>`);
+}
+function saveClientForm(editId){
+  const name=document.getElementById('c-name').value.trim();
+  const contactName=document.getElementById('c-con').value.trim();
+  const email=document.getElementById('c-em').value.trim();
+  const hourlyRate=parseFloat(document.getElementById('c-rate').value);
+  if(!name){toast('Name required');return;} if(isNaN(hourlyRate)||hourlyRate<0){toast('Invalid rate');return;}
+  if(editId) updateClient(editId,{name,contactName,email,hourlyRate}); else addClient({name,contactName,email,hourlyRate});
+  toast(editId?'Client updated':'Client added'); closeModal(); render();
+}
+
+/* ══════════════════════════════════════════════════════
+   ENTRIES TABLE
+══════════════════════════════════════════════════════ */
+function entriesTableHtml(entries,{showDesigner=true,showClient=false,showProject=true,showActions=true}={}) {
+  if(!entries.length) return `<div class="empty" style="padding:24px"><p class="col2">No entries found.</p></div>`;
+  const cols=['Date'];
+  if(showDesigner) cols.push('Designer');
+  if(showClient)   cols.push('Client');
+  if(showProject)  cols.push('Project');
+  cols.push('Description','Hours','Amount','Status');
+  if(showActions)  cols.push('');
+
+  const rows=entries.map(e=>{
+    const c=getClientById(e.clientId), d=e.designerId?getDesignerById(e.designerId):null;
+    const inv=isInvoiced(e);
+    const badge=inv?'<span class="badge badge-invoiced">Invoiced</span>':'<span class="badge badge-unbilled">Unbilled</span>';
+    const recurBadge=e.recurring?`<span class="badge-recurring">↻ ${e.recurring}</span> `:'';
+    const actions=showActions?`<td style="white-space:nowrap">
+      <button class="btn btn-ghost btn-sm" onclick="openEntryModal('${e.id}')">Edit</button>
+      ${e.recurring?`<button class="btn btn-ghost btn-sm" onclick="logAgain('${e.id}')" title="Log again today">↻</button>`:''}
+      <button class="btn btn-danger btn-sm" onclick="confirmDelEntry('${e.id}')">Del</button></td>`:'';
+    const tds=[`<td>${fmtDate(e.date)}</td>`];
+    if(showDesigner) tds.push(`<td>${d?esc(d.name):'<span class="col2">—</span>'}</td>`);
+    if(showClient)   tds.push(`<td>${c?esc(c.name):'<span class="col2">—</span>'}</td>`);
+    if(showProject)  tds.push(`<td>${esc(entryProjectName(e))}</td>`);
+    tds.push(`<td class="col2" style="max-width:220px">${recurBadge}${esc(e.description)}</td>`,`<td>${e.hours}h</td>`,`<td class="gold-txt">${cur(entryAmount(e))}</td>`,`<td>${badge}</td>`);
+    if(showActions) tds.push(actions);
+    return `<tr>${tds.join('')}</tr>`;
+  }).join('');
+
+  const totH=entries.reduce((s,e)=>s+e.hours,0);
+  const totA=entries.reduce((s,e)=>s+entryAmount(e),0);
+  const skipCols=cols.length-(showActions?3:2);
+  const footTds=[`<td colspan="${skipCols}"></td>`,`<td><strong>${totH.toFixed(1)}h</strong></td>`,`<td class="gold-txt"><strong>${cur(totA)}</strong></td>`,`<td></td>`];
+  if(showActions) footTds.push(`<td></td>`);
+
+  return `<div class="tbl-wrap"><table>
+    <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr class="tbl-footer">${footTds.join('')}</tr></tfoot>
+  </table></div>`;
+}
+
+function confirmDelEntry(id){
+  if(confirm('Delete this entry?')){ deleteEntry(id); toast('Entry deleted'); render(); }
+}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — DASHBOARD
+══════════════════════════════════════════════════════ */
+function renderDashboard(){
+  const [ws,we]=weekRange(0);
+  const all=loadEntries(), week=all.filter(e=>e.date>=ws&&e.date<=we);
+  const wH=week.reduce((s,e)=>s+e.hours,0);
+  const wR=week.reduce((s,e)=>s+entryAmount(e),0);
+  const wC=new Set(week.map(e=>e.clientId)).size;
+  const wU=week.filter(e=>!isInvoiced(e)).reduce((s,e)=>s+entryAmount(e),0);
+  const recent=[...all].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
+
+  const rows=recent.length?recent.map(e=>{
+    const c=getClientById(e.clientId), d=e.designerId?getDesignerById(e.designerId):null, inv=isInvoiced(e);
+    return `<tr><td>${fmtDate(e.date)}</td><td><strong>${esc(c?.name||'?')}</strong></td><td class="col2">${d?esc(d.name):'—'}</td><td>${esc(entryProjectName(e))}</td><td>${e.hours}h</td><td class="gold-txt">${cur(entryAmount(e))}</td><td>${inv?'<span class="badge badge-invoiced">Invoiced</span>':'<span class="badge badge-unbilled">Unbilled</span>'}</td></tr>`;
+  }).join(''):`<tr><td colspan="7" class="col2" style="text-align:center;padding:24px">No entries yet — click <strong>Log Time</strong> to get started</td></tr>`;
+
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Dashboard</h1><div class="sub">Week of ${fmtDate(ws)} – ${fmtDate(we)}</div></div><button class="btn btn-gold" onclick="openEntryModal()">+ Log Time</button></div>
+    <div class="stats">
+      <div class="stat"><div class="val">${wH.toFixed(1)}</div><div class="lbl">Hours this week</div></div>
+      <div class="stat"><div class="val">${wC}</div><div class="lbl">Active clients</div></div>
+      <div class="stat"><div class="val gold">${cur(wR)}</div><div class="lbl">Revenue this week</div></div>
+      <div class="stat"><div class="val gold">${cur(wU)}</div><div class="lbl">Unbilled this week</div></div>
+    </div>
+    <div class="card"><div class="card-head"><h2>Recent Entries</h2></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Date</th><th>Client</th><th>Designer</th><th>Project</th><th>Hours</th><th>Amount</th><th>Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — DESIGNERS
+══════════════════════════════════════════════════════ */
+function renderDesigners(){
+  const designers=loadDesigners(), entries=loadEntries();
+  const cards=designers.length?designers.map(d=>{
+    const de=entries.filter(e=>e.designerId===d.id);
+    const totH=de.reduce((s,e)=>s+e.hours,0);
+    const unbH=de.filter(e=>!isInvoiced(e)).reduce((s,e)=>s+e.hours,0);
+    const totA=de.reduce((s,e)=>s+entryAmount(e),0);
+    return `<div class="designer-card">
+      <div class="designer-card-hd">
+        <div><div class="dname">${esc(d.name)}</div><div class="dmeta">${cur(d.hourlyRate)}/hr</div></div>
+        <div class="dright">
+          <div class="dstats"><div class="big">${totH.toFixed(1)}h</div><div class="sm">total</div></div>
+          <div class="dstats"><div class="big">${unbH.toFixed(1)}h</div><div class="sm">unbilled</div></div>
+          <div class="dstats"><div class="big">${cur(totA)}</div><div class="sm">all time</div></div>
+          <button class="btn btn-ghost btn-sm" onclick="openDesignerModal('${d.id}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmDelDesigner('${d.id}')">Delete</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleDesignerHours('${d.id}')">View Hours</button>
+        </div>
+      </div>
+      <div class="designer-hours" id="dh-${d.id}" style="display:none">
+        <div style="padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label class="field-label" style="margin:0">Client</label>
+          <select style="width:auto;font-size:13px;padding:5px 9px" onchange="refreshDesignerHours('${d.id}',this.value,'','')">
+            ${clientOpts('','All Clients')}
+          </select>
+          <label class="field-label" style="margin:0">Period</label>
+          <select id="dprange-${d.id}" style="width:auto;font-size:13px;padding:5px 9px" onchange="onDesignerRange('${d.id}')">
+            <option value="all">All Time</option><option value="week">This Week</option><option value="lastweek">Last Week</option><option value="month">This Month</option>
+          </select>
+        </div>
+        <div id="dh-body-${d.id}">${entriesTableHtml(de,{showDesigner:false})}</div>
+      </div>
+    </div>`;
+  }).join(''):`<div class="empty"><div class="e-icon">✦</div><p>No designers yet.</p><button class="btn btn-gold" onclick="openDesignerModal()">+ Add Designer</button></div>`;
+
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Designers</h1><div class="sub">Manage your team and track individual hours</div></div><button class="btn btn-gold" onclick="openDesignerModal()">+ Add Designer</button></div>
+    ${cards}`;
+}
+window.toggleDesignerHours=id=>{const el=document.getElementById(`dh-${id}`);el.style.display=el.style.display==='none'?'block':'none';};
+window.onDesignerRange=id=>{const key=document.getElementById(`dprange-${id}`).value;const [s,e]=rangeFromKey(key);const cSel=document.querySelector(`#dh-${id} select`);refreshDesignerHours(id,cSel?cSel.value:'',s,e);};
+window.refreshDesignerHours=(id,cId,start,end)=>{const entries=filterEntries({designerId:id,clientId:cId,start,end});document.getElementById(`dh-body-${id}`).innerHTML=entriesTableHtml(entries,{showDesigner:false,showClient:!cId});};
+function confirmDelDesigner(id){const d=getDesignerById(id);if(confirm(`Delete "${d.name}"? Entries will remain unassigned.`)){loadEntries().filter(e=>e.designerId===id).forEach(e=>updateEntry(e.id,{designerId:''}));deleteDesigner(id);toast('Designer removed');render();}}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — PROJECTS
+══════════════════════════════════════════════════════ */
+function projCardHtml(p, c, entries) {
+  const pe=entries.filter(e=>e.projectId===p.id);
+  const totH=pe.reduce((s,e)=>s+e.hours,0);
+  const totA=pe.reduce((s,e)=>s+entryAmount(e),0);
+  const unbH=pe.filter(e=>!isInvoiced(e)).reduce((s,e)=>s+e.hours,0);
+  const done=p.status==='completed';
+  const toggleId=`tog-${p.id}`;
+  return `<div class="proj-card${done?' completed':''}" id="projcard-${p.id}">
+    <div class="proj-card-hd">
+      <div>
+        <div class="proj-name">${esc(p.name)}</div>
+        ${p.description?`<div class="proj-client col2 fs12">${esc(p.description)}</div>`:''}
+        <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
+          <span class="badge ${done?'badge-gold':'badge-invoiced'}">${done?'Completed':'Active'}</span>
+          <span class="col2 fs12">${esc(c.name)}</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <div class="proj-stats">
+          <span>${totH.toFixed(1)} hrs &nbsp;·&nbsp; <strong>${cur(totA)}</strong></span>
+          ${!done&&unbH>0?`<span class="badge badge-unbilled" style="margin-left:6px">Unbilled</span>`:''}
+        </div>
+        <div class="proj-toggle-wrap">
+          <span class="proj-toggle-label ${done?'done-lbl':'active-lbl'}" id="togl-${p.id}">${done?'Done':'Active'}</span>
+          <label class="toggle-switch" title="${done?'Mark as Active':'Mark as Completed'}">
+            <input type="checkbox" ${done?'checked':''} onchange="toggleProjectStatus('${p.id}',this)">
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+        <div class="flex-gap">
+          <button class="btn btn-ghost btn-sm" onclick="openProjectModal('${p.id}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmDelProject('${p.id}')">Delete</button>
+          ${!done?`<button class="btn btn-ghost btn-sm" onclick="navigate('#hours');setTimeout(()=>applyHoursProjectFilter('${p.id}'),100)">View Hours</button>`:''}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderProjects(){
+  const clients=loadClients(), projects=loadProjects(), entries=loadEntries();
+  if(!clients.length){
+    document.getElementById('app').innerHTML=`<div class="page-head"><div><h1>Projects</h1></div></div><div class="empty"><div class="e-icon">◧</div><p>Add clients first, then create projects for them.</p><button class="btn btn-gold" onclick="navigate('#clients')">Go to Clients</button></div>`;
+    return;
+  }
+
+  const active=projects.filter(p=>p.status!=='completed');
+  const completed=projects.filter(p=>p.status==='completed');
+
+  function clientFor(p){ return clients.find(c=>c.id===p.clientId)||{name:'Unknown',id:''}; }
+
+  // Group active by client
+  const byClient={};
+  clients.forEach(c=>{byClient[c.id]={client:c,projs:[]};});
+  active.forEach(p=>{if(byClient[p.clientId])byClient[p.clientId].projs.push(p);});
+
+  const activeHtml=Object.values(byClient).map(({client:c,projs})=>{
+    const cards=projs.map(p=>projCardHtml(p,c,entries)).join('')
+      ||`<p class="col2 fs12" style="padding:10px 2px">No active projects. <button class="btn btn-ghost btn-sm" onclick="openProjectModal('','${c.id}')">+ Add one</button></p>`;
+    return `<div class="proj-group"><div class="proj-group-label">${esc(c.name)}</div>${cards}</div>`;
+  }).join('');
+
+  const completedHtml=completed.length?`
+    <div class="completed-section-hd">Completed Projects (${completed.length})</div>
+    ${completed.map(p=>projCardHtml(p,clientFor(p),entries)).join('')}
+  `:'';
+
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Projects</h1><div class="sub">${active.length} active · ${completed.length} completed</div></div><button class="btn btn-gold" onclick="openProjectModal('')">+ Add Project</button></div>
+    ${activeHtml||'<div class="empty"><div class="e-icon">◧</div><p>No active projects.</p></div>'}
+    ${completedHtml}`;
+}
+
+window.toggleProjectStatus = (id, checkbox) => {
+  const p=getProjectById(id);
+  const nowCompleted=checkbox.checked;
+  updateProject(id,{status: nowCompleted?'completed':'active'});
+
+  // Update UI in place without full re-render
+  const card=document.getElementById(`projcard-${id}`);
+  const lbl=document.getElementById(`togl-${id}`);
+  if(card){
+    card.classList.toggle('completed', nowCompleted);
+    const nameEl=card.querySelector('.proj-name');
+    if(nameEl) nameEl.style.textDecoration=nowCompleted?'line-through':'';
+    const badge=card.querySelector('.badge');
+    if(badge){ badge.className='badge '+(nowCompleted?'badge-gold':'badge-invoiced'); badge.textContent=nowCompleted?'Completed':'Active'; }
+  }
+  if(lbl){ lbl.textContent=nowCompleted?'Done':'Active'; lbl.className='proj-toggle-label '+(nowCompleted?'done-lbl':'active-lbl'); }
+
+  if(nowCompleted){
+    toast(`"${p.name}" marked as completed 🎉`);
+    const RAINBOW=['#FF0000','#FF4500','#FF7F00','#FFB300','#FFFF00','#7FFF00','#00FF00','#00E5FF','#0000FF','#8B00FF','#FF00FF','#FF69B4','#FF1493','#00FF7F'];
+    const el=checkbox.closest('.toggle-switch');
+    if(el){
+      const rect=el.getBoundingClientRect();
+      const x=rect.left/window.innerWidth+(rect.width/2)/window.innerWidth;
+      const y=rect.top/window.innerHeight;
+      confetti({particleCount:180,spread:120,origin:{x,y},colors:RAINBOW,startVelocity:55,gravity:0.75,ticks:350,scalar:1.1});
+      setTimeout(()=>{confetti({particleCount:100,spread:90,origin:{x:0.05,y:0.5},colors:RAINBOW,startVelocity:60,angle:70,gravity:0.8,ticks:280});confetti({particleCount:100,spread:90,origin:{x:0.95,y:0.5},colors:RAINBOW,startVelocity:60,angle:110,gravity:0.8,ticks:280});},180);
+      setTimeout(()=>confetti({particleCount:130,spread:150,origin:{x:0.5,y:0.05},colors:RAINBOW,startVelocity:40,gravity:0.85,ticks:260}),380);
+      setTimeout(()=>{confetti({particleCount:90,spread:80,origin:{x:0.2,y:0.1},colors:RAINBOW,startVelocity:50,angle:50,gravity:0.9,ticks:220});confetti({particleCount:90,spread:80,origin:{x:0.8,y:0.1},colors:RAINBOW,startVelocity:50,angle:130,gravity:0.9,ticks:220});},560);
+      setTimeout(()=>confetti({particleCount:250,spread:220,origin:{x:0.5,y:-0.05},colors:RAINBOW,startVelocity:28,gravity:1.1,ticks:200}),780);
+    }
+    setTimeout(()=>renderProjects(), 1600);
+  } else {
+    toast(`"${p.name}" marked as active`);
+    setTimeout(()=>renderProjects(), 400);
+  }
+};
+
+window.applyHoursProjectFilter=projId=>{const sel=document.getElementById('h-proj');if(sel)sel.value=projId;if(window.rebuildHours)rebuildHours();};
+function confirmDelProject(id){const p=getProjectById(id);const n=loadEntries().filter(e=>e.projectId===id).length;if(confirm(`Delete "${p.name}"?${n?` ${n} entr${n===1?'y':'ies'} will become unassigned.`:''}`)){deleteProject(id);toast('Project deleted');render();}}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — ALL HOURS
+══════════════════════════════════════════════════════ */
+function renderHours(){
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>All Hours</h1><div class="sub">Total billable hours across all designers and projects</div></div><button class="btn btn-gold" onclick="openEntryModal()">+ Log Time</button></div>
+    <div class="filters">
+      <label class="field-label">Designer</label>
+      <select id="h-des" onchange="rebuildHours()">${designerOpts('','All Designers')}</select>
+      <div class="sep"></div>
+      <label class="field-label">Client</label>
+      <select id="h-cli" onchange="rebuildHours();populateHoursProjectFilter()">${clientOpts('','All Clients')}</select>
+      <label class="field-label">Project</label>
+      <select id="h-proj" onchange="rebuildHours()">${allProjectOpts('','All Projects')}</select>
+      <div class="sep"></div>
+      <label class="field-label">Period</label>
+      <select id="h-range" onchange="rebuildHours()">
+        <option value="week">This Week</option><option value="lastweek">Last Week</option>
+        <option value="month">This Month</option><option value="all">All Time</option>
+      </select>
+      <select id="h-status" onchange="rebuildHours()">
+        <option value="">All Entries</option><option value="unbilled">Unbilled Only</option><option value="invoiced">Invoiced Only</option>
+      </select>
+      <input type="text" id="h-q" placeholder="Search…" oninput="rebuildHours()">
+    </div>
+    <div id="hours-body"></div>`;
+
+  window.populateHoursProjectFilter=()=>{
+    const cliId=document.getElementById('h-cli').value;
+    const projs=cliId?getProjectsByClient(cliId):loadProjects();
+    const sel=document.getElementById('h-proj');
+    sel.innerHTML=`<option value="">All Projects</option>`+projs.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  };
+
+  window.rebuildHours=()=>{
+    const desId=document.getElementById('h-des').value;
+    const cliId=document.getElementById('h-cli').value;
+    const projId=document.getElementById('h-proj').value;
+    const rangeKey=document.getElementById('h-range').value;
+    const status=document.getElementById('h-status').value;
+    const q=(document.getElementById('h-q').value||'').toLowerCase();
+    const [start,end]=rangeFromKey(rangeKey);
+
+    let entries=filterEntries({designerId:desId,clientId:cliId,projectId:projId,start,end,status});
+    if(q) entries=entries.filter(e=>{
+      const c=getClientById(e.clientId),d=e.designerId?getDesignerById(e.designerId):null;
+      return [c?.name||'',d?.name||'',entryProjectName(e),e.description].join(' ').toLowerCase().includes(q);
+    });
+
+    const el=document.getElementById('hours-body');
+    if(!entries.length){el.innerHTML=`<div class="empty"><div class="e-icon">◷</div><p>No entries match your filters.</p><button class="btn btn-gold" onclick="openEntryModal()">+ Log Time</button></div>`;return;}
+
+    const byClient={};
+    entries.forEach(e=>{(byClient[e.clientId]||(byClient[e.clientId]=[])).push(e);});
+    let html='', grandH=0, grandA=0;
+
+    Object.entries(byClient).forEach(([cid,ces])=>{
+      const c=getClientById(cid);
+      const totH=ces.reduce((s,e)=>s+e.hours,0), totA=ces.reduce((s,e)=>s+entryAmount(e),0);
+      grandH+=totH; grandA+=totA;
+      html+=`<div class="cgroup">
+        <div class="cgroup-hd" onclick="toggleGroup(this)">
+          <span class="name">${esc(c?.name||'Unknown')}</span>
+          <span class="meta"><span>${totH.toFixed(1)} hrs</span><strong>${cur(totA)}</strong><span class="chevron">▾</span></span>
+        </div>
+        <div>${entriesTableHtml(ces,{showDesigner:!desId,showClient:false,showProject:!projId})}</div>
+      </div>`;
+    });
+
+    html+=`<div class="card" style="text-align:right;padding:12px 20px"><span class="col2 fs12">Grand Total &nbsp;</span><strong>${grandH.toFixed(1)} hours</strong>&nbsp;&nbsp;<span class="col2 fs12">Revenue &nbsp;</span><span class="gold-txt" style="font-size:17px"><strong>${cur(grandA)}</strong></span></div>`;
+    el.innerHTML=html;
+  };
+
+  rebuildHours();
+}
+function toggleGroup(hd){hd.classList.toggle('collapsed');const b=hd.nextElementSibling;b.style.display=b.style.display==='none'?'':'none';}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — CLIENTS
+══════════════════════════════════════════════════════ */
+function renderClients(){
+  const clients=loadClients(), entries=loadEntries();
+  const cards=clients.length?clients.map(c=>{
+    const ce=entries.filter(e=>e.clientId===c.id);
+    const totH=ce.reduce((s,e)=>s+e.hours,0), totA=ce.reduce((s,e)=>s+entryAmount(e),0);
+    const projCount=loadProjects().filter(p=>p.clientId===c.id).length;
+    return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-family:Georgia,serif;font-size:17px;margin-bottom:3px">${esc(c.name)}</div>
+        <div class="col2 fs12">${[c.contactName,c.email].filter(Boolean).map(esc).join(' · ')}</div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="badge badge-gold">${cur(c.hourlyRate)}/hr default</span>
+          <span class="badge badge-dark">${projCount} project${projCount!==1?'s':''}</span>
+          <span class="col2 fs12">${totH.toFixed(1)} hrs · ${cur(totA)} total</span>
+        </div>
+      </div>
+      <div class="flex-gap">
+        <button class="btn btn-ghost btn-sm" onclick="openClientModal('${c.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelClient('${c.id}')">Delete</button>
+      </div>
+    </div></div>`;
+  }).join(''):`<div class="empty"><div class="e-icon">◎</div><p>No clients yet.</p><button class="btn btn-gold" onclick="openClientModal()">+ Add Client</button></div>`;
+
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Clients</h1></div><button class="btn btn-gold" onclick="openClientModal()">+ Add Client</button></div>
+    ${cards}`;
+}
+function confirmDelClient(id){const c=getClientById(id);const n=loadEntries().filter(e=>e.clientId===id).length;if(confirm(`Delete "${c.name}"?${n?` This will also remove ${n} time entr${n===1?'y':'ies'}.`:''}`)){deleteClient(id);toast('Client deleted');render();}}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — INVOICES
+══════════════════════════════════════════════════════ */
+function renderInvoices(){
+  const invoices=[...loadInvoices()].sort((a,b)=>b.generatedAt.localeCompare(a.generatedAt));
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Invoices</h1><div class="sub">All generated invoices and billing history</div></div></div>
+    <div class="filters"><label class="field-label">Client</label><select id="inv-f-cli" onchange="rebuildInvList()">${clientOpts('','All Clients')}</select></div>
+    <div id="inv-list"></div>`;
+
+  window.rebuildInvList=()=>{
+    const cliId=document.getElementById('inv-f-cli').value;
+    const list=invoices.filter(i=>!cliId||i.clientId===cliId);
+    const el=document.getElementById('inv-list');
+    if(!list.length){el.innerHTML=`<div class="empty"><div class="e-icon">◻</div><p>No invoices yet.</p><button class="btn btn-gold" onclick="navigate('#generate')">Generate First Invoice</button></div>`;return;}
+    el.innerHTML=list.map(inv=>{
+      const c=getClientById(inv.clientId), d=inv.designerId?getDesignerById(inv.designerId):null;
+      const covered=filterEntries({clientId:inv.clientId,designerId:inv.designerId||'',start:inv.startDate,end:inv.endDate});
+      const isPaid=inv.paid;
+      return `<div class="inv-card">
+        <div class="inv-card-hd" onclick="toggleInvDetail('${inv.id}',this)">
+          <div><div class="inv-num">${esc(inv.invoiceNumber)}</div>
+            <div class="inv-client">${esc(c?.name||'?')}${d?` · ${esc(d.name)}`:''}</div>
+            <div class="inv-client col2 fs12">${fmtDate(inv.startDate)} – ${fmtDate(inv.endDate)}</div></div>
+          <div class="inv-right">
+            <div class="inv-amt">${cur(inv.totalAmount)}</div>
+            <div class="inv-meta">${inv.totalHours.toFixed(1)} hrs · Generated ${fmtDate(inv.generatedAt.split('T')[0])}</div>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
+              <span class="badge badge-invoiced" style="font-size:10px">Invoiced</span>
+              ${isPaid?`<span class="badge-paid">✓ Paid ${inv.paidAt?fmtDate(inv.paidAt.split('T')[0]):''}</span>`:`<span class="badge-unpaid">Unpaid</span>`}
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();${isPaid?`markInvoicePaid('${inv.id}',false)`:`markInvoicePaid('${inv.id}',true)`}">${isPaid?'↩ Unpaid':'💵 Mark Paid'}</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();emailInvoice('${inv.id}')">✉ Email</button>
+            </div>
+          </div>
+        </div>
+        <div class="inv-detail" id="invd-${inv.id}" style="display:none">
+          ${entriesTableHtml(covered,{showDesigner:!inv.designerId,showActions:false})}
+        </div>
+      </div>`;
+    }).join('');
+  };
+  window.toggleInvDetail=(id,hd)=>{const el=document.getElementById(`invd-${id}`);const o=el.style.display!=='none';el.style.display=o?'none':'block';hd.classList.toggle('open',!o);};
+  rebuildInvList();
+}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — GENERATE INVOICE
+══════════════════════════════════════════════════════ */
+function renderGenerate(){
+  const clients=loadClients();
+  if(!clients.length){document.getElementById('app').innerHTML=`<div class="page-head"><div><h1>Generate Invoice</h1></div></div><div class="empty"><div class="e-icon">↗</div><p>Add clients and log time first.</p><button class="btn btn-gold" onclick="navigate('#clients')">Go to Clients</button></div>`;return;}
+  const [ws,we]=weekRange(0);
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Generate Invoice</h1><div class="sub">Select a client and period to create a PDF invoice</div></div></div>
+    <div class="card" style="max-width:600px">
+      <div class="form-group"><label class="field-label" for="gi-cli">Client</label><select id="gi-cli" onchange="updateGenPreview()">${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="field-label" for="gi-des">Designer (optional)</label><select id="gi-des" onchange="updateGenPreview()">${designerOpts('','All Designers')}</select></div>
+      <div class="form-group"><label class="field-label" for="gi-proj">Project (optional)</label><select id="gi-proj" onchange="updateGenPreview()">${allProjectOpts('','All Projects')}</select></div>
+      <div class="form-group">
+        <label class="field-label">Billing Period</label>
+        <div class="radio-group">
+          <label class="radio-opt"><input type="radio" name="gi-r" value="week" checked onchange="onGenRange()"> This week</label>
+          <label class="radio-opt"><input type="radio" name="gi-r" value="lastweek" onchange="onGenRange()"> Last week</label>
+          <label class="radio-opt"><input type="radio" name="gi-r" value="month" onchange="onGenRange()"> This month</label>
+          <label class="radio-opt"><input type="radio" name="gi-r" value="custom" onchange="onGenRange()"> Custom</label>
+        </div>
+      </div>
+      <div id="gi-custom" style="display:none"><div class="form-row">
+        <div class="form-group"><label class="field-label" for="gi-s">From</label><input type="date" id="gi-s" value="${ws}" onchange="updateGenPreview()"></div>
+        <div class="form-group"><label class="field-label" for="gi-e">To</label><input type="date" id="gi-e" value="${we}" onchange="updateGenPreview()"></div>
+      </div></div>
+      <div id="gi-preview"></div>
+      <button class="btn btn-dark" style="width:100%;justify-content:center;padding:12px;font-size:15px" onclick="generatePDF()">Download PDF Invoice</button>
+    </div>`;
+
+  window._gen={rangeKey:'week',start:ws,end:we};
+  window.onGenRange=()=>{const k=document.querySelector('input[name="gi-r"]:checked').value;window._gen.rangeKey=k;document.getElementById('gi-custom').style.display=k==='custom'?'block':'none';if(k!=='custom'){const[s,e]=rangeFromKey(k);window._gen.start=s;window._gen.end=e;}updateGenPreview();};
+  window.updateGenPreview=()=>{
+    const clientId=document.getElementById('gi-cli').value;
+    const designerId=document.getElementById('gi-des').value;
+    const projectId=document.getElementById('gi-proj').value;
+    let {rangeKey,start,end}=window._gen;
+    if(rangeKey==='custom'){start=document.getElementById('gi-s').value;end=document.getElementById('gi-e').value;}
+    const entries=filterEntries({clientId,designerId,projectId,start,end});
+    const el=document.getElementById('gi-preview');
+    if(!entries.length){el.innerHTML=`<div class="inv-preview-wrap"><p class="col2" style="text-align:center;padding:8px">No entries for this period.</p></div>`;return;}
+    const totH=entries.reduce((s,e)=>s+e.hours,0), totA=entries.reduce((s,e)=>s+entryAmount(e),0);
+    const invCount=entries.filter(e=>isInvoiced(e)).length;
+    const warn=invCount?`<div style="color:var(--unbilled);font-size:12px;margin-bottom:8px">⚠ ${invCount} entr${invCount===1?'y':'ies'} may already be invoiced.</div>`:'';
+    el.innerHTML=`<div class="inv-preview-wrap">${warn}${entries.map(e=>{const d=e.designerId?getDesignerById(e.designerId):null;return`<div class="inv-preview-row"><span>${fmtDate(e.date)} · <strong>${esc(entryProjectName(e))}</strong>${d?` · <span class="col2">${esc(d.name)}</span>`:''}<br><span class="desc">${esc(e.description)}</span></span><span style="white-space:nowrap">${e.hours}h · ${cur(entryAmount(e))}</span></div>`;}).join('')}<div class="inv-total-row"><span>${totH.toFixed(1)} hrs</span><span class="gold-txt">${cur(totA)}</span></div></div>`;
+  };
+  updateGenPreview();
+}
+
+/* ══════════════════════════════════════════════════════
+   PDF GENERATOR
+══════════════════════════════════════════════════════ */
+function generatePDF(){
+  const clientId=document.getElementById('gi-cli').value;
+  const designerId=document.getElementById('gi-des').value;
+  const projectId=document.getElementById('gi-proj').value;
+  let {rangeKey,start,end}=window._gen;
+  if(rangeKey==='custom'){start=document.getElementById('gi-s').value;end=document.getElementById('gi-e').value;}
+  const c=getClientById(clientId), designer=designerId?getDesignerById(designerId):null;
+  const entries=filterEntries({clientId,designerId,projectId,start,end});
+  const settings=loadSettings();
+  if(!entries.length){toast('No entries for this period');return;}
+
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
+  const PW=215.9,M=20,R=PW-M;
+  const invNum=`${settings.invoicePrefix}-${String(settings.invoiceNext).padStart(4,'0')}`;
+  const issueDate=todayStr(), dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+14);
+  const dueDate=dueD.toISOString().split('T')[0];
+
+  doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
+  doc.text(settings.firmName||'Your Firm',M,26);
+  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+  let iy=32;
+  if(settings.firmAddress){doc.text(settings.firmAddress,M,iy);iy+=5;}
+  if(settings.firmEmail){doc.text(settings.firmEmail,M,iy);iy+=5;}
+  if(settings.firmPhone){doc.text(settings.firmPhone,M,iy);}
+
+  doc.setFontSize(22);doc.setFont('helvetica','bold');doc.setTextColor(196,168,122);
+  doc.text('INVOICE',R,26,{align:'right'});
+  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+  doc.text(`Invoice #: ${invNum}`,R,33,{align:'right'});
+  doc.text(`Date: ${fmtDateLong(issueDate)}`,R,38,{align:'right'});
+  doc.text(`Due: ${fmtDateLong(dueDate)}`,R,43,{align:'right'});
+
+  doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,52,R,52);
+  doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,59);
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c.name,M,65);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
+  let by=71;
+  if(c.contactName){doc.text(c.contactName,M,by);by+=5;}
+  if(c.email){doc.text(c.email,M,by);by+=5;}
+  if(designer){doc.text(`Designer: ${designer.name}`,M,by);}
+  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(130,125,118);
+  doc.text(`Billing Period: ${fmtDateLong(start)} – ${fmtDateLong(end)}`,R,65,{align:'right'});
+
+  const body=entries.map(e=>{
+    const d=e.designerId?getDesignerById(e.designerId):null;
+    return[fmtDate(e.date),d?d.name:'—',entryProjectName(e),e.description,`${e.hours}h`,`${cur(entryRate(e))}/hr`,cur(entryAmount(e))];
+  });
+
+  doc.autoTable({startY:88,head:[['Date','Designer','Project','Description','Hours','Rate','Amount']],body,margin:{left:M,right:M},
+    styles:{fontSize:8.5,cellPadding:3.5,textColor:[30,28,24]},
+    headStyles:{fillColor:[30,28,24],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
+    columnStyles:{0:{cellWidth:22},1:{cellWidth:25},2:{cellWidth:28},3:{cellWidth:'auto',overflow:'linebreak'},4:{cellWidth:14,halign:'right'},5:{cellWidth:20,halign:'right'},6:{cellWidth:22,halign:'right'}},
+    alternateRowStyles:{fillColor:[249,248,245]}});
+
+  const aft=doc.lastAutoTable.finalY+8;
+  const totH=entries.reduce((s,e)=>s+e.hours,0), totA=entries.reduce((s,e)=>s+entryAmount(e),0);
+  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(110,105,98);
+  doc.text('Total Hours:',R-40,aft);doc.text(`${totH.toFixed(1)}h`,R,aft,{align:'right'});
+  doc.setDrawColor(220,215,205);doc.line(R-45,aft+4,R,aft+4);
+  doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text('Total Due:',R-40,aft+10);
+  doc.setTextColor(168,140,94);doc.text(cur(totA),R,aft+10,{align:'right'});
+  doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
+  doc.setDrawColor(220,215,205);doc.line(M,258,R,258);
+  doc.text('Thank you for your business. Payment due within 14 days.',PW/2,263,{align:'center'});
+
+  const invRecord={id:uid(),invoiceNumber:invNum,clientId,designerId:designerId||null,projectId:projectId||null,startDate:start,endDate:end,totalHours:totH,totalAmount:totA,generatedAt:new Date().toISOString()};
+  const il=loadInvoices(); il.push(invRecord); saveInvoices(il);
+  settings.invoiceNext+=1; saveSettings(settings);
+  doc.save(`${invNum}-${c.name.replace(/\s+/g,'-')}.pdf`);
+  toast(`${invNum} downloaded`);
+}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — ANALYTICS (Tabbed: Time | Expenses | Combined)
+══════════════════════════════════════════════════════ */
+const CHART_PALETTE=['#C4A87A','#3D6B4F','#4A7A9B','#8B6F47','#7C5C8B','#5C8B7C','#8B8B4A','#8B4A6B','#4A5C8B','#6B8B4A'];
+const STOP_WORDS=new Set(['a','an','the','and','or','but','in','on','at','to','for','of','with','by','from','up','about','into','during','before','after','above','below','i','we','you','they','it','he','she','this','that','was','is','are','were','been','has','have','had','do','did','be','am','what','its','our','their','your','my','his','her','who','which','as','s','t','re','ve','ll','d','so','than','too','very','just','more','some','all','both','each','few','most','other','such','when','where','why','how','then','once','here','there','only','own','same','nor','no','not','will','can','would','could','should','may','might','shall','done','made','new','also','work','worked','working','create','created','creating','update','updated','review','reviewed','design','designed']);
+
+window._charts={};
+function destroyCharts(){Object.values(window._charts).forEach(c=>{try{c.destroy();}catch{}});window._charts={};}
+
+function renderAnalytics(){
+  destroyCharts();
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Analytics</h1><div class="sub">Comprehensive KPIs, charts, and insights across time and expenses</div></div></div>
+    <div class="analytics-tabs">
+      <button class="atab active" onclick="showATab('time',this)">⏱ Time Analytics</button>
+      <button class="atab" onclick="showATab('expenses',this)">💳 Expense Analytics</button>
+      <button class="atab" onclick="showATab('combined',this)">◈ Combined</button>
+    </div>
+    <div id="analytics-tab-content"></div>`;
+  window.showATab=(tab,btn)=>{
+    destroyCharts();
+    document.querySelectorAll('.atab').forEach(b=>b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    if(tab==='time') buildTimeAnalytics();
+    else if(tab==='expenses') buildExpenseAnalytics();
+    else buildCombinedAnalytics();
+  };
+  buildTimeAnalytics();
+}
+
+/* ── TIME ANALYTICS ─────────────────────────────────── */
+function buildTimeAnalytics(){
+  const el=document.getElementById('analytics-tab-content');
+  el.innerHTML=`
+    <div class="filters" style="margin-bottom:16px">
+      <label class="field-label">Period</label>
+      <select id="ta-range" onchange="rebuildTimeA()">
+        <option value="all">All Time</option>
+        <option value="ytd">Year to Date</option>
+        <option value="month" selected>This Month</option>
+        <option value="lastmonth">Last Month</option>
+        <option value="week">This Week</option>
+      </select>
+      <label class="field-label">Client</label>
+      <select id="ta-cli" onchange="rebuildTimeA()">${clientOpts('','All Clients')}</select>
+      <label class="field-label">Designer</label>
+      <select id="ta-des" onchange="rebuildTimeA()">${designerOpts('','All Designers')}</select>
+    </div>
+    <div id="time-a-body"></div>`;
+  window.rebuildTimeA=()=>{
+    destroyCharts();
+    const rk=document.getElementById('ta-range').value;
+    const cliId=document.getElementById('ta-cli').value;
+    const desId=document.getElementById('ta-des').value;
+    let start='',end='';
+    if(rk==='ytd'){start=`${new Date().getFullYear()}-01-01`;end=todayStr();}
+    else if(rk==='lastmonth'){const[s,e]=monthRange(-1);start=s;end=e;}
+    else if(rk!=='all'){[start,end]=rangeFromKey(rk);}
+    const entries=filterEntries({clientId:cliId,designerId:desId,start,end});
+    buildTimeABody(entries,{cliId,desId});
+  };
+  rebuildTimeA();
+}
+
+function buildTimeABody(entries,{cliId,desId}){
+  const el=document.getElementById('time-a-body');
+  if(!entries.length){el.innerHTML=`<div class="empty"><div class="e-icon">◑</div><p>No data for this period.</p><button class="btn btn-gold" onclick="openEntryModal()">+ Log Time</button></div>`;return;}
+  const allE=loadEntries();
+  const totH=entries.reduce((s,e)=>s+e.hours,0);
+  const totA=entries.reduce((s,e)=>s+entryAmount(e),0);
+  const invH=entries.filter(e=>isInvoiced(e)).reduce((s,e)=>s+e.hours,0);
+  const invA=entries.filter(e=>isInvoiced(e)).reduce((s,e)=>s+entryAmount(e),0);
+  const unbA=totA-invA;
+  const avgRate=totH>0?totA/totH:0;
+  const topClientObj=(()=>{const m={};entries.forEach(e=>{m[e.clientId]=(m[e.clientId]||0)+entryAmount(e);});const top=Object.entries(m).sort((a,b)=>b[1]-a[1])[0];return top?{name:getClientById(top[0])?.name||'?',val:top[1]}:null;})();
+  const topDesObj=(()=>{const m={};entries.filter(e=>e.designerId).forEach(e=>{const n=getDesignerById(e.designerId)?.name||'?';m[n]=(m[n]||0)+e.hours;});const top=Object.entries(m).sort((a,b)=>b[1]-a[1])[0];return top?{name:top[0],val:top[1]}:null;})();
+  const atH=allE.reduce((s,e)=>s+e.hours,0);
+  const atA=allE.reduce((s,e)=>s+entryAmount(e),0);
+  const weeks52=lastNWeeks(52);
+  const activeWks=weeks52.filter(w=>allE.some(e=>e.date>=w.start&&e.date<=w.end)).length||1;
+  const avgWkH=atH/activeWks;
+  const months12=lastNMonths(12);
+  const monthRevData=months12.map(m=>allE.filter(e=>e.date>=m.start&&e.date<=m.end&&(!cliId||e.clientId===cliId)&&(!desId||e.designerId===desId)).reduce((s,e)=>s+entryAmount(e),0));
+  const bestMoIdx=monthRevData.reduce((bi,v,i)=>v>monthRevData[bi]?i:bi,0);
+  const ytdStart=`${new Date().getFullYear()}-01-01`;
+  const ytdH=allE.filter(e=>e.date>=ytdStart&&(!cliId||e.clientId===cliId)&&(!desId||e.designerId===desId)).reduce((s,e)=>s+e.hours,0);
+  const ytdA=allE.filter(e=>e.date>=ytdStart&&(!cliId||e.clientId===cliId)&&(!desId||e.designerId===desId)).reduce((s,e)=>s+entryAmount(e),0);
+  const topProjObj=(()=>{const m={};entries.forEach(e=>{const n=entryProjectName(e)||'—';m[n]=(m[n]||0)+entryAmount(e);});const top=Object.entries(m).sort((a,b)=>b[1]-a[1])[0];return top?{name:top[0],val:top[1]}:null;})();
+
+  el.innerHTML=`
+    <div class="kpi-grid kpi-grid-6" style="margin-bottom:10px">
+      <div class="kpi gold"><div class="kpi-val gold">${cur(totA)}</div><div class="kpi-sub">Revenue (Period)</div></div>
+      <div class="kpi"><div class="kpi-val">${totH.toFixed(1)}h</div><div class="kpi-sub">Hours (Period)</div></div>
+      <div class="kpi green"><div class="kpi-val green">${cur(invA)}</div><div class="kpi-sub">Invoiced</div></div>
+      <div class="kpi red"><div class="kpi-val red">${cur(unbA)}</div><div class="kpi-sub">Unbilled</div></div>
+      <div class="kpi"><div class="kpi-val">${(totH>0?(invH/totH*100):0).toFixed(0)}%</div><div class="kpi-sub">% Invoiced</div></div>
+      <div class="kpi"><div class="kpi-val">${entries.length}</div><div class="kpi-sub">Entries</div></div>
+    </div>
+    <div class="kpi-grid kpi-grid-6" style="margin-bottom:10px">
+      <div class="kpi"><div class="kpi-val">${cur(avgRate)}/h</div><div class="kpi-sub">Effective Rate</div></div>
+      <div class="kpi"><div class="kpi-val">${avgWkH.toFixed(1)}h</div><div class="kpi-sub">Avg Hrs/Week</div></div>
+      <div class="kpi gold"><div class="kpi-val gold">${cur(ytdA)}</div><div class="kpi-sub">YTD Revenue</div></div>
+      <div class="kpi"><div class="kpi-val">${ytdH.toFixed(1)}h</div><div class="kpi-sub">YTD Hours</div></div>
+      <div class="kpi gold"><div class="kpi-val gold">${cur(atA)}</div><div class="kpi-sub">All-Time Revenue</div></div>
+      <div class="kpi"><div class="kpi-val">${atH.toFixed(1)}h</div><div class="kpi-sub">All-Time Hours</div></div>
+    </div>
+    <div class="kpi-grid kpi-grid-4" style="margin-bottom:20px">
+      <div class="kpi"><div class="kpi-val">${esc(topClientObj?.name||'—')}</div><div class="kpi-sub">Top Client (Revenue)</div>${topClientObj?`<div class="kpi-note">${cur(topClientObj.val)}</div>`:''}</div>
+      <div class="kpi"><div class="kpi-val">${esc(topDesObj?.name||'—')}</div><div class="kpi-sub">Most Active Designer</div>${topDesObj?`<div class="kpi-note">${topDesObj.val.toFixed(1)}h</div>`:''}</div>
+      <div class="kpi"><div class="kpi-val">${esc(topProjObj?.name||'—')}</div><div class="kpi-sub">Top Project (Revenue)</div>${topProjObj?`<div class="kpi-note">${cur(topProjObj.val)}</div>`:''}</div>
+      <div class="kpi gold"><div class="kpi-val gold">${cur(monthRevData[bestMoIdx]||0)}</div><div class="kpi-sub">Best Month</div><div class="kpi-note">${months12[bestMoIdx]?.label||'—'}</div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Revenue by Client</h3><canvas id="ch-revClient"></canvas></div>
+      <div class="chart-card"><h3>Invoiced vs Unbilled ($)</h3><canvas id="ch-invStatus"></canvas></div>
+      <div class="chart-card"><h3>Hours by Designer</h3><canvas id="ch-byDesigner"></canvas></div>
+      <div class="chart-card"><h3>Hours by Project (Top 10)</h3><canvas id="ch-byProject"></canvas></div>
+      <div class="chart-card chart-full"><h3>Monthly Revenue — Last 12 Months</h3><canvas id="ch-monthRevenue" class="tall"></canvas></div>
+      <div class="chart-card chart-full"><h3>Weekly Hours — Last 16 Weeks</h3><canvas id="ch-overTime" class="tall"></canvas></div>
+      <div class="chart-card chart-full"><h3>Keyword Analysis — Where Your Hours Go</h3><div id="kw-analysis"></div></div>
+    </div>`;
+
+  // Revenue by client (bar)
+  const byClientRev={};entries.forEach(e=>{const n=getClientById(e.clientId)?.name||'?';byClientRev[n]=(byClientRev[n]||0)+entryAmount(e);});
+  const crE=Object.entries(byClientRev).sort((a,b)=>b[1]-a[1]);
+  window._charts.revClient=new Chart(document.getElementById('ch-revClient'),{type:'bar',data:{labels:crE.map(([n])=>n),datasets:[{data:crE.map(([,v])=>v),backgroundColor:CHART_PALETTE,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()},grid:{color:'#F2F0EB'}},x:{grid:{display:false}}}}});
+  // Invoiced vs unbilled $
+  window._charts.invStatus=new Chart(document.getElementById('ch-invStatus'),{type:'doughnut',data:{labels:['Invoiced','Unbilled'],datasets:[{data:[invA,unbA],backgroundColor:['#3D6B4F','#C4A87A'],borderWidth:1,borderColor:'#fff'}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}});
+  // Hours by designer
+  const byDes={};entries.forEach(e=>{const n=e.designerId?getDesignerById(e.designerId)?.name||'?':'Unassigned';byDes[n]=(byDes[n]||0)+e.hours;});
+  const dE=Object.entries(byDes).sort((a,b)=>b[1]-a[1]);
+  window._charts.byDes=new Chart(document.getElementById('ch-byDesigner'),{type:'bar',data:{labels:dE.map(([n])=>n),datasets:[{data:dE.map(([,v])=>v),backgroundColor:CHART_PALETTE,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#F2F0EB'}},x:{grid:{display:false}}}}});
+  // Hours by project (horizontal)
+  const byProj={};entries.forEach(e=>{const n=entryProjectName(e)||'—';byProj[n]=(byProj[n]||0)+e.hours;});
+  const pE=Object.entries(byProj).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  window._charts.byProj=new Chart(document.getElementById('ch-byProject'),{type:'bar',data:{labels:pE.map(([n])=>n),datasets:[{data:pE.map(([,v])=>v),backgroundColor:CHART_PALETTE,borderRadius:4}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,grid:{color:'#F2F0EB'}},y:{grid:{display:false}}}}});
+  // Monthly revenue bar
+  window._charts.monthRev=new Chart(document.getElementById('ch-monthRevenue'),{type:'bar',data:{labels:months12.map(m=>m.label),datasets:[{label:'Revenue',data:monthRevData,backgroundColor:'rgba(196,168,122,0.75)',borderColor:'#C4A87A',borderWidth:1,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()},grid:{color:'#F2F0EB'}},x:{grid:{display:false}}}}});
+  // Weekly hours line
+  const weeks16=lastNWeeks(16);
+  const wkData=weeks16.map(w=>allE.filter(e=>e.date>=w.start&&e.date<=w.end&&(!cliId||e.clientId===cliId)&&(!desId||e.designerId===desId)).reduce((s,e)=>s+e.hours,0));
+  window._charts.wkHours=new Chart(document.getElementById('ch-overTime'),{type:'line',data:{labels:weeks16.map(w=>w.label),datasets:[{label:'Hours',data:wkData,borderColor:'#C4A87A',backgroundColor:'rgba(196,168,122,0.08)',fill:true,tension:0.35,pointBackgroundColor:'#C4A87A',pointRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#F2F0EB'}},x:{grid:{display:false}}}}});
+  // Keywords
+  const kwMap={};entries.forEach(e=>{const words=(e.description||'').toLowerCase().replace(/[^a-z\s]/g,' ').split(/\s+/).filter(w=>w.length>2&&!STOP_WORDS.has(w));const seen=new Set();words.forEach(w=>{if(seen.has(w))return;seen.add(w);if(!kwMap[w])kwMap[w]={count:0,hours:0,amount:0};kwMap[w].count++;kwMap[w].hours+=e.hours;kwMap[w].amount+=entryAmount(e);});});
+  const kwArr=Object.entries(kwMap).sort((a,b)=>b[1].hours-a[1].hours).slice(0,24);
+  const maxKH=kwArr[0]?kwArr[0][1].hours:1;
+  document.getElementById('kw-analysis').innerHTML=kwArr.length?`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">${kwArr.map(([kw,{count,hours,amount}])=>`<div style="padding:8px 10px;background:var(--bg);border-radius:6px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-weight:600;font-size:12px">${esc(kw)}</span><span class="col2" style="font-size:11px">${hours.toFixed(1)}h · ${cur(amount)}</span></div><div class="kw-bar" style="width:${Math.round(hours/maxKH*100)}%"></div><div class="col2" style="font-size:10px;margin-top:3px">${count} entr${count===1?'y':'ies'}</div></div>`).join('')}</div>`:'<p class="col2 fs12">Not enough data.</p>';
+}
+
+/* ── EXPENSE ANALYTICS ──────────────────────────────── */
+function buildExpenseAnalytics(){
+  const el=document.getElementById('analytics-tab-content');
+  destroyCharts();
+  const items=loadExpItems();
+  if(!items.length){el.innerHTML=`<div class="empty"><div class="e-icon">◑</div><p>No expense items yet.</p><button class="btn btn-gold" onclick="switchApp('expenses');navigate('#exp-items')">Go to Expenses</button></div>`;return;}
+  const totV=items.reduce((s,i)=>s+i.vendorAmount,0);
+  const totC=items.reduce((s,i)=>s+calcItem(i).clientTotal,0);
+  const totM=totC-totV;
+  const billed=items.filter(i=>i.status==='billed');
+  const filed=items.filter(i=>i.status!=='billed');
+  const billedC=billed.reduce((s,i)=>s+calcItem(i).clientTotal,0);
+  const filedC=filed.reduce((s,i)=>s+calcItem(i).clientTotal,0);
+  const avgMkup=items.length?items.reduce((s,i)=>s+(i.markupPct||0),0)/items.length:0;
+  const avgAdm=items.length?items.reduce((s,i)=>s+(i.adminFeePct||0),0)/items.length:0;
+  const maxItem=items.reduce((best,i)=>calcItem(i).clientTotal>calcItem(best).clientTotal?i:best,items[0]);
+  const byCat={};items.forEach(i=>{const l=CAT_LABELS[i.category]||i.category;byCat[l]=(byCat[l]||0)+calcItem(i).clientTotal;});
+  const topCatE=Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0];
+  const byClientC={},byClientV={};
+  items.forEach(i=>{const n=getClientById(i.clientId)?.name||'?';byClientC[n]=(byClientC[n]||0)+calcItem(i).clientTotal;byClientV[n]=(byClientV[n]||0)+i.vendorAmount;});
+  const months12=lastNMonths(12);
+  const monthExpC=months12.map(m=>items.filter(i=>{const d=i.date||i.createdAt?.split('T')[0]||'';return d>=m.start&&d<=m.end;}).reduce((s,i)=>s+calcItem(i).clientTotal,0));
+  const bestExpMoIdx=monthExpC.reduce((bi,v,i)=>v>monthExpC[bi]?i:bi,0);
+
+  el.innerHTML=`
+    <div class="kpi-grid kpi-grid-6" style="margin-bottom:10px">
+      <div class="kpi gold"><div class="kpi-val gold">${cur(totC)}</div><div class="kpi-sub">Total Client Billing</div></div>
+      <div class="kpi"><div class="kpi-val">${cur(totV)}</div><div class="kpi-sub">Vendor Cost</div></div>
+      <div class="kpi green"><div class="kpi-val green">${cur(totM)}</div><div class="kpi-sub">Markup Earned</div></div>
+      <div class="kpi green"><div class="kpi-val green">${cur(billedC)}</div><div class="kpi-sub">Total Billed</div></div>
+      <div class="kpi red"><div class="kpi-val red">${cur(filedC)}</div><div class="kpi-sub">Unbilled Value</div></div>
+      <div class="kpi"><div class="kpi-val">${items.length}</div><div class="kpi-sub">Total Items</div></div>
+    </div>
+    <div class="kpi-grid kpi-grid-6" style="margin-bottom:10px">
+      <div class="kpi"><div class="kpi-val">${billed.length}</div><div class="kpi-sub">Items Billed</div></div>
+      <div class="kpi"><div class="kpi-val">${filed.length}</div><div class="kpi-sub">Items Filed</div></div>
+      <div class="kpi"><div class="kpi-val">${avgMkup.toFixed(1)}%</div><div class="kpi-sub">Avg Markup</div></div>
+      <div class="kpi"><div class="kpi-val">${avgAdm.toFixed(1)}%</div><div class="kpi-sub">Avg Admin Fee</div></div>
+      <div class="kpi gold"><div class="kpi-val gold">${cur(calcItem(maxItem).clientTotal)}</div><div class="kpi-sub">Largest Item</div><div class="kpi-note">${esc(maxItem.description||maxItem.vendorName||'')}</div></div>
+      <div class="kpi gold"><div class="kpi-val gold">${cur(monthExpC[bestExpMoIdx]||0)}</div><div class="kpi-sub">Best Month</div><div class="kpi-note">${months12[bestExpMoIdx]?.label||'—'}</div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Client Billing by Client</h3><canvas id="ch-expCli"></canvas></div>
+      <div class="chart-card"><h3>Billed vs Unbilled</h3><canvas id="ch-expBilledStatus"></canvas></div>
+      <div class="chart-card"><h3>Items by Category</h3><canvas id="ch-expCatCount"></canvas></div>
+      <div class="chart-card"><h3>Billing by Category</h3><canvas id="ch-expCatVal"></canvas></div>
+      <div class="chart-card chart-full"><h3>Monthly Expense Billing — Last 12 Months</h3><canvas id="ch-expMonthly" class="tall"></canvas></div>
+      <div class="chart-card chart-full"><h3>Vendor Cost vs Client Billing by Client</h3><canvas id="ch-expVsClient" class="tall"></canvas></div>
+    </div>`;
+
+  const cNames=Object.keys(byClientC);
+  window._charts.expCli=new Chart(document.getElementById('ch-expCli'),{type:'doughnut',data:{labels:cNames,datasets:[{data:cNames.map(n=>byClientC[n]),backgroundColor:CHART_PALETTE,borderWidth:1,borderColor:'#fff'}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}});
+  window._charts.expBilledStatus=new Chart(document.getElementById('ch-expBilledStatus'),{type:'doughnut',data:{labels:['Billed','Filed'],datasets:[{data:[billedC,filedC],backgroundColor:['#3D6B4F','#C4A87A'],borderWidth:1,borderColor:'#fff'}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}});
+  const catCnt={};items.forEach(i=>{const l=CAT_LABELS[i.category]||i.category;catCnt[l]=(catCnt[l]||0)+1;});
+  window._charts.expCatCount=new Chart(document.getElementById('ch-expCatCount'),{type:'doughnut',data:{labels:Object.keys(catCnt),datasets:[{data:Object.values(catCnt),backgroundColor:CHART_PALETTE,borderWidth:1,borderColor:'#fff'}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}});
+  const catE=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  window._charts.expCatVal=new Chart(document.getElementById('ch-expCatVal'),{type:'bar',data:{labels:catE.map(([n])=>n),datasets:[{data:catE.map(([,v])=>v),backgroundColor:CHART_PALETTE,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()},grid:{color:'#F2F0EB'}},x:{grid:{display:false}}}}});
+  window._charts.expMonthly=new Chart(document.getElementById('ch-expMonthly'),{type:'bar',data:{labels:months12.map(m=>m.label),datasets:[{label:'Client Billing',data:monthExpC,backgroundColor:'rgba(61,107,79,0.75)',borderColor:'#3D6B4F',borderWidth:1,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()},grid:{color:'#F2F0EB'}},x:{grid:{display:false}}}}});
+  window._charts.expVsClient=new Chart(document.getElementById('ch-expVsClient'),{type:'bar',data:{labels:cNames,datasets:[{label:'Vendor Cost',data:cNames.map(n=>byClientV[n]||0),backgroundColor:'rgba(107,102,96,0.65)',borderRadius:2},{label:'Client Billing',data:cNames.map(n=>byClientC[n]||0),backgroundColor:'rgba(196,168,122,0.85)',borderRadius:2}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{x:{stacked:false,grid:{display:false}},y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()},grid:{color:'#F2F0EB'}}}}});
+}
+
+/* ── COMBINED ANALYTICS ─────────────────────────────── */
+function buildCombinedAnalytics(){
+  const el=document.getElementById('analytics-tab-content');
+  destroyCharts();
+  const allE=loadEntries(), allI=loadExpItems();
+  const timeRevTotal=allE.reduce((s,e)=>s+entryAmount(e),0);
+  const timeRevInv=allE.filter(e=>isInvoiced(e)).reduce((s,e)=>s+entryAmount(e),0);
+  const timeRevUnb=timeRevTotal-timeRevInv;
+  const totalH=allE.reduce((s,e)=>s+e.hours,0);
+  const expVendorTotal=allI.reduce((s,i)=>s+i.vendorAmount,0);
+  const expClientTotal=allI.reduce((s,i)=>s+calcItem(i).clientTotal,0);
+  const expMarkup=expClientTotal-expVendorTotal;
+  const expBilledTotal=allI.filter(i=>i.status==='billed').reduce((s,i)=>s+calcItem(i).clientTotal,0);
+  const expUnbTotal=allI.filter(i=>i.status!=='billed').reduce((s,i)=>s+calcItem(i).clientTotal,0);
+  const combinedTotal=timeRevTotal+expClientTotal;
+  const combinedInv=timeRevInv+expBilledTotal;
+  const combinedUnb=timeRevUnb+expUnbTotal;
+  const grossProfit=timeRevTotal+expMarkup;
+  const profitMargin=combinedTotal>0?(grossProfit/combinedTotal*100):0;
+  const ytdStart=`${new Date().getFullYear()}-01-01`;
+  const ytdTime=allE.filter(e=>e.date>=ytdStart).reduce((s,e)=>s+entryAmount(e),0);
+  const ytdExp=allI.filter(i=>(i.date||i.createdAt?.split('T')[0]||'')>=ytdStart).reduce((s,i)=>s+calcItem(i).clientTotal,0);
+  const ytdTotal=ytdTime+ytdExp;
+  const combByClient={};
+  allE.forEach(e=>{const n=getClientById(e.clientId)?.name||'?';combByClient[n]=(combByClient[n]||0)+entryAmount(e);});
+  allI.forEach(i=>{const n=getClientById(i.clientId)?.name||'?';combByClient[n]=(combByClient[n]||0)+calcItem(i).clientTotal;});
+  const topCombE=Object.entries(combByClient).sort((a,b)=>b[1]-a[1]);
+  const months12=lastNMonths(12);
+  const mTimeRev=months12.map(m=>allE.filter(e=>e.date>=m.start&&e.date<=m.end).reduce((s,e)=>s+entryAmount(e),0));
+  const mExpRev=months12.map(m=>allI.filter(i=>{const d=i.date||i.createdAt?.split('T')[0]||'';return d>=m.start&&d<=m.end;}).reduce((s,i)=>s+calcItem(i).clientTotal,0));
+  const mVendor=months12.map(m=>allI.filter(i=>{const d=i.date||i.createdAt?.split('T')[0]||'';return d>=m.start&&d<=m.end;}).reduce((s,i)=>s+i.vendorAmount,0));
+  const mProfit=months12.map((_,idx)=>mTimeRev[idx]+mExpRev[idx]-mVendor[idx]);
+  const mComb=months12.map((_,idx)=>mTimeRev[idx]+mExpRev[idx]);
+  const bestMoIdx=mComb.reduce((bi,v,i)=>v>mComb[bi]?i:bi,0);
+  const avgMonthly=mComb.reduce((s,v)=>s+v,0)/Math.max(mComb.filter(v=>v>0).length,1);
+  const timeByC={},expByC={};
+  allE.forEach(e=>{const n=getClientById(e.clientId)?.name||'?';timeByC[n]=(timeByC[n]||0)+entryAmount(e);});
+  allI.forEach(i=>{const n=getClientById(i.clientId)?.name||'?';expByC[n]=(expByC[n]||0)+calcItem(i).clientTotal;});
+  const cNames=topCombE.map(([n])=>n);
+
+  el.innerHTML=`
+    <div class="kpi-grid kpi-grid-6" style="margin-bottom:10px">
+      <div class="kpi gold"><div class="kpi-val gold">${cur(combinedTotal)}</div><div class="kpi-sub">Total Client Billing</div></div>
+      <div class="kpi green"><div class="kpi-val green">${cur(combinedInv)}</div><div class="kpi-sub">Total Invoiced/Billed</div></div>
+      <div class="kpi red"><div class="kpi-val red">${cur(combinedUnb)}</div><div class="kpi-sub">Total Outstanding</div></div>
+      <div class="kpi gold"><div class="kpi-val gold">${cur(ytdTotal)}</div><div class="kpi-sub">YTD Billing</div></div>
+      <div class="kpi"><div class="kpi-val">${cur(avgMonthly)}</div><div class="kpi-sub">Avg Monthly Billing</div></div>
+      <div class="kpi gold"><div class="kpi-val gold">${cur(mComb[bestMoIdx]||0)}</div><div class="kpi-sub">Best Month</div><div class="kpi-note">${months12[bestMoIdx]?.label||'—'}</div></div>
+    </div>
+    <div class="kpi-grid kpi-grid-6" style="margin-bottom:10px">
+      <div class="kpi"><div class="kpi-val">${cur(timeRevTotal)}</div><div class="kpi-sub">Time Billing (All)</div></div>
+      <div class="kpi"><div class="kpi-val">${cur(expClientTotal)}</div><div class="kpi-sub">Expense Billing (All)</div></div>
+      <div class="kpi"><div class="kpi-val">${cur(expVendorTotal)}</div><div class="kpi-sub">Vendor Costs</div></div>
+      <div class="kpi green"><div class="kpi-val green">${cur(expMarkup)}</div><div class="kpi-sub">Markup Earned</div></div>
+      <div class="kpi green"><div class="kpi-val green">${cur(grossProfit)}</div><div class="kpi-sub">Gross Profit</div></div>
+      <div class="kpi"><div class="kpi-val">${profitMargin.toFixed(1)}%</div><div class="kpi-sub">Profit Margin</div></div>
+    </div>
+    <div class="kpi-grid kpi-grid-4" style="margin-bottom:20px">
+      <div class="kpi"><div class="kpi-val">${totalH.toFixed(1)}h</div><div class="kpi-sub">Total Hours Logged</div></div>
+      <div class="kpi"><div class="kpi-val">${esc(topCombE[0]?.[0]||'—')}</div><div class="kpi-sub">Top Client (Combined)</div>${topCombE[0]?`<div class="kpi-note">${cur(topCombE[0][1])}</div>`:''}</div>
+      <div class="kpi"><div class="kpi-val">${cur(ytdTime)}</div><div class="kpi-sub">YTD Time Revenue</div></div>
+      <div class="kpi"><div class="kpi-val">${cur(ytdExp)}</div><div class="kpi-sub">YTD Expense Billing</div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card chart-full"><h3>Monthly Combined Billing — Last 12 Months (Time + Expenses)</h3><canvas id="ch-combMonthly" class="tall"></canvas></div>
+      <div class="chart-card chart-full"><h3>Monthly Gross Profit — Last 12 Months</h3><canvas id="ch-combProfit" class="tall"></canvas></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Revenue Composition</h3><canvas id="ch-combComp"></canvas></div>
+      <div class="chart-card"><h3>Outstanding Breakdown</h3><canvas id="ch-combOutstanding"></canvas></div>
+      <div class="chart-card chart-full"><h3>Combined Billing by Client</h3><canvas id="ch-combByClient" class="tall"></canvas></div>
+    </div>`;
+
+  window._charts.combMonthly=new Chart(document.getElementById('ch-combMonthly'),{type:'bar',data:{labels:months12.map(m=>m.label),datasets:[{label:'Time Billing',data:mTimeRev,backgroundColor:'rgba(196,168,122,0.85)',borderRadius:2},{label:'Expense Billing',data:mExpRev,backgroundColor:'rgba(61,107,79,0.75)',borderRadius:2}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()},grid:{color:'#F2F0EB'}}}}});
+  window._charts.combProfit=new Chart(document.getElementById('ch-combProfit'),{type:'line',data:{labels:months12.map(m=>m.label),datasets:[{label:'Gross Profit',data:mProfit,borderColor:'#3D6B4F',backgroundColor:'rgba(61,107,79,0.08)',fill:true,tension:0.35,pointBackgroundColor:'#3D6B4F',pointRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()},grid:{color:'#F2F0EB'}},x:{grid:{display:false}}}}});
+  window._charts.combComp=new Chart(document.getElementById('ch-combComp'),{type:'doughnut',data:{labels:['Time Billing','Expense Markup','Vendor Pass-Through'],datasets:[{data:[timeRevTotal,expMarkup,expVendorTotal],backgroundColor:['#C4A87A','#3D6B4F','#6B6660'],borderWidth:1,borderColor:'#fff'}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}});
+  window._charts.combOutstanding=new Chart(document.getElementById('ch-combOutstanding'),{type:'doughnut',data:{labels:['Time Unbilled','Expenses Filed'],datasets:[{data:[timeRevUnb,expUnbTotal],backgroundColor:['#C4A87A','#8B6F47'],borderWidth:1,borderColor:'#fff'}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}});
+  window._charts.combByClient=new Chart(document.getElementById('ch-combByClient'),{type:'bar',data:{labels:cNames,datasets:[{label:'Time Billing',data:cNames.map(n=>timeByC[n]||0),backgroundColor:'rgba(196,168,122,0.85)',borderRadius:2},{label:'Expense Billing',data:cNames.map(n=>expByC[n]||0),backgroundColor:'rgba(61,107,79,0.75)',borderRadius:2}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()},grid:{color:'#F2F0EB'}}}}});
+}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — SETTINGS
+══════════════════════════════════════════════════════ */
+function renderSettings(){
+  const s=loadSettings();
+  const isDark=document.body.classList.contains('dark-mode');
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Settings</h1><div class="sub">Firm info, preferences, and data management</div></div></div>
+
+    <div class="card" style="max-width:640px;margin-bottom:18px">
+      <h2 style="margin-bottom:16px">Firm Information</h2>
+      <div class="form-row">
+        <div class="form-group"><label class="field-label" for="sf-name">Firm Name</label><input type="text" id="sf-name" value="${esc(s.firmName)}"></div>
+        <div class="form-group"><label class="field-label" for="sf-email">Email</label><input type="email" id="sf-email" value="${esc(s.firmEmail)}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="field-label" for="sf-addr">Address</label><input type="text" id="sf-addr" value="${esc(s.firmAddress)}"></div>
+        <div class="form-group"><label class="field-label" for="sf-phone">Phone</label><input type="text" id="sf-phone" value="${esc(s.firmPhone)}"></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-gold" onclick="saveSettingsForm()">Save Firm Info</button></div>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-bottom:18px">
+      <h2 style="margin-bottom:16px">Billing & Invoicing</h2>
+      <div class="form-row">
+        <div class="form-group"><label class="field-label" for="sf-rate">Default Hourly Rate</label><input type="number" id="sf-rate" step="0.01" value="${s.defaultRate}"></div>
+        <div class="form-group"><label class="field-label" for="sf-pfx">Invoice Prefix</label><input type="text" id="sf-pfx" value="${esc(s.invoicePrefix)}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="field-label" for="sf-terms">Payment Terms (days)</label><input type="number" id="sf-terms" min="0" value="${s.paymentTerms||14}"></div>
+        <div class="form-group"><label class="field-label" for="sf-currency">Currency</label>
+          <select id="sf-currency">
+            ${Object.entries(CURRENCIES).map(([code,c])=>`<option value="${code}" ${s.currency===code?'selected':''}>${code} — ${c.symbol} ${code}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-actions"><button class="btn btn-gold" onclick="saveBillingSettings()">Save Billing Settings</button></div>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-bottom:18px">
+      <h2 style="margin-bottom:16px">Appearance</h2>
+      <div style="display:flex;align-items:center;gap:14px;padding:8px 0">
+        <span style="font-size:13px;font-weight:600">Dark Mode</span>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="sf-dark" ${isDark?'checked':''} onchange="toggleDarkMode()">
+          <span style="font-size:13px;color:var(--text2)">Enable dark mode across all pages</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-bottom:18px">
+      <h2 style="margin-bottom:4px">Data Management</h2>
+      <p class="col2 fs12" style="margin-bottom:14px">Export a full backup of all data (time entries, expenses, invoices, clients, projects, settings) or restore from a previous backup.</p>
+      <div class="flex-gap">
+        <button class="btn btn-ghost" onclick="exportAllData()">⬇ Export Full Backup</button>
+        <label class="btn btn-ghost" style="cursor:pointer">⬆ Import Backup<input type="file" accept=".json" style="display:none" onchange="importAllData(this)"></label>
+      </div>
+    </div>
+
+    <div class="danger-zone" style="max-width:640px">
+      <h3>Danger Zone</h3>
+      <p class="col2 fs12" style="margin-bottom:12px">This permanently deletes all data and cannot be undone.</p>
+      <button class="btn btn-danger" onclick="clearAll()">🗑 Clear All Data</button>
+    </div>`;
+}
+
+function saveSettingsForm(){
+  const s=loadSettings();
+  s.firmName=document.getElementById('sf-name').value.trim()||'JJ&A Design Studio';
+  s.firmEmail=document.getElementById('sf-email').value.trim();
+  s.firmAddress=document.getElementById('sf-addr').value.trim();
+  s.firmPhone=document.getElementById('sf-phone').value.trim();
+  saveSettings(s);
+  document.getElementById('sb-firm').textContent=s.firmName;
+  toast('Firm info saved');
+}
+function saveBillingSettings(){
+  const s=loadSettings();
+  s.defaultRate=parseFloat(document.getElementById('sf-rate').value)||100;
+  s.invoicePrefix=document.getElementById('sf-pfx').value.trim()||'INV';
+  s.paymentTerms=parseInt(document.getElementById('sf-terms').value)||14;
+  s.currency=document.getElementById('sf-currency').value||'USD';
+  saveSettings(s);
+  toast('Billing settings saved');
+}
+function exportData(){exportAllData();}
+function importData(input){importAllData(input);}
+function clearAll(){if(!confirm('Clear ALL data? Cannot be undone.'))return;['tt_entries','tt_clients','tt_designers','tt_projects','tt_invoices','tt_settings','tt_expense_items','tt_expense_invoices','tt_expense_settings'].forEach(k=>localStorage.removeItem(k));toast('All data cleared');render();}
+
+/* ══════════════════════════════════════════════════════
+   DARK MODE
+══════════════════════════════════════════════════════ */
+function toggleDarkMode() {
+  const on=document.body.classList.toggle('dark-mode');
+  localStorage.setItem('tt_dark_mode',on?'1':'0');
+  document.getElementById('dm-toggle').textContent=on?'☀':'◑';
+}
+function initDarkMode() {
+  if(localStorage.getItem('tt_dark_mode')==='1'){
+    document.body.classList.add('dark-mode');
+    const btn=document.getElementById('dm-toggle');
+    if(btn) btn.textContent='☀';
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   MOBILE MENU
+══════════════════════════════════════════════════════ */
+function toggleMobileMenu() {
+  document.getElementById('sidebar').classList.toggle('mobile-open');
+  document.getElementById('mobile-overlay').classList.toggle('show');
+}
+function closeMobileMenu() {
+  document.getElementById('sidebar').classList.remove('mobile-open');
+  document.getElementById('mobile-overlay').classList.remove('show');
+}
+
+/* ══════════════════════════════════════════════════════
+   PAYMENT TRACKING
+══════════════════════════════════════════════════════ */
+function markInvoicePaid(invId, paid=true) {
+  const invs=loadInvoices();
+  const inv=invs.find(i=>i.id===invId);
+  if(!inv) return;
+  inv.paid=paid;
+  inv.paidAt=paid?new Date().toISOString():null;
+  saveInvoices(invs);
+  toast(paid?'Invoice marked as paid':'Invoice marked as unpaid');
+  renderInvoices();
+}
+function markExpInvoicePaid(invId, paid=true) {
+  const invs=loadExpInvoices();
+  const inv=invs.find(i=>i.id===invId);
+  if(!inv) return;
+  inv.paid=paid;
+  inv.paidAt=paid?new Date().toISOString():null;
+  saveExpInvoices(invs);
+  toast(paid?'Invoice marked as paid':'Invoice marked as unpaid');
+  renderExpInvoices();
+}
+
+/* ══════════════════════════════════════════════════════
+   EMAIL INVOICE
+══════════════════════════════════════════════════════ */
+function emailInvoice(invId) {
+  const inv=loadInvoices().find(i=>i.id===invId);
+  if(!inv) return;
+  const c=getClientById(inv.clientId);
+  const s=loadSettings();
+  const subj=encodeURIComponent(`Invoice ${inv.invoiceNumber} — ${s.firmName}`);
+  const body=encodeURIComponent(`Dear ${c?.name||'Client'},\n\nPlease find attached Invoice ${inv.invoiceNumber} for the period ${fmtDate(inv.startDate)} – ${fmtDate(inv.endDate)}.\n\nTotal Due: ${cur(inv.totalAmount)}\nHours: ${inv.totalHours?.toFixed(1)}\nPayment Terms: ${s.paymentTerms||14} days\n\nThank you for your business!\n\n${s.firmName}\n${s.firmEmail||''}`);
+  window.open(`mailto:${c?.email||''}?subject=${subj}&body=${body}`);
+}
+function emailExpInvoice(invId) {
+  const inv=loadExpInvoices().find(i=>i.id===invId);
+  if(!inv) return;
+  const c=getClientById(inv.clientId);
+  const s=loadSettings();
+  const subj=encodeURIComponent(`Invoice ${inv.invoiceNumber} — ${s.firmName}`);
+  const body=encodeURIComponent(`Dear ${c?.name||'Client'},\n\nPlease find attached Invoice ${inv.invoiceNumber} for procurement and expenses.\n\nTotal Due: ${cur(inv.clientTotal)}\nPayment Terms: ${s.paymentTerms||14} days\n\nThank you for your business!\n\n${s.firmName}\n${s.firmEmail||''}`);
+  window.open(`mailto:${c?.email||''}?subject=${subj}&body=${body}`);
+}
+
+/* ══════════════════════════════════════════════════════
+   EXPORT / IMPORT (FULL — ALL APPS)
+══════════════════════════════════════════════════════ */
+function exportAllData() {
+  const keys=['tt_entries','tt_clients','tt_designers','tt_projects','tt_invoices','tt_settings','tt_expense_items','tt_expense_invoices','tt_expense_settings','tt_dark_mode','tt_app'];
+  const data={_version:2,_exported:new Date().toISOString()};
+  keys.forEach(k=>{ const v=localStorage.getItem(k); if(v) data[k]=v; });
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`jja-full-backup-${todayStr()}.json`;a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Full backup exported');
+}
+function importAllData(input) {
+  const f=input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try {
+      const data=JSON.parse(ev.target.result);
+      if(!confirm('Import backup? This will replace all current data.')) return;
+      Object.entries(data).forEach(([k,v])=>{ if(!k.startsWith('_')&&v) localStorage.setItem(k,v); });
+      toast('Import complete — reloading...');
+      setTimeout(()=>location.reload(),1000);
+    } catch { toast('Invalid backup file'); }
+  };
+  r.readAsText(f);
+}
+
+/* ══════════════════════════════════════════════════════
+   APP SWITCHER
+══════════════════════════════════════════════════════ */
+let currentApp = localStorage.getItem('tt_app') || 'time';
+
+const NAV_TIME = `
+  <div class="nav-section">Overview</div>
+  <a href="#dashboard"><span class="icon">◈</span> Dashboard</a>
+  <div class="nav-section">Time</div>
+  <a href="#designers"><span class="icon">✦</span> Designers</a>
+  <a href="#hours"><span class="icon">◷</span> All Hours</a>
+  <div class="nav-section">Work</div>
+  <a href="#projects"><span class="icon">◧</span> Projects</a>
+  <a href="#clients"><span class="icon">◎</span> Clients</a>
+  <div class="nav-section">Billing</div>
+  <a href="#invoices"><span class="icon">◻</span> Invoices</a>
+  <a href="#generate"><span class="icon">↗</span> Generate Invoice</a>
+  <div class="nav-section">System</div>
+  <a href="#settings"><span class="icon">◦</span> Settings</a>`;
+
+const NAV_EXPENSES = `
+  <div class="nav-section">Expenses</div>
+  <a href="#exp-items"><span class="icon">◧</span> Expense Items</a>
+  <a href="#exp-generate"><span class="icon">↗</span> Generate Invoice</a>
+  <div class="nav-section">History</div>
+  <a href="#exp-invoices"><span class="icon">◻</span> Expense Invoices</a>
+  <div class="nav-section">Work</div>
+  <a href="#projects"><span class="icon">◧</span> Projects</a>
+  <a href="#clients"><span class="icon">◎</span> Clients</a>
+  <div class="nav-section">System</div>
+  <a href="#exp-settings"><span class="icon">◦</span> Settings</a>`;
+
+const NAV_ANALYTICS = `
+  <div class="nav-section">Analytics</div>
+  <a href="#analytics"><span class="icon">◑</span> Analytics</a>
+  <div class="nav-section">Work</div>
+  <a href="#projects"><span class="icon">◧</span> Projects</a>
+  <a href="#clients"><span class="icon">◎</span> Clients</a>`;
+
+const APP_DEFAULT = { time:'#dashboard', expenses:'#exp-items', analytics:'#analytics' };
+
+function switchApp(app) {
+  currentApp = app;
+  localStorage.setItem('tt_app', app);
+  document.querySelectorAll('.app-pill').forEach(b => b.classList.remove('active'));
+  document.getElementById(`pill-${app}`).classList.add('active');
+  const cta = document.getElementById('sidebar-cta');
+  cta.style.display = app === 'time' ? '' : 'none';
+  renderSidebarNav();
+  navigate(APP_DEFAULT[app]);
+}
+
+function renderSidebarNav() {
+  const nav = document.getElementById('sidebar-nav');
+  if (currentApp === 'time')      nav.innerHTML = NAV_TIME;
+  else if (currentApp === 'expenses') nav.innerHTML = NAV_EXPENSES;
+  else nav.innerHTML = NAV_ANALYTICS;
+  highlightNav();
+}
+
+function highlightNav() {
+  const hash = window.location.hash || '#dashboard';
+  document.querySelectorAll('#sidebar-nav a').forEach(a => a.classList.toggle('active', a.getAttribute('href') === hash));
+}
+
+/* ══════════════════════════════════════════════════════
+   INDEXEDDB — VENDOR FILES (local fallback for old files)
+══════════════════════════════════════════════════════ */
+let _db = null;
+function getDB() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('jja_tracker_db', 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('vendor_files'))
+        db.createObjectStore('vendor_files', {keyPath:'id'});
+    };
+    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+const idbPut    = data => getDB().then(db=>new Promise((res,rej)=>{const tx=db.transaction('vendor_files','readwrite');tx.objectStore('vendor_files').put(data).onsuccess=e=>res(e.target.result);tx.onerror=e=>rej(e);}));
+const idbGet    = id   => getDB().then(db=>new Promise((res,rej)=>{const tx=db.transaction('vendor_files','readonly');tx.objectStore('vendor_files').get(id).onsuccess=e=>res(e.target.result);tx.onerror=e=>rej(e);}));
+const idbGetAll = ()   => getDB().then(db=>new Promise((res,rej)=>{const tx=db.transaction('vendor_files','readonly');tx.objectStore('vendor_files').getAll().onsuccess=e=>res(e.target.result);tx.onerror=e=>rej(e);}));
+const idbDelete = id   => getDB().then(db=>new Promise((res,rej)=>{const tx=db.transaction('vendor_files','readwrite');tx.objectStore('vendor_files').delete(id).onsuccess=()=>res();tx.onerror=e=>rej(e);}));
+
+/* ══════════════════════════════════════════════════════
+   SUPABASE — FILE STORAGE
+══════════════════════════════════════════════════════ */
+const SUPABASE_URL    = 'https://iftyienthkleigkzfcvx.supabase.co';
+const SUPABASE_KEY    = 'sb_publishable_Ivt-yiruN15VIyBpBgB4cQ_xniDysy9';
+const SUPABASE_BUCKET = 'expense-attachments';
+const _sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function uploadToSupabase(itemId, fileData) {
+  if(!_sb) throw new Error('Supabase not loaded');
+  const { file, name, type } = fileData;
+  const safeName = name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+  const path = `${itemId}/${Date.now()}-${safeName}`;
+
+  // Upload the raw File object directly
+  const { error } = await _sb.storage.from(SUPABASE_BUCKET).upload(path, file, {
+    contentType: type, upsert: true
+  });
+  if(error) throw error;
+
+  const { data } = _sb.storage.from(SUPABASE_BUCKET).getPublicUrl(path);
+  const publicUrl = data.publicUrl;
+
+  // Remove old file from Supabase if replacing
+  const existing = getExpItemById(itemId);
+  if(existing?.filePath && existing.filePath !== path) {
+    _sb.storage.from(SUPABASE_BUCKET).remove([existing.filePath]).catch(()=>{});
+  }
+
+  updateExpItem(itemId, { hasFile: true, hasPdf: true, fileName: name, fileType: type, fileUrl: publicUrl, filePath: path });
+  toast(`✓ ${name} uploaded`);
+  renderExpItems();
+}
+
+async function deleteSupabaseFile(filePath) {
+  if(!_sb || !filePath) return;
+  await _sb.storage.from(SUPABASE_BUCKET).remove([filePath]).catch(()=>{});
+}
+
+/* ══════════════════════════════════════════════════════
+   EXPENSE STORAGE
+══════════════════════════════════════════════════════ */
+const KE = { items:'tt_expense_items', invoices:'tt_expense_invoices', settings:'tt_expense_settings' };
+const loadExpItems    = () => load(KE.items,    []);
+const loadExpInvoices = () => load(KE.invoices, []);
+const loadExpSettings = () => load(KE.settings, { defaultMarkup:20, defaultAdminFee:10, invoicePrefix:'EXP', invoiceNext:1 });
+const saveExpItems    = v  => store(KE.items,    v);
+const saveExpInvoices = v  => store(KE.invoices, v);
+const saveExpSettings = v  => store(KE.settings, v);
+
+/* ══════════════════════════════════════════════════════
+   CRUD — EXPENSE ITEMS
+══════════════════════════════════════════════════════ */
+const getExpItemById  = id    => loadExpItems().find(i=>i.id===id);
+const addExpItem      = item  => { const l=loadExpItems(); l.push({...item,id:uid(),createdAt:new Date().toISOString(),status:'filed'}); saveExpItems(l); };
+const updateExpItem   = (id,c)=> saveExpItems(loadExpItems().map(i=>i.id===id?{...i,...c}:i));
+const deleteExpItem   = id    => { saveExpItems(loadExpItems().filter(i=>i.id!==id)); idbDelete(id).catch(()=>{}); };
+
+function calcItem(item) {
+  const v = item.vendorAmount||0;
+  const afterMarkup  = v * (1 + (item.markupPct||0)/100);
+  const clientTotal  = afterMarkup * (1 + (item.adminFeePct||0)/100);
+  return { vendorAmount:v, markupAmt:afterMarkup-v, adminAmt:clientTotal-afterMarkup, clientTotal };
+}
+
+const CAT_COLORS = { furniture:'badge-category-furniture', fabric:'badge-category-fabric', contractor:'badge-category-contractor', upholstery:'badge-category-upholstery', storage:'badge-category-storage', shipping:'badge-category-shipping', other:'badge-category-other' };
+const CAT_LABELS = { furniture:'Furniture', fabric:'Fabric', contractor:'Contractor', upholstery:'Upholstery', storage:'Storage', shipping:'Shipping', other:'Other' };
+
+/* ══════════════════════════════════════════════════════
+   EXPENSE ITEM MODAL
+══════════════════════════════════════════════════════ */
+function openExpItemModal(id, preClientId='') {
+  const item = id ? getExpItemById(id) : null;
+  const s = loadExpSettings();
+  const cliId = item?.clientId || preClientId || loadClients()[0]?.id || '';
+  const cats = ['furniture','fabric','contractor','upholstery','storage','shipping','other'];
+  const catOpts = cats.map(c=>`<option value="${c}" ${(item?.category||'other')===c?'selected':''}>${CAT_LABELS[c]}</option>`).join('');
+
+  showModal(`
+    <div class="modal-hd"><h2>${item?'Edit Expense Item':'Add Expense Item'}</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="form-row">
+      <div class="form-group"><label class="field-label" for="ei-cli">Client</label>
+        <select id="ei-cli" onchange="refreshExpItemProj(this.value)">${loadClients().map(c=>`<option value="${c.id}" ${c.id===cliId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="field-label" for="ei-proj">Project</label>
+        <select id="ei-proj">${projectOptsForClient(cliId, item?.projectId||'')}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="field-label" for="ei-vendor">Vendor Name</label><input type="text" id="ei-vendor" placeholder="e.g. ABC Fabrics" value="${esc(item?.vendorName||'')}"></div>
+      <div class="form-group"><label class="field-label" for="ei-cat">Category</label><select id="ei-cat">${catOpts}</select></div>
+    </div>
+    <div class="form-group"><label class="field-label" for="ei-desc">Description</label><input type="text" id="ei-desc" placeholder="e.g. Custom upholstery fabric — 12 yards" value="${esc(item?.description||'')}"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="field-label" for="ei-amt">Vendor Amount ($)</label><input type="number" id="ei-amt" step="0.01" min="0" placeholder="0.00" value="${item?item.vendorAmount:''}" oninput="updateExpPreview()"></div>
+      <div class="form-group"><label class="field-label" for="ei-date">Date</label><input type="date" id="ei-date" value="${item?.date||todayStr()}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="field-label" for="ei-markup">Markup % <span class="col2">(0 = hidden on invoice)</span></label><input type="number" id="ei-markup" step="0.1" min="0" max="999" value="${item!=null?item.markupPct:s.defaultMarkup}" oninput="updateExpPreview()"></div>
+      <div class="form-group"><label class="field-label" for="ei-admin">Admin Fee % <span class="col2">(0 = hidden)</span></label><input type="number" id="ei-admin" step="0.1" min="0" max="999" value="${item!=null?item.adminFeePct:s.defaultAdminFee}" oninput="updateExpPreview()"></div>
+    </div>
+    <div id="exp-price-preview"></div>
+    <div id="ei-pdf-section" style="margin-top:8px">
+      <label class="field-label">Vendor Quote / Attachment (optional)</label>
+      <div id="ei-pdf-status" style="font-size:12.5px;color:var(--text2);margin-bottom:6px">${(item?.hasPdf||item?.hasFile)?`✓ ${esc(item.fileName||'File uploaded')}`:'No attachment uploaded'}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">📎 Attach File<input type="file" accept="*/*" style="display:none" onchange="handleExpFileUpload(this)"></label>
+        ${(item?.hasPdf||item?.hasFile)?`<button class="file-badge ${(item.fileName||'').split('.').pop().toLowerCase()==='pdf'?'pdf':['jpg','jpeg','png','gif','webp'].includes((item.fileName||'').split('.').pop().toLowerCase())?'img':'other'}" onclick="viewExpFile('${id}')">📎 ${esc(item.fileName||'View File')}</button>`:''}
+      </div>
+      <p class="hint">Images, PDFs, Word docs, spreadsheets — any vendor quote or receipt</p>
+    </div>
+    <div class="form-actions" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveExpItemForm('${id||''}')">Save Item</button>
+    </div>`);
+  updateExpPreview();
+}
+
+window.refreshExpItemProj = cliId => {
+  const sel=document.getElementById('ei-proj');
+  if(sel) sel.innerHTML=projectOptsForClient(cliId,'');
+};
+
+window.updateExpPreview = () => {
+  const v=parseFloat(document.getElementById('ei-amt')?.value)||0;
+  const m=parseFloat(document.getElementById('ei-markup')?.value)||0;
+  const a=parseFloat(document.getElementById('ei-admin')?.value)||0;
+  const afterMarkup=v*(1+m/100), clientTotal=afterMarkup*(1+a/100);
+  const el=document.getElementById('exp-price-preview');
+  if(!el)return;
+  el.innerHTML=`<div class="price-preview">
+    <div class="pp-row"><span class="col2">Vendor cost</span><span>${cur(v)}</span></div>
+    ${m>0?`<div class="pp-row"><span class="col2">Markup (${m}%)</span><span>+${cur(afterMarkup-v)}</span></div>`:''}
+    ${a>0?`<div class="pp-row"><span class="col2">Admin fee (${a}%)</span><span>+${cur(clientTotal-afterMarkup)}</span></div>`:''}
+    <div class="pp-total"><span>Client Total</span><span class="gold-txt">${cur(clientTotal)}</span></div>
+  </div>`;
+};
+
+let _pendingFileData = null;
+window.handleExpFileUpload = input => {
+  const f=input.files[0]; if(!f) return;
+  if(f.size>50*1024*1024){toast('File too large (max 50 MB)');return;}
+  // Store the raw File object — Supabase uploads it directly without base64 conversion
+  _pendingFileData={file:f, name:f.name, size:f.size, type:f.type};
+  const s=document.getElementById('ei-pdf-status');
+  if(s) s.textContent=`✓ ${f.name} (${(f.size/1024).toFixed(0)} KB) — ready to upload`;
+  toast('File selected — save item to upload');
+};
+// backward compat
+window.handleExpPdfUpload = window.handleExpFileUpload;
+
+window.viewExpFile = async id => {
+  // Prefer Supabase-hosted URL stored on the expense item
+  const item = loadExpItems().find(i=>i.id===id);
+  if(item?.fileUrl){
+    const ext=(item.fileName||'').split('.').pop().toLowerCase();
+    if(['jpg','jpeg','png','gif','webp','heic'].includes(ext)){
+      showModal(`<div class="modal-hd"><h2>📎 ${esc(item.fileName)}</h2><button class="modal-x" onclick="closeModal()">×</button></div><img src="${item.fileUrl}" style="width:100%;border-radius:6px;margin-top:4px"><div class="form-actions" style="margin-top:12px"><button class="btn btn-ghost" onclick="closeModal()">Close</button><a class="btn btn-dark" href="${item.fileUrl}" download="${esc(item.fileName)}" target="_blank">Download</a></div>`);
+    } else if(ext==='pdf'||item.fileType==='application/pdf'){
+      const win=window.open();
+      win.document.write(`<html><body style="margin:0"><iframe src="${item.fileUrl}" width="100%" height="100%" style="border:none;position:fixed;inset:0"></iframe></body></html>`);
+    } else {
+      window.open(item.fileUrl,'_blank');
+    }
+    return;
+  }
+  // Fallback: IndexedDB (locally stored legacy files)
+  const file=await idbGet(id);
+  if(!file){toast('Attachment not found');return;}
+  if(file.type&&file.type.startsWith('image/')){
+    showModal(`<div class="modal-hd"><h2>📎 ${esc(file.name)}</h2><button class="modal-x" onclick="closeModal()">×</button></div><img src="${file.data}" style="width:100%;border-radius:6px;margin-top:4px"><div class="form-actions" style="margin-top:12px"><button class="btn btn-ghost" onclick="closeModal()">Close</button><button class="btn btn-dark" onclick="downloadAttachment('${id}')">Download</button></div>`);
+  } else if(file.type==='application/pdf'||file.name?.endsWith('.pdf')){
+    const win=window.open();
+    win.document.write(`<html><body style="margin:0"><iframe src="${file.data}" width="100%" height="100%" style="border:none;position:fixed;inset:0"></iframe></body></html>`);
+  } else {
+    downloadAttachment(id, file);
+  }
+};
+// backward compat
+window.viewExpPdf = window.viewExpFile;
+
+window.downloadAttachment = async (id, file) => {
+  const item = loadExpItems().find(i=>i.id===id);
+  if(item?.fileUrl){
+    const a=document.createElement('a'); a.href=item.fileUrl; a.download=item.fileName||'attachment'; a.target='_blank'; a.click();
+    return;
+  }
+  const f = file || await idbGet(id);
+  if(!f){toast('File not found');return;}
+  const a=document.createElement('a'); a.href=f.data; a.download=f.name||'attachment'; a.click();
+};
+
+function fileBadgeHtml(item) {
+  if(!item.hasPdf&&!item.hasFile) return '';
+  const ext=(item.fileName||'').split('.').pop().toLowerCase();
+  const cls=ext==='pdf'?'pdf':['jpg','jpeg','png','gif','webp','heic'].includes(ext)?'img':['doc','docx'].includes(ext)?'doc':'other';
+  const icon=cls==='pdf'?'📄':cls==='img'?'🖼':'📎';
+  return `<button class="file-badge ${cls}" onclick="viewExpFile('${item.id}')">${icon} ${esc(item.fileName||'View File')}</button>`;
+}
+
+function saveExpItemForm(editId) {
+  const clientId  = document.getElementById('ei-cli').value;
+  const projectId = document.getElementById('ei-proj').value;
+  const vendorName= document.getElementById('ei-vendor').value.trim();
+  const description=document.getElementById('ei-desc').value.trim();
+  const category  = document.getElementById('ei-cat').value;
+  const vendorAmount=parseFloat(document.getElementById('ei-amt').value);
+  const markupPct = parseFloat(document.getElementById('ei-markup').value)||0;
+  const adminFeePct=parseFloat(document.getElementById('ei-admin').value)||0;
+  const date      = document.getElementById('ei-date').value;
+  if(!clientId||!vendorName||!description||isNaN(vendorAmount)||vendorAmount<0){toast('Please fill in all required fields');return;}
+
+  const payload={clientId,projectId,vendorName,description,category,vendorAmount,markupPct,adminFeePct,date};
+  if(editId) { updateExpItem(editId,payload); }
+  else       { addExpItem(payload); }
+
+  // Upload attachment to Supabase if pending
+  if(_pendingFileData){
+    const itemId=editId||loadExpItems().slice(-1)[0]?.id;
+    if(itemId){
+      const fd=_pendingFileData;
+      toast('Uploading attachment…');
+      uploadToSupabase(itemId, fd).catch(err=>{
+        console.error('Supabase upload failed, falling back to local storage', err);
+        idbPut({id:itemId,...fd,uploadedAt:new Date().toISOString()}).then(()=>{
+          updateExpItem(itemId,{hasPdf:true,hasFile:true,fileName:fd.name,fileType:fd.type});
+          renderExpItems();
+        });
+      });
+    }
+    _pendingFileData=null;
+  }
+  toast(editId?'Item updated':'Expense item added');
+  closeModal();
+  renderExpItems();
+}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — EXPENSE ITEMS
+══════════════════════════════════════════════════════ */
+function renderExpItems() {
+  const clients=loadClients();
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Expense Items</h1><div class="sub">Track purchases, materials, and services by client &amp; project</div></div><button class="btn btn-gold" onclick="openExpItemModal('')">+ Add Item</button></div>
+    <div class="filters">
+      <label class="field-label">Client</label>
+      <select id="exp-f-cli" onchange="rebuildExpItems();refreshExpFilterProj(this.value)">${clientOpts('','All Clients')}</select>
+      <label class="field-label">Project</label>
+      <select id="exp-f-proj" onchange="rebuildExpItems()">${allProjectOpts('','All Projects')}</select>
+      <div class="sep"></div>
+      <label class="field-label">Status</label>
+      <select id="exp-f-status" onchange="rebuildExpItems()">
+        <option value="">All</option><option value="filed">Filed (Unbilled)</option><option value="billed">Billed</option>
+      </select>
+      <label class="field-label">Category</label>
+      <select id="exp-f-cat" onchange="rebuildExpItems()">
+        <option value="">All Categories</option>
+        <option value="furniture">Furniture</option><option value="fabric">Fabric</option>
+        <option value="contractor">Contractor</option><option value="upholstery">Upholstery</option>
+        <option value="storage">Storage</option><option value="shipping">Shipping</option>
+        <option value="other">Other</option>
+      </select>
+      <input type="text" id="exp-f-q" placeholder="Search…" oninput="rebuildExpItems()">
+    </div>
+    <div id="exp-items-body"></div>`;
+
+  window.refreshExpFilterProj = cliId => {
+    const projs=cliId?getProjectsByClient(cliId):loadProjects();
+    const sel=document.getElementById('exp-f-proj');
+    sel.innerHTML=`<option value="">All Projects</option>`+projs.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  };
+
+  window.rebuildExpItems = () => {
+    const cliId  = document.getElementById('exp-f-cli').value;
+    const projId = document.getElementById('exp-f-proj').value;
+    const status = document.getElementById('exp-f-status').value;
+    const cat    = document.getElementById('exp-f-cat').value;
+    const q      = (document.getElementById('exp-f-q').value||'').toLowerCase();
+    let items=loadExpItems();
+    if(cliId)  items=items.filter(i=>i.clientId===cliId);
+    if(projId) items=items.filter(i=>i.projectId===projId);
+    if(status) items=items.filter(i=>i.status===status);
+    if(cat)    items=items.filter(i=>i.category===cat);
+    if(q)      items=items.filter(i=>[i.vendorName,i.description,i.category].join(' ').toLowerCase().includes(q));
+    items=[...items].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+    const el=document.getElementById('exp-items-body');
+    if(!items.length){
+      el.innerHTML=`<div class="empty"><div class="e-icon">◧</div><p>No expense items yet.</p><button class="btn btn-gold" onclick="openExpItemModal('')">+ Add Item</button></div>`;
+      return;
+    }
+    const totalClient=items.reduce((s,i)=>s+calcItem(i).clientTotal,0);
+    const totalVendor=items.reduce((s,i)=>s+i.vendorAmount,0);
+
+    el.innerHTML=items.map(item=>{
+      const c=calcItem(item);
+      const catCls=CAT_COLORS[item.category]||'badge-category-other';
+      const catLbl=CAT_LABELS[item.category]||'Other';
+      const client=getClientById(item.clientId), proj=item.projectId?getProjectById(item.projectId):null;
+      return `<div class="exp-item-card${item.status==='billed'?' billed':''}">
+        <div class="exp-item-left">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+            <span class="badge ${catCls}">${catLbl}</span>
+            <span class="badge ${item.status==='billed'?'badge-billed':'badge-filed'}">${item.status==='billed'?'Billed':'Filed'}</span>
+            ${item.date?`<span class="col2 fs12">${fmtDate(item.date)}</span>`:''}
+          </div>
+          <div class="exp-item-vendor">${esc(item.vendorName)}</div>
+          <div class="exp-item-desc">${esc(item.description)}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">${esc(client?.name||'?')}${proj?` · ${esc(proj.name)}`:''}</div>
+          ${item.markupPct>0||item.adminFeePct>0?`<div class="exp-markup-info">Markup ${item.markupPct}%${item.adminFeePct>0?` · Admin ${item.adminFeePct}%`:''}</div>`:''}
+        </div>
+        <div class="exp-item-right">
+          <div class="exp-client-total">${cur(c.clientTotal)}</div>
+          <div class="exp-vendor-price">Vendor: ${cur(item.vendorAmount)}</div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+            <button class="btn btn-ghost btn-sm" onclick="openExpItemModal('${item.id}')">Edit</button>
+            ${(item.hasPdf||item.hasFile)?fileBadgeHtml(item):''}
+            <button class="btn btn-danger btn-sm" onclick="confirmDelExpItem('${item.id}')">Delete</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('')+`<div class="card" style="text-align:right;padding:12px 20px"><span class="col2 fs12">Vendor Total &nbsp;</span><strong>${cur(totalVendor)}</strong>&nbsp;&nbsp;<span class="col2 fs12">Client Total &nbsp;</span><span class="gold-txt" style="font-size:17px"><strong>${cur(totalClient)}</strong></span></div>`;
+  };
+  rebuildExpItems();
+}
+
+window.confirmDelExpItem = id => {
+  if(confirm('Delete this expense item?')){
+    const item = getExpItemById(id);
+    if(item?.filePath) deleteSupabaseFile(item.filePath);
+    deleteExpItem(id);
+    toast('Item deleted');
+    renderExpItems();
+  }
+};
+
+/* ══════════════════════════════════════════════════════
+   VIEW — EXPENSE INVOICES HISTORY
+══════════════════════════════════════════════════════ */
+function renderExpInvoices() {
+  const invoices=[...loadExpInvoices()].sort((a,b)=>b.generatedAt.localeCompare(a.generatedAt));
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Expense Invoices</h1><div class="sub">All generated expense invoices</div></div></div>
+    <div class="filters"><label class="field-label">Client</label><select id="exinv-f-cli" onchange="rebuildExpInvList()">${clientOpts('','All Clients')}</select></div>
+    <div id="exp-inv-list"></div>`;
+
+  window.rebuildExpInvList = () => {
+    const cliId=document.getElementById('exinv-f-cli').value;
+    const list=invoices.filter(i=>!cliId||i.clientId===cliId);
+    const el=document.getElementById('exp-inv-list');
+    if(!list.length){el.innerHTML=`<div class="empty"><div class="e-icon">◻</div><p>No expense invoices yet.</p><button class="btn btn-gold" onclick="navigate('#exp-generate')">Generate First Invoice</button></div>`;return;}
+    el.innerHTML=list.map(inv=>{
+      const c=getClientById(inv.clientId), proj=inv.projectId?getProjectById(inv.projectId):null;
+      return `<div class="exp-inv-card">
+        <div class="exp-inv-card-hd" onclick="toggleExpInvDetail('${inv.id}',this)">
+          <div><div class="inv-num">${esc(inv.invoiceNumber)}</div>
+            <div class="inv-client">${esc(c?.name||'?')}${proj?` · ${esc(proj.name)}`:''}</div>
+            <div class="inv-client col2 fs12">Generated ${fmtDate(inv.generatedAt.split('T')[0])}</div></div>
+          <div class="inv-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+            <div class="inv-amt">${cur(inv.clientTotal)}</div>
+            <div class="inv-meta">${inv.itemCount} item${inv.itemCount!==1?'s':''}</div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">
+              <span class="badge badge-invoiced" style="font-size:10px">Billed</span>
+              ${inv.paid?`<span class="badge-paid">✓ Paid ${inv.paidAt?fmtDate(inv.paidAt.split('T')[0]):''}</span>`:`<span class="badge-unpaid">Unpaid</span>`}
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();${inv.paid?`markExpInvoicePaid('${inv.id}',false)`:`markExpInvoicePaid('${inv.id}',true)`}">${inv.paid?'↩ Unpaid':'💵 Mark Paid'}</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();emailExpInvoice('${inv.id}')">✉ Email</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewInternalExpInv('${inv.id}')">Preview</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();redownloadExpPDF('${inv.id}')">⬇ Client PDF</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();downloadInternalExpPDF('${inv.id}')">⬇ Internal PDF</button>
+            </div>
+          </div>
+        </div>
+        <div id="expinvd-${inv.id}" style="display:none;padding:16px 20px">
+          ${(inv.items||[]).map(item=>{
+            const liveItem=getExpItemById(item.id);
+            const fileBadge=(liveItem?.hasPdf||liveItem?.hasFile)?`<button class="file-badge ${(liveItem.fileName||'').split('.').pop().toLowerCase()==='pdf'?'pdf':['jpg','jpeg','png','gif','webp'].includes((liveItem.fileName||'').split('.').pop().toLowerCase())?'img':'other'}" onclick="viewExpFile('${item.id}')">📎 ${esc(liveItem.fileName||'View')}</button>`:'';
+            return `<div class="inv-preview-row"><span><strong>${esc(item.description)}</strong> ${fileBadge}<br><span class="col2 fs12">${esc(item.vendorName||'?')} · ${CAT_LABELS[item.category]||item.category||''}</span></span><span class="gold-txt">${cur(item.clientTotal)}</span></div>`;
+          }).join('')}
+          <div class="inv-total-row"><span>Total</span><span class="gold-txt">${cur(inv.clientTotal)}</span></div>
+        </div>
+      </div>`;
+    }).join('');
+  };
+  window.toggleExpInvDetail=(id,hd)=>{const el=document.getElementById(`expinvd-${id}`);const o=el.style.display!=='none';el.style.display=o?'none':'block';hd.classList.toggle('open',!o);};
+  rebuildExpInvList();
+}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — GENERATE EXPENSE INVOICE
+══════════════════════════════════════════════════════ */
+function renderExpGenerate() {
+  const clients=loadClients();
+  if(!clients.length){document.getElementById('app').innerHTML=`<div class="page-head"><div><h1>Generate Expense Invoice</h1></div></div><div class="empty"><div class="e-icon">↗</div><p>Add clients and expense items first.</p><button class="btn btn-gold" onclick="switchApp('time');navigate('#clients')">Go to Clients</button></div>`;return;}
+
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Generate Expense Invoice</h1><div class="sub">Select filed items to invoice a client</div></div></div>
+    <div class="card" style="max-width:640px">
+      <div class="form-row">
+        <div class="form-group"><label class="field-label" for="eg-cli">Client</label>
+          <select id="eg-cli" onchange="refreshExpGenProj();rebuildExpGenPreview()">${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="field-label" for="eg-proj">Project (optional)</label>
+          <select id="eg-proj" onchange="rebuildExpGenPreview()">${projectOptsForClient(clients[0]?.id||'','')}</select></div>
+      </div>
+      <div id="exp-gen-preview"></div>
+      <button class="btn btn-dark" style="width:100%;justify-content:center;padding:12px;font-size:15px;margin-top:8px" onclick="generateExpPDF()">Download Expense Invoice PDF</button>
+    </div>`;
+
+  window.refreshExpGenProj = () => {
+    const cliId=document.getElementById('eg-cli').value;
+    const sel=document.getElementById('eg-proj');
+    sel.innerHTML=`<option value="">All Projects</option>`+getProjectsByClient(cliId).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  };
+
+  window.rebuildExpGenPreview = () => {
+    const cliId=document.getElementById('eg-cli').value;
+    const projId=document.getElementById('eg-proj').value;
+    let items=loadExpItems().filter(i=>i.clientId===cliId&&i.status==='filed');
+    if(projId) items=items.filter(i=>i.projectId===projId);
+    const el=document.getElementById('exp-gen-preview');
+    if(!items.length){el.innerHTML=`<div class="inv-preview-wrap"><p class="col2" style="text-align:center;padding:8px">No filed (unbilled) items for this selection.</p></div>`;return;}
+    let html=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Select items to include:</div>`;
+    let total=0;
+    items.forEach(item=>{
+      const c=calcItem(item); total+=c.clientTotal;
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <input type="checkbox" id="chk-${item.id}" checked style="width:auto;cursor:pointer">
+        <label for="chk-${item.id}" style="flex:1;cursor:pointer;font-size:13px">
+          <strong>${esc(item.vendorName)}</strong> — ${esc(item.description)}<br>
+          <span class="col2 fs12">${CAT_LABELS[item.category]} · ${fmtDate(item.date||'')}</span>
+        </label>
+        <span class="gold-txt fw7">${cur(c.clientTotal)}</span>
+      </div>`;
+    });
+    html+=`<div class="inv-total-row" style="margin-top:8px"><span>Estimated Total</span><span id="eg-total" class="gold-txt">${cur(total)}</span></div>`;
+    el.innerHTML=`<div class="inv-preview-wrap">${html}</div>`;
+    items.forEach(item=>document.getElementById(`chk-${item.id}`)?.addEventListener('change',updateExpTotal));
+  };
+
+  window.updateExpTotal = () => {
+    const cliId=document.getElementById('eg-cli').value;
+    const projId=document.getElementById('eg-proj').value;
+    let items=loadExpItems().filter(i=>i.clientId===cliId&&i.status==='filed');
+    if(projId) items=items.filter(i=>i.projectId===projId);
+    let total=0;
+    items.forEach(i=>{const chk=document.getElementById(`chk-${i.id}`);if(chk?.checked)total+=calcItem(i).clientTotal;});
+    const te=document.getElementById('eg-total'); if(te) te.textContent=cur(total);
+  };
+
+  rebuildExpGenPreview();
+}
+
+/* ══════════════════════════════════════════════════════
+   EXPENSE PDF GENERATOR
+══════════════════════════════════════════════════════ */
+function generateExpPDF() {
+  const cliId  = document.getElementById('eg-cli').value;
+  const projId = document.getElementById('eg-proj').value;
+  let items=loadExpItems().filter(i=>i.clientId===cliId&&i.status==='filed');
+  if(projId) items=items.filter(i=>i.projectId===projId);
+  const selected=items.filter(i=>document.getElementById(`chk-${i.id}`)?.checked);
+  if(!selected.length){toast('No items selected');return;}
+
+  const c=getClientById(cliId), proj=projId?getProjectById(projId):null;
+  const s=loadSettings(), es=loadExpSettings();
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
+  const PW=215.9, M=20, R=PW-M;
+  const invNum=`${es.invoicePrefix}-${String(es.invoiceNext).padStart(4,'0')}`;
+  const issueDate=todayStr(), dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+14);
+
+  // Header
+  doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
+  doc.text(s.firmName||'Your Firm',M,26);
+  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+  let iy=32;
+  if(s.firmAddress){doc.text(s.firmAddress,M,iy);iy+=5;}
+  if(s.firmEmail){doc.text(s.firmEmail,M,iy);}
+  doc.setFontSize(22);doc.setFont('helvetica','bold');doc.setTextColor(196,168,122);
+  doc.text('INVOICE',R,26,{align:'right'});
+  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+  doc.text(`Invoice #: ${invNum}`,R,33,{align:'right'});
+  doc.text(`Date: ${fmtDateLong(issueDate)}`,R,38,{align:'right'});
+  doc.text(`Due: ${fmtDateLong(dueD.toISOString().split('T')[0])}`,R,43,{align:'right'});
+  doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,52,R,52);
+  doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,59);
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c.name,M,65);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
+  let by=71;
+  if(c.contactName){doc.text(c.contactName,M,by);by+=5;}
+  if(c.email){doc.text(c.email,M,by);}
+  if(proj){doc.setFontSize(8.5);doc.text(`Project: ${proj.name}`,R,65,{align:'right'});}
+
+  // Table — client-facing only (no vendor prices shown)
+  const body=selected.map(item=>{
+    const ct=calcItem(item).clientTotal;
+    return[item.date?fmtDate(item.date):'',CAT_LABELS[item.category]||item.category,item.description,cur(ct)];
+  });
+  doc.autoTable({startY:88,head:[['Date','Category','Description','Amount']],body,margin:{left:M,right:M},
+    styles:{fontSize:8.5,cellPadding:3.5,textColor:[30,28,24]},
+    headStyles:{fillColor:[30,28,24],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
+    columnStyles:{0:{cellWidth:24},1:{cellWidth:26},2:{cellWidth:'auto',overflow:'linebreak'},3:{cellWidth:28,halign:'right'}},
+    alternateRowStyles:{fillColor:[249,248,245]}});
+
+  const aft=doc.lastAutoTable.finalY+8;
+  const total=selected.reduce((s,i)=>s+calcItem(i).clientTotal,0);
+  doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
+  doc.text('Total Due:',R-40,aft+10);doc.setTextColor(168,140,94);doc.text(cur(total),R,aft+10,{align:'right'});
+  doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
+  doc.setDrawColor(220,215,205);doc.line(M,258,R,258);
+  doc.text('Thank you for your business. Payment due within 14 days.',PW/2,263,{align:'center'});
+
+  // Save invoice record
+  const invRecord={id:uid(),invoiceNumber:invNum,clientId:cliId,projectId:projId||null,
+    itemIds:selected.map(i=>i.id),clientTotal:total,itemCount:selected.length,
+    items:selected.map(i=>({id:i.id,vendorName:i.vendorName,description:i.description,category:i.category,clientTotal:calcItem(i).clientTotal})),
+    generatedAt:new Date().toISOString()};
+  const il=loadExpInvoices(); il.push(invRecord); saveExpInvoices(il);
+  es.invoiceNext+=1; saveExpSettings(es);
+
+  // Mark items as billed
+  selected.forEach(item=>updateExpItem(item.id,{status:'billed',billedInvoiceId:invRecord.id}));
+
+  doc.save(`${invNum}-${c.name.replace(/\s+/g,'-')}-Expenses.pdf`);
+  toast(`${invNum} downloaded`);
+}
+
+/* ══════════════════════════════════════════════════════
+   INTERNAL EXPENSE INVOICE PREVIEW & REDOWNLOAD
+══════════════════════════════════════════════════════ */
+window.previewInternalExpInv = id => {
+  const inv=loadExpInvoices().find(i=>i.id===id);
+  if(!inv){toast('Invoice not found');return;}
+  const c=getClientById(inv.clientId), proj=inv.projectId?getProjectById(inv.projectId):null;
+  // Try to get live items first, fall back to snapshot
+  const liveItems=(inv.itemIds||[]).map(id=>getExpItemById(id)).filter(Boolean);
+  const displayItems=liveItems.length?liveItems:(inv.items||[]);
+  let totV=0,totM=0,totAdm=0,totC=0;
+  const rows=displayItems.map(item=>{
+    const calc=item.vendorAmount!=null?calcItem(item):{vendorAmount:item.clientTotal,markupAmt:0,adminAmt:0,clientTotal:item.clientTotal};
+    totV+=calc.vendorAmount; totM+=calc.markupAmt; totAdm+=calc.adminAmt; totC+=calc.clientTotal;
+    return `<div class="internal-inv-row">
+      <div style="flex:1">
+        <div style="font-weight:600">${esc(item.vendorName||item.description||'?')}</div>
+        <div class="col2 fs12">${esc(item.description||'')}${item.category?` · ${CAT_LABELS[item.category]||item.category}`:''}</div>
+        ${(item.markupPct>0)?`<div class="col2 fs12">Markup: ${item.markupPct}%</div>`:''}
+        ${(item.adminFeePct>0)?`<div class="col2 fs12">Admin: ${item.adminFeePct}%</div>`:''}
+      </div>
+      <div style="text-align:right;white-space:nowrap;font-size:13px">
+        <div>Vendor: <strong>${cur(calc.vendorAmount)}</strong></div>
+        ${calc.markupAmt>0?`<div class="col2 fs12">+Markup: ${cur(calc.markupAmt)}</div>`:''}
+        ${calc.adminAmt>0?`<div class="col2 fs12">+Admin: ${cur(calc.adminAmt)}</div>`:''}
+        <div class="gold-txt fw7" style="margin-top:2px">${cur(calc.clientTotal)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  showModal(`
+    <div class="modal-hd"><h2>Internal Invoice — ${esc(inv.invoiceNumber)}</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="internal-badge">INTERNAL — Do not share with client</div>
+    <div style="font-size:13px;margin-bottom:14px"><strong>${esc(c?.name||'?')}</strong>${proj?` · ${esc(proj.name)}`:''}<br><span class="col2 fs12">Generated ${fmtDate(inv.generatedAt.split('T')[0])}</span></div>
+    <div style="border:1px solid var(--border);border-radius:var(--radius);padding:4px 16px">${rows}</div>
+    <div class="price-preview" style="margin-top:14px">
+      <div class="pp-row"><span class="col2">Total Vendor Cost</span><span>${cur(totV)}</span></div>
+      ${totM>0?`<div class="pp-row"><span class="col2">Total Markup</span><span>+${cur(totM)}</span></div>`:''}
+      ${totAdm>0?`<div class="pp-row"><span class="col2">Total Admin Fees</span><span>+${cur(totAdm)}</span></div>`:''}
+      <div class="pp-total"><span>Client Total</span><span class="gold-txt">${cur(totC)}</span></div>
+    </div>
+    <div class="form-actions" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+      <button class="btn btn-ghost" onclick="downloadInternalExpPDF('${id}')">⬇ Internal PDF</button>
+      <button class="btn btn-dark" onclick="redownloadExpPDF('${id}')">⬇ Client PDF</button>
+    </div>`);
+};
+
+window.downloadInternalExpPDF = id => {
+  const inv=loadExpInvoices().find(i=>i.id===id);
+  if(!inv){toast('Invoice not found');return;}
+  const c=getClientById(inv.clientId), proj=inv.projectId?getProjectById(inv.projectId):null;
+  const s=loadSettings();
+  const liveItems=(inv.itemIds||[]).map(id=>getExpItemById(id)).filter(Boolean);
+  const items=liveItems.length?liveItems:(inv.items||[]);
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
+  const PW=215.9,M=20,R=PW-M;
+  doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
+  doc.text(s.firmName||'Your Firm',M,26);
+  doc.setFontSize(14);doc.setFont('helvetica','bold');doc.setTextColor(139,60,60);
+  doc.text('INTERNAL COST BREAKDOWN',R,26,{align:'right'});
+  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+  doc.text(`Invoice Ref: ${inv.invoiceNumber}`,R,33,{align:'right'});
+  doc.text(`Date: ${fmtDateLong(inv.generatedAt.split('T')[0])}`,R,38,{align:'right'});
+  doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,48,R,48);
+  doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(139,60,60);
+  doc.text('⚠ INTERNAL USE ONLY — DO NOT SHARE WITH CLIENT',PW/2,55,{align:'center'});
+  doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
+  doc.text(c?.name||'?',M,63);
+  if(proj) doc.text(`Project: ${proj.name}`,M,69);
+  let totV=0,totM=0,totA=0,totC=0;
+  const body=items.map(item=>{
+    const calc=item.vendorAmount!=null?calcItem(item):{vendorAmount:item.clientTotal,markupAmt:0,adminAmt:0,clientTotal:item.clientTotal};
+    totV+=calc.vendorAmount;totM+=calc.markupAmt;totA+=calc.adminAmt;totC+=calc.clientTotal;
+    return[item.vendorName||'?',CAT_LABELS[item.category]||'',item.description||'',cur(calc.vendorAmount),`${item.markupPct||0}%`,`${item.adminFeePct||0}%`,cur(calc.clientTotal)];
+  });
+  doc.autoTable({startY:76,head:[['Vendor','Category','Description','Vendor $','Markup','Admin','Client $']],body,margin:{left:M,right:M},
+    styles:{fontSize:8,cellPadding:3,textColor:[30,28,24]},
+    headStyles:{fillColor:[139,60,60],textColor:[255,255,255],fontStyle:'bold',fontSize:7.5},
+    columnStyles:{0:{cellWidth:26},1:{cellWidth:24},2:{cellWidth:'auto',overflow:'linebreak'},3:{cellWidth:22,halign:'right'},4:{cellWidth:16,halign:'right'},5:{cellWidth:16,halign:'right'},6:{cellWidth:24,halign:'right'}},
+    alternateRowStyles:{fillColor:[249,248,245]}});
+  const aft=doc.lastAutoTable.finalY+6;
+  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+  doc.text(`Vendor Total: ${cur(totV)}`,R-55,aft+6);doc.text(`Markup: ${cur(totM)}`,R-55,aft+11);doc.text(`Admin: ${cur(totA)}`,R-55,aft+16);
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(168,140,94);doc.text(`Client Total: ${cur(totC)}`,R,aft+6,{align:'right'});
+  doc.save(`INTERNAL-${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}.pdf`);
+  closeModal(); toast('Internal PDF downloaded');
+};
+
+window.redownloadExpPDF = id => {
+  const inv=loadExpInvoices().find(i=>i.id===id);
+  if(!inv){toast('Invoice not found');return;}
+  const c=getClientById(inv.clientId), proj=inv.projectId?getProjectById(inv.projectId):null;
+  const s=loadSettings();
+  const liveItems=(inv.itemIds||[]).map(id=>getExpItemById(id)).filter(Boolean);
+  const items=liveItems.length?liveItems:(inv.items||[]);
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
+  const PW=215.9,M=20,R=PW-M;
+  doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(s.firmName||'Your Firm',M,26);
+  let iy=32; if(s.firmAddress){doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);doc.text(s.firmAddress,M,iy);iy+=5;}
+  if(s.firmEmail){doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);doc.text(s.firmEmail,M,iy);}
+  doc.setFontSize(22);doc.setFont('helvetica','bold');doc.setTextColor(196,168,122);doc.text('INVOICE',R,26,{align:'right'});
+  doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
+  doc.text(`Invoice #: ${inv.invoiceNumber}`,R,33,{align:'right'});doc.text(`Date: ${fmtDateLong(inv.generatedAt.split('T')[0])}`,R,38,{align:'right'});
+  doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,52,R,52);
+  doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,59);
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c?.name||'?',M,65);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
+  let by=71; if(c?.contactName){doc.text(c.contactName,M,by);by+=5;} if(c?.email){doc.text(c.email,M,by);}
+  if(proj){doc.setFontSize(8.5);doc.text(`Project: ${proj.name}`,R,65,{align:'right'});}
+  let total=0;
+  const body=items.map(item=>{
+    const ct=item.vendorAmount!=null?calcItem(item).clientTotal:item.clientTotal;
+    total+=ct; return[item.date?fmtDate(item.date):'',CAT_LABELS[item.category]||item.category||'',item.description||'',cur(ct)];
+  });
+  doc.autoTable({startY:88,head:[['Date','Category','Description','Amount']],body,margin:{left:M,right:M},
+    styles:{fontSize:8.5,cellPadding:3.5,textColor:[30,28,24]},headStyles:{fillColor:[30,28,24],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
+    columnStyles:{0:{cellWidth:24},1:{cellWidth:26},2:{cellWidth:'auto',overflow:'linebreak'},3:{cellWidth:28,halign:'right'}},alternateRowStyles:{fillColor:[249,248,245]}});
+  const aft=doc.lastAutoTable.finalY+8;
+  doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text('Total Due:',R-40,aft+10);
+  doc.setTextColor(168,140,94);doc.text(cur(total),R,aft+10,{align:'right'});
+  doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
+  doc.setDrawColor(220,215,205);doc.line(M,258,R,258);doc.text('Thank you for your business. Payment due within 14 days.',PW/2,263,{align:'center'});
+  doc.save(`${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}-Expenses.pdf`);
+  closeModal(); toast(`${inv.invoiceNumber} re-downloaded`);
+};
+
+/* ══════════════════════════════════════════════════════
+   VIEW — EXPENSE SETTINGS
+══════════════════════════════════════════════════════ */
+function renderExpSettings() {
+  const es=loadExpSettings();
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Expense Settings</h1></div></div>
+    <div class="card" style="max-width:600px">
+      <h2 style="margin-bottom:16px">Default Rates</h2>
+      <div class="form-row">
+        <div class="form-group"><label class="field-label" for="es-markup">Default Markup %</label><input type="number" id="es-markup" step="0.1" min="0" value="${es.defaultMarkup}"><p class="hint">Applied automatically to new expense items</p></div>
+        <div class="form-group"><label class="field-label" for="es-admin">Default Admin Fee %</label><input type="number" id="es-admin" step="0.1" min="0" value="${es.defaultAdminFee}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="field-label" for="es-pfx">Invoice Prefix</label><input type="text" id="es-pfx" value="${esc(es.invoicePrefix)}"></div>
+        <div class="form-group"><label class="field-label" for="es-next">Next Invoice #</label><input type="number" id="es-next" min="1" value="${es.invoiceNext}"></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-gold" onclick="saveExpSettingsForm()">Save Settings</button></div>
+    </div>`;
+}
+function saveExpSettingsForm(){
+  const es=loadExpSettings();
+  es.defaultMarkup=parseFloat(document.getElementById('es-markup').value)||0;
+  es.defaultAdminFee=parseFloat(document.getElementById('es-admin').value)||0;
+  es.invoicePrefix=document.getElementById('es-pfx').value.trim()||'EXP';
+  es.invoiceNext=parseInt(document.getElementById('es-next').value)||1;
+  saveExpSettings(es); toast('Expense settings saved');
+}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — EXPENSE ANALYTICS
+══════════════════════════════════════════════════════ */
+function renderExpAnalytics() {
+  // Redirect to the unified Analytics app, auto-open Expenses tab
+  switchApp('analytics');
+  navigate('#analytics');
+  setTimeout(()=>{const btn=document.querySelectorAll('.atab')[1];if(btn)btn.click();},100);
+  return;
+  // Legacy code below kept for safety
+  const items=loadExpItems();
+  if(!items.length){document.getElementById('app').innerHTML=`<div class="page-head"><div><h1>Expense Analytics</h1></div></div><div class="empty"><div class="e-icon">◑</div><p>No expense items yet.</p></div>`;return;}
+  const totalVendor=items.reduce((s,i)=>s+i.vendorAmount,0);
+  const totalClient=items.reduce((s,i)=>s+calcItem(i).clientTotal,0);
+  const billed=items.filter(i=>i.status==='billed');
+  const billedTotal=billed.reduce((s,i)=>s+calcItem(i).clientTotal,0);
+  const byClient={},byCat={};
+  items.forEach(i=>{
+    const cn=getClientById(i.clientId)?.name||'Unknown';
+    const ct=calcItem(i).clientTotal;
+    byClient[cn]=(byClient[cn]||0)+ct;
+    byCat[i.category]=(byCat[i.category]||0)+ct;
+  });
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Expense Analytics</h1><div class="sub">Spending patterns across all expense items</div></div></div>
+    <div class="insight-cards">
+      <div class="insight"><div class="i-val">${items.length}</div><div class="i-lbl">Total items</div></div>
+      <div class="insight"><div class="i-val">${cur(totalVendor)}</div><div class="i-lbl">Vendor cost</div></div>
+      <div class="insight"><div class="i-val">${cur(totalClient)}</div><div class="i-lbl">Client total</div></div>
+      <div class="insight"><div class="i-val">${cur(totalClient-totalVendor)}</div><div class="i-lbl">Markup earned</div></div>
+      <div class="insight"><div class="i-val">${billed.length}</div><div class="i-lbl">Items billed</div></div>
+      <div class="insight"><div class="i-val">${cur(billedTotal)}</div><div class="i-lbl">Total billed</div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Spend by Client</h3><canvas id="ch-expClient"></canvas></div>
+      <div class="chart-card"><h3>Spend by Category</h3><canvas id="ch-expCat"></canvas></div>
+    </div>`;
+  const cNames=Object.keys(byClient),cVals=cNames.map(n=>byClient[n]);
+  window._charts.expClient=new Chart(document.getElementById('ch-expClient'),{type:'doughnut',data:{labels:cNames,datasets:[{data:cVals,backgroundColor:CHART_PALETTE,borderWidth:1,borderColor:'#fff'}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}});
+  const catNames=Object.keys(byCat).map(k=>CAT_LABELS[k]||k),catVals=Object.values(byCat);
+  window._charts.expCat=new Chart(document.getElementById('ch-expCat'),{type:'bar',data:{labels:catNames,datasets:[{label:'Client Total',data:catVals,backgroundColor:CHART_PALETTE,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#F2F0EB'}},x:{grid:{display:false}}}}});
+}
+
+/* ══════════════════════════════════════════════════════
+   ROUTER
+══════════════════════════════════════════════════════ */
+const ROUTES={'#dashboard':renderDashboard,'#designers':renderDesigners,'#hours':renderHours,'#projects':renderProjects,'#clients':renderClients,'#invoices':renderInvoices,'#generate':renderGenerate,'#analytics':renderAnalytics,'#settings':renderSettings,'#exp-items':renderExpItems,'#exp-generate':renderExpGenerate,'#exp-invoices':renderExpInvoices,'#exp-settings':renderExpSettings,'#exp-analytics':renderExpAnalytics};
+function navigate(hash){window.location.hash=hash;closeMobileMenu();}
+function render(){
+  destroyCharts();
+  const hash=window.location.hash||'#dashboard';
+  highlightNav();
+  (ROUTES[hash]||renderDashboard)();
+}
+window.addEventListener('hashchange',render);
+
+/* ══════════════════════════════════════════════════════
+   TIMER
+══════════════════════════════════════════════════════ */
+const loadTimer  = () => load('tt_timer', null);
+const saveTimerData = t => store('tt_timer', t);
+const clearTimerData = () => localStorage.removeItem('tt_timer');
+let _timerInterval = null;
+
+function fmtElapsed(ms) {
+  const s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+function msToHours(ms) { return Math.max(0.25, Math.round((ms/3600000)*4)/4); }
+
+function startTimerDisplay() {
+  if(_timerInterval) clearInterval(_timerInterval);
+  const t=loadTimer();
+  if(!t||!t.running) return;
+  document.getElementById('sb-normal').style.display='none';
+  document.getElementById('sb-timer').style.display='block';
+  const c=getClientById(t.clientId), p=t.projectId?getProjectById(t.projectId):null;
+  document.getElementById('sb-timer-info').textContent=[c?.name, p?.name||t.projectText].filter(Boolean).join(' · ')||'Timer running…';
+  _timerInterval=setInterval(()=>{
+    const el=document.getElementById('sb-elapsed');
+    if(el) el.textContent=fmtElapsed(Date.now()-new Date(t.startedAt).getTime());
+  },1000);
+  // set initial immediately
+  const el=document.getElementById('sb-elapsed');
+  if(el) el.textContent=fmtElapsed(Date.now()-new Date(t.startedAt).getTime());
+}
+
+function stopTimerDisplay() {
+  if(_timerInterval){clearInterval(_timerInterval);_timerInterval=null;}
+  const n=document.getElementById('sb-normal'), s=document.getElementById('sb-timer');
+  if(n) n.style.display='';
+  if(s) s.style.display='none';
+}
+
+function openTimerModal() {
+  const t=loadTimer();
+  if(t&&t.running){toast('A timer is already running — stop it first');return;}
+  const clients=loadClients(), designers=loadDesigners();
+  if(!clients.length){toast('Please add a client first');navigate('#clients');return;}
+  const cliId=clients[0]?.id||'';
+  const projs=getProjectsByClient(cliId);
+  const desSel=designers.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  const projContent=projs.length
+    ?`<select id="t-proj">${projectOptsForClient(cliId,'')}</select>`
+    :`<input type="text" id="t-proj-text" placeholder="e.g. Brand Identity">`;
+
+  showModal(`
+    <div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="form-group">
+      <label class="field-label">Client</label>
+      <select id="t-cli" onchange="refreshTimerProj(this.value)">${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+    </div>
+    ${designers.length?`<div class="form-group"><label class="field-label">Designer</label><select id="t-des"><option value="">— unassigned —</option>${desSel}</select></div>`:''}
+    <div class="form-group">
+      <label class="field-label">Project</label>
+      <div id="t-proj-wrap">${projContent}</div>
+    </div>
+    <div class="form-group">
+      <label class="field-label">What are you working on?</label>
+      <textarea id="t-desc" placeholder="Describe the work you're about to start…" style="min-height:64px"></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="startTimer()" style="gap:8px;font-size:14px;padding:9px 20px">▶ &nbsp;Start Timer</button>
+    </div>`);
+}
+
+window.refreshTimerProj = cliId => {
+  const projs=getProjectsByClient(cliId);
+  document.getElementById('t-proj-wrap').innerHTML=projs.length
+    ?`<select id="t-proj">${projectOptsForClient(cliId,'')}</select>`
+    :`<input type="text" id="t-proj-text" placeholder="e.g. Brand Identity">`;
+};
+
+function startTimer() {
+  const clientId=document.getElementById('t-cli').value;
+  const desEl=document.getElementById('t-des');
+  const designerId=desEl?desEl.value:'';
+  const projSel=document.getElementById('t-proj'), projTxt=document.getElementById('t-proj-text');
+  const projectId=projSel?projSel.value:'', projectText=projTxt?projTxt.value.trim():'';
+  const description=document.getElementById('t-desc').value.trim();
+  if(!clientId||(!projectId&&!projectText)){toast('Please select a client and project');return;}
+  saveTimerData({running:true,startedAt:new Date().toISOString(),clientId,designerId,projectId,projectText,description});
+  closeModal();
+  startTimerDisplay();
+  toast('Timer started');
+}
+
+function stopTimer() {
+  const t=loadTimer();
+  if(!t||!t.running) return;
+  const elapsed=Date.now()-new Date(t.startedAt).getTime();
+  const hours=msToHours(elapsed);
+  const elapsedStr=fmtElapsed(elapsed);
+  stopTimerDisplay();
+  clearTimerData();
+  showTimerReview(t, hours, elapsedStr);
+}
+
+function showTimerReview(t, hours, elapsedStr) {
+  const clients=loadClients(), designers=loadDesigners();
+  const cliId=t.clientId;
+  const projs=getProjectsByClient(cliId);
+  const clientSel=clients.map(c=>`<option value="${c.id}" ${c.id===cliId?'selected':''}>${esc(c.name)}</option>`).join('');
+  const desSel=designers.map(d=>`<option value="${d.id}" ${d.id===t.designerId?'selected':''}>${esc(d.name)}</option>`).join('');
+  const designerRow=designers.length?`<div class="form-group"><label class="field-label">Designer</label><select id="tr-des"><option value="">— unassigned —</option>${desSel}</select></div>`:'';
+  const projContent=projs.length
+    ?`<select id="tr-proj">${projectOptsForClient(cliId,t.projectId)}</select>`
+    :`<input type="text" id="tr-proj-text" value="${esc(t.projectText||'')}" placeholder="Project name">`;
+
+  showModal(`
+    <div class="modal-hd">
+      <h2>Is this correct?</h2>
+      <button class="modal-x" onclick="discardTimerEntry()">×</button>
+    </div>
+    <div class="timer-banner">
+      <div class="tb-time">${elapsedStr}</div>
+      <div class="tb-arrow">→</div>
+      <div>
+        <div class="tb-billed">${hours}h billed</div>
+        <div style="font-size:11px;color:var(--text2)">Adjust hours below if needed</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="field-label">Date</label>
+        <input type="date" id="tr-date" value="${todayStr()}">
+      </div>
+      <div class="form-group">
+        <label class="field-label">Hours</label>
+        <input type="number" id="tr-hrs" step="0.25" min="0.25" value="${hours}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="field-label">Client</label>
+      <select id="tr-cli" onchange="refreshTimerReviewProj(this.value)">${clientSel}</select>
+    </div>
+    ${designerRow}
+    <div class="form-group">
+      <label class="field-label">Project</label>
+      <div id="tr-proj-wrap">${projContent}</div>
+    </div>
+    <div class="form-group">
+      <label class="field-label">Description</label>
+      <textarea id="tr-desc">${esc(t.description)}</textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-danger" onclick="discardTimerEntry()">Discard</button>
+      <button class="btn btn-gold" onclick="saveTimerEntry()">Save Entry</button>
+    </div>`);
+}
+
+window.refreshTimerReviewProj = cliId => {
+  const projs=getProjectsByClient(cliId);
+  document.getElementById('tr-proj-wrap').innerHTML=projs.length
+    ?`<select id="tr-proj">${projectOptsForClient(cliId,'')}</select>`
+    :`<input type="text" id="tr-proj-text" placeholder="Project name">`;
+};
+
+function saveTimerEntry() {
+  const date=document.getElementById('tr-date').value;
+  const hours=parseFloat(document.getElementById('tr-hrs').value);
+  const clientId=document.getElementById('tr-cli').value;
+  const desEl=document.getElementById('tr-des');
+  const designerId=desEl?desEl.value:'';
+  const projSel=document.getElementById('tr-proj'), projTxt=document.getElementById('tr-proj-text');
+  const projectId=projSel?projSel.value:'', projectText=projTxt?projTxt.value.trim():'';
+  const description=document.getElementById('tr-desc').value.trim();
+  if(!date||!clientId||isNaN(hours)||hours<=0||!description){toast('Please fill in all fields');return;}
+  addEntry({date,hours,clientId,designerId,projectId,projectText,description});
+  toast('Entry saved ✓');
+  closeModal();
+  render();
+}
+
+function discardTimerEntry() {
+  if(confirm('Discard this time entry?')) closeModal();
+}
+
+/* ══════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════ */
+updateSidebarFirm();
+
+// Restore app state
+(function initApp(){
+  const cta=document.getElementById('sidebar-cta');
+  cta.style.display = currentApp==='time' ? '' : 'none';
+  document.querySelectorAll('.app-pill').forEach(b=>b.classList.remove('active'));
+  const pill=document.getElementById(`pill-${currentApp}`);
+  if(pill) pill.classList.add('active');
+  renderSidebarNav();
+  // If hash doesn't match current app, navigate to default
+  const hash=window.location.hash||'#dashboard';
+  const timeRoutes=['#dashboard','#designers','#hours','#projects','#clients','#invoices','#generate','#settings'];
+  const expRoutes=['#exp-items','#exp-generate','#exp-invoices','#exp-settings','#projects','#clients'];
+  const anaRoutes=['#analytics','#exp-analytics','#projects','#clients'];
+  if(currentApp==='time'&&!timeRoutes.includes(hash)) window.location.hash='#dashboard';
+  else if(currentApp==='expenses'&&!expRoutes.includes(hash)) window.location.hash='#exp-items';
+  else if(currentApp==='analytics'&&!anaRoutes.includes(hash)) window.location.hash='#analytics';
+  else if(!window.location.hash) window.location.hash=APP_DEFAULT[currentApp];
+  render();
+})();
+
+// Resume timer display if one was running
+if(loadTimer()?.running) startTimerDisplay();
+
+// Init dark mode on load
+initDarkMode();
+</script>
+</body>
+</html>

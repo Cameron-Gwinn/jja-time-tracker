@@ -1,0 +1,12 @@
+{
+  "name": "jja-designer-time-tracker",
+  "version": "1.0.0",
+  "description": "JJ&A Designer Time Tracker",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

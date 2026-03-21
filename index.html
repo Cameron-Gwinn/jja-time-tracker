@@ -426,6 +426,15 @@
     #mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 149; }
     #mobile-overlay.show { display: block; }
 
+    /* ── Mobile Timer FAB ───────────────────────────── */
+    #mobile-fab-area { display: none; position: fixed; bottom: 24px; right: 20px; flex-direction: column; align-items: flex-end; gap: 8px; z-index: 400; }
+    #fab-elapsed-pill { background: var(--text); color: #fff; font-family: 'SF Mono','Fira Code',Menlo,monospace; font-size: 13px; padding: 5px 13px; border-radius: 20px; display: none; letter-spacing: 1.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); white-space: nowrap; }
+    #fab-elapsed-pill.show { display: block; }
+    #mobile-timer-fab { width: 58px; height: 58px; border-radius: 50%; background: var(--accent); color: var(--sidebar); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 26px; box-shadow: 0 4px 18px rgba(0,0,0,0.25); transition: background .2s, transform .15s; -webkit-tap-highlight-color: transparent; }
+    #mobile-timer-fab:active { transform: scale(0.91); }
+    #mobile-timer-fab.running { background: #E05C5C; animation: fabPulse 1.4s ease-in-out infinite; }
+    @keyframes fabPulse { 0%,100%{ box-shadow: 0 4px 18px rgba(224,92,92,0.45); } 50%{ box-shadow: 0 4px 30px rgba(224,92,92,0.75); } }
+
     /* ── Mobile responsive ──────────────────────────── */
     @media (max-width: 800px) {
       *, *::before, *::after { box-sizing: border-box; }
@@ -436,8 +445,21 @@
       #sidebar.mobile-open { transform: translateX(0); }
       #mobile-hamburger { display: flex; }
 
-      /* Main content — full width, space for hamburger */
-      #main { margin-left: 0 !important; padding: 60px 14px 32px !important; width: 100%; min-width: 0; }
+      /* FAB visible on mobile */
+      #mobile-fab-area { display: flex; }
+
+      /* Toast above FAB */
+      #toast { bottom: 96px; right: 20px; }
+
+      /* Main content — full width, space for hamburger + FAB clearance */
+      #main { margin-left: 0 !important; padding: 60px 14px 96px !important; width: 100%; min-width: 0; }
+
+      /* Simplify stats on mobile — hide financial stats */
+      .stat-hide-mobile { display: none !important; }
+
+      /* Hide amount/revenue columns in card layout */
+      tbody td[data-label="Amount"] { display: none !important; }
+      tbody td[data-label="AMOUNT"] { display: none !important; }
 
       /* Page header — stack title and buttons */
       .page-head { flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 18px; padding-bottom: 14px; }
@@ -615,6 +637,10 @@
 
 <button id="mobile-hamburger" onclick="toggleMobileMenu()">☰</button>
 <div id="mobile-overlay" onclick="closeMobileMenu()"></div>
+<div id="mobile-fab-area">
+  <div id="fab-elapsed-pill"></div>
+  <button id="mobile-timer-fab" onclick="mobileFabClick()" aria-label="Timer">⏱</button>
+</div>
 <main id="main"><div id="app"></div></main>
 <div id="toast"></div>
 
@@ -1039,8 +1065,8 @@ function renderDashboard(){
     <div class="stats">
       <div class="stat"><div class="val">${wH.toFixed(1)}</div><div class="lbl">Hours this week</div></div>
       <div class="stat"><div class="val">${wC}</div><div class="lbl">Active clients</div></div>
-      <div class="stat"><div class="val gold">${cur(wR)}</div><div class="lbl">Revenue this week</div></div>
-      <div class="stat"><div class="val gold">${cur(wU)}</div><div class="lbl">Unbilled this week</div></div>
+      <div class="stat stat-hide-mobile"><div class="val gold">${cur(wR)}</div><div class="lbl">Revenue this week</div></div>
+      <div class="stat stat-hide-mobile"><div class="val gold">${cur(wU)}</div><div class="lbl">Unbilled this week</div></div>
     </div>
     <div class="card"><div class="card-head"><h2>Recent Entries</h2></div>
       <div class="tbl-wrap"><table>
@@ -2825,6 +2851,19 @@ function fmtElapsed(ms) {
 }
 function msToHours(ms) { return Math.max(0.25, Math.round((ms/3600000)*4)/4); }
 
+function updateFAB(running) {
+  const fab=document.getElementById('mobile-timer-fab');
+  const pill=document.getElementById('fab-elapsed-pill');
+  if(!fab) return;
+  if(running) { fab.classList.add('running'); fab.textContent='■'; if(pill) pill.classList.add('show'); }
+  else { fab.classList.remove('running'); fab.textContent='⏱'; if(pill){pill.classList.remove('show');pill.textContent='';} }
+}
+
+function mobileFabClick() {
+  const t=loadTimer();
+  if(t&&t.running) stopTimer(); else openTimerModal();
+}
+
 function startTimerDisplay() {
   if(_timerInterval) clearInterval(_timerInterval);
   const t=loadTimer();
@@ -2833,13 +2872,20 @@ function startTimerDisplay() {
   document.getElementById('sb-timer').style.display='block';
   const c=getClientById(t.clientId), p=t.projectId?getProjectById(t.projectId):null;
   document.getElementById('sb-timer-info').textContent=[c?.name, p?.name||t.projectText].filter(Boolean).join(' · ')||'Timer running…';
+  updateFAB(true);
   _timerInterval=setInterval(()=>{
+    const elapsed=Date.now()-new Date(t.startedAt).getTime();
     const el=document.getElementById('sb-elapsed');
-    if(el) el.textContent=fmtElapsed(Date.now()-new Date(t.startedAt).getTime());
+    if(el) el.textContent=fmtElapsed(elapsed);
+    const pill=document.getElementById('fab-elapsed-pill');
+    if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed);
   },1000);
   // set initial immediately
+  const elapsed=Date.now()-new Date(t.startedAt).getTime();
   const el=document.getElementById('sb-elapsed');
-  if(el) el.textContent=fmtElapsed(Date.now()-new Date(t.startedAt).getTime());
+  if(el) el.textContent=fmtElapsed(elapsed);
+  const pill=document.getElementById('fab-elapsed-pill');
+  if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed);
 }
 
 function stopTimerDisplay() {
@@ -2847,6 +2893,7 @@ function stopTimerDisplay() {
   const n=document.getElementById('sb-normal'), s=document.getElementById('sb-timer');
   if(n) n.style.display='';
   if(s) s.style.display='none';
+  updateFAB(false);
 }
 
 function openTimerModal() {

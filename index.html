@@ -980,8 +980,10 @@ function trialDaysRemaining() {
   const ms = Date.now() - new Date(_firmCreatedAt).getTime();
   return Math.max(0, 30 - Math.floor(ms / 86400000));
 }
-function isTrialActive()   { return _firmPlan !== 'pro' && trialDaysRemaining() > 0; }
-function isTrialExpired()  { return _firmPlan !== 'pro' && trialDaysRemaining() === 0; }
+const WHITELISTED_FIRM_CODES = new Set(['76359B80']);
+function isPro() { return _firmPlan === 'pro' || WHITELISTED_FIRM_CODES.has(_firmInviteCode); }
+function isTrialActive()   { return !isPro() && trialDaysRemaining() > 0; }
+function isTrialExpired()  { return !isPro() && trialDaysRemaining() === 0; }
 function isAtInvoiceLimit(){ return isTrialExpired(); }
 
 function showUpgradeModal() {
@@ -1838,7 +1840,7 @@ function renderGenerate(){
   if(!clients.length){document.getElementById('app').innerHTML=`<div class="page-head"><div><h1>Generate Invoice</h1></div></div><div class="empty"><div class="e-icon">↗</div><p>Add clients and log time first.</p><button class="btn btn-gold" onclick="navigate('#clients')">Go to Clients</button></div>`;return;}
   const [ws,we]=weekRange(0);
   document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Generate Invoice</h1><div class="sub">Select a client and period to create a PDF invoice</div></div>${_firmPlan!=='pro'?`<div style="font-size:12px;color:var(--text2);text-align:right"><span style="font-weight:600;color:${invoiceCount()>=FREE_INVOICE_LIMIT?'var(--danger)':'var(--accent-dk)'}">${invoiceCount()}/${FREE_INVOICE_LIMIT}</span> free invoices used${invoiceCount()>=FREE_INVOICE_LIMIT?' · <strong style="color:var(--danger)">Limit reached</strong>':''}</div>`:''}</div>
+    <div class="page-head"><div><h1>Generate Invoice</h1><div class="sub">Select a client and period to create a PDF invoice</div></div></div>
     <div class="card" style="max-width:600px;margin-bottom:16px">
       <div class="card-head" style="margin-bottom:14px"><h2>Billing Calendar</h2></div>
       <div class="form-group" style="margin-bottom:14px">
@@ -2474,7 +2476,7 @@ function renderSettings(){
   const brandHex=s.brandColor||'#C4A87A';
 
   const tplCard=tpl=>{
-    const isLocked=tpl.plan==='pro'&&_firmPlan!=='pro';
+    const isLocked=tpl.plan==='pro'&&!isPro();
     const isSel=s.invoiceTemplate===tpl.id;
     const hdrColor=Array.isArray(tpl.hdrBg)?`rgb(${tpl.hdrBg.join(',')})`:tpl.hdrBg==='brand'?brandHex:'#F2F0EB';
     const acColor=tpl.accent==='brand'?brandHex:Array.isArray(tpl.accent)?`rgb(${tpl.accent.join(',')})`:brandHex;
@@ -2517,7 +2519,7 @@ function renderSettings(){
       <h2 style="margin-bottom:6px">Invoice Template</h2>
       <p class="col2 fs12" style="margin-bottom:14px">Choose a design for your invoices. All future PDFs will use this template.</p>
       <div class="tpl-grid">${INVOICE_TEMPLATES.map(tplCard).join('')}</div>
-      ${_firmPlan!=='pro'?`<div style="margin-top:14px;padding:10px 14px;background:var(--accent-lt);border-radius:var(--radius);font-size:12px;color:var(--accent-dk)">
+      ${!isPro()?`<div style="margin-top:14px;padding:10px 14px;background:var(--accent-lt);border-radius:var(--radius);font-size:12px;color:var(--accent-dk)">
         <strong>12 Pro templates locked.</strong> Upgrade to Pro to unlock all templates and remove the watermark.
       </div>`:''}
     </div>
@@ -2600,7 +2602,7 @@ function renderSettings(){
 
     <div class="card" style="max-width:640px;margin-bottom:18px">
       <h2 style="margin-bottom:6px">Plan &amp; Billing</h2>
-      ${_firmPlan === 'pro' ? `
+      ${isPro() ? `
         <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:rgba(61,107,79,0.15);border:1px solid rgba(61,107,79,0.3);border-radius:var(--radius);margin-bottom:0">
           <span style="font-size:22px">✓</span>
           <div>
@@ -2675,7 +2677,7 @@ function saveBillingSettings(){
 /* ── Template / Branding settings helpers ── */
 window.selectTemplate = id => {
   const tpl=INVOICE_TEMPLATES.find(t=>t.id===id); if(!tpl) return;
-  if(tpl.plan==='pro'&&_firmPlan!=='pro'){toast('Upgrade to Pro to unlock this template');return;}
+  if(tpl.plan==='pro'&&!isPro()){toast('Upgrade to Pro to unlock this template');return;}
   const s=loadSettings(); s.invoiceTemplate=id; saveSettings(s);
   renderSettings(); toast(`Template "${tpl.name}" selected`);
 };
@@ -4114,6 +4116,33 @@ function labelTableCells() {
   });
 }
 
+function renderTrialBadge() {
+  let el = document.getElementById('trial-badge');
+  if(isPro() || !_currentUser || !_firmId) {
+    if(el) el.remove();
+    return;
+  }
+  const days = trialDaysRemaining();
+  const stripeUrl = `https://buy.stripe.com/7sYcN69J9byXbbzayp8N200?client_reference_id=${_firmId}&prefilled_email=${encodeURIComponent(_currentUser?.email||'')}`;
+  const isExpired = days === 0;
+  const bg = isExpired ? 'rgba(180,90,70,0.92)' : 'rgba(43,38,30,0.92)';
+  const label = isExpired
+    ? 'Trial ended — Upgrade to Pro'
+    : `${days} day${days===1?'':'s'} left in free trial`;
+  if(!el) {
+    el = document.createElement('div');
+    el.id = 'trial-badge';
+    el.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:900;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.35);backdrop-filter:blur(8px);font-size:13px;font-weight:600;color:#fff;cursor:pointer;transition:transform 0.15s';
+    el.onmouseenter = () => el.style.transform = 'scale(1.03)';
+    el.onmouseleave = () => el.style.transform = '';
+    el.onclick = () => window.open(stripeUrl, '_blank');
+    document.body.appendChild(el);
+  }
+  el.style.background = bg;
+  el.innerHTML = `<span>${isExpired ? '🔒' : '⏳'}</span><span>${label}</span><span style="padding:4px 10px;background:rgba(255,255,255,0.2);border-radius:8px;font-size:12px;margin-left:4px">Upgrade →</span>`;
+  el.onclick = () => window.open(stripeUrl, '_blank');
+}
+
 function render(){
   if(!_currentUser || !_firmId) { showAuthScreen(); return; }
   destroyCharts();
@@ -4121,6 +4150,7 @@ function render(){
   highlightNav();
   (ROUTES[hash]||renderDashboard)();
   setTimeout(labelTableCells, 0);
+  renderTrialBadge();
 }
 window.addEventListener('hashchange',render);
 
@@ -4376,6 +4406,7 @@ function initRealtime() {
         _firmPlan = newPlan;
         if(newPlan === 'pro') {
           closeModal();
+          renderTrialBadge();
           toast('🎉 You\'re now on Pro! All features unlocked.');
           render();
         }

@@ -1802,6 +1802,7 @@ function renderInvoices(){
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();emailInvoice('${inv.id}')">✉ Email</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewTimePDF('${inv.id}')">👁 Preview PDF</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();redownloadTimePDF('${inv.id}')">⬇ Download PDF</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();exportTimeInvQBO('${inv.id}')" title="Export for QuickBooks Online import">QB Export</button>
             </div>
           </div>
         </div>
@@ -2055,6 +2056,82 @@ async function generatePDF(){
     </div>
   `);
 }
+
+// QuickBooks Online CSV export — Time Invoice
+window.exportTimeInvQBO = invId => {
+  const inv=loadInvoices().find(i=>i.id===invId);
+  if(!inv){toast('Invoice not found');return;}
+  const c=getClientById(inv.clientId);
+  const entries=filterEntries({clientId:inv.clientId,designerId:inv.designerId||'',projectId:inv.projectId||'',start:inv.startDate,end:inv.endDate});
+  if(!entries.length){toast('No entries found for this invoice');return;}
+  const s=loadSettings();
+  const issueDate=inv.generatedAt.split('T')[0];
+  const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+(s.paymentTerms||14));
+  const dueDate=dueD.toISOString().split('T')[0];
+  const fmtQBDate=d=>{ const [y,m,dd]=d.split('-'); return `${m}/${dd}/${y}`; };
+  const rows=[['InvoiceNo','Customer','InvoiceDate','DueDate','Terms','Memo','Item(Product/Service)','ItemDescription','ItemQuantity','ItemRate','ItemAmount']];
+  entries.forEach((e,i)=>{
+    const d=e.designerId?getDesignerById(e.designerId):null;
+    const desc=`${e.description||'Design Services'}${d?` — ${d.name}`:''}${e.date?` (${fmtQBDate(e.date)})':''}`;
+    rows.push([
+      i===0?inv.invoiceNumber:'',
+      i===0?(c?.name||''):'',
+      i===0?fmtQBDate(issueDate):'',
+      i===0?fmtQBDate(dueDate):'',
+      i===0?`Net ${s.paymentTerms||14}`:'',
+      i===0?`Time invoice ${fmtQBDate(inv.startDate)} – ${fmtQBDate(inv.endDate)}`:'',
+      'Design Services',
+      desc,
+      e.hours,
+      entryRate(e).toFixed(2),
+      entryAmount(e).toFixed(2)
+    ]);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`QBO-${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}.csv`;
+  a.click();
+  toast('QuickBooks CSV downloaded');
+};
+
+// QuickBooks Online CSV export — Expense Invoice
+window.exportExpInvQBO = invId => {
+  const inv=loadExpInvoices().find(i=>i.id===invId);
+  if(!inv){toast('Invoice not found');return;}
+  const c=getClientById(inv.clientId);
+  const items=_getExpInvItems(inv);
+  if(!items.length){toast('No items found for this invoice');return;}
+  const s=loadSettings();
+  const issueDate=inv.generatedAt.split('T')[0];
+  const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+14);
+  const dueDate=dueD.toISOString().split('T')[0];
+  const fmtQBDate=d=>{ const [y,m,dd]=d.split('-'); return `${m}/${dd}/${y}`; };
+  const rows=[['InvoiceNo','Customer','InvoiceDate','DueDate','Terms','Memo','Item(Product/Service)','ItemDescription','ItemQuantity','ItemRate','ItemAmount']];
+  items.forEach((item,i)=>{
+    const desc=`${item.description||''}${item.vendorName?` — ${item.vendorName}`:''}${item.date?` (${fmtQBDate(item.date)})':''}`;
+    const ct=calcItem(item).clientTotal;
+    rows.push([
+      i===0?inv.invoiceNumber:'',
+      i===0?(c?.name||''):'',
+      i===0?fmtQBDate(issueDate):'',
+      i===0?fmtQBDate(dueDate):'',
+      i===0?`Net 14`:'',
+      i===0?`Expense invoice — ${fmtQBDate(issueDate)}`:'',
+      CAT_LABELS[item.category]||item.category||'Procurement',
+      desc,
+      1,
+      ct.toFixed(2),
+      ct.toFixed(2)
+    ]);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`QBO-${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}-Expenses.csv`;
+  a.click();
+  toast('QuickBooks CSV downloaded');
+};
 
 window.redownloadTimePDF = invId => {
   const inv=loadInvoices().find(i=>i.id===invId);
@@ -3536,6 +3613,7 @@ function renderExpInvoices() {
             <div class="exp-inv-action-row">
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewInternalExpInv('${inv.id}')">👁 Preview Invoice</button>
               <button class="btn btn-dark btn-sm" onclick="event.stopPropagation();downloadClientExpPDF('${inv.id}')">⬇ Client Invoice</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();exportExpInvQBO('${inv.id}')" title="Export for QuickBooks Online import">QB Export</button>
             </div>
           </div>
         </div>

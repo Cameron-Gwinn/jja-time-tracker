@@ -24,7 +24,8 @@ exports.handler = async (event) => {
   // Payment succeeded — upgrade firm to Pro
   if (stripeEvent.type === 'checkout.session.completed') {
     const session = stripeEvent.data.object;
-    const firmId = session.metadata?.firm_id;
+    // client_reference_id is set via URL param by the app; metadata.firm_id is legacy fallback
+    const firmId = session.client_reference_id || session.metadata?.firm_id;
     const customerEmail = session.customer_details?.email;
 
     if (firmId) {

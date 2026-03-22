@@ -999,10 +999,17 @@ function showUpgradeModal() {
       </div>
       <div style="display:flex;gap:10px;justify-content:center;margin-top:4px">
         <button class="btn btn-ghost" onclick="closeModal()">Maybe Later</button>
-        <a href="https://buy.stripe.com/7sYcN69J9byXbbzayp8N200" target="_blank" class="btn btn-gold" style="text-decoration:none" onclick="closeModal()">Upgrade to Pro — $29.99/mo</a>
+        <a id="stripe-upgrade-link" href="#" target="_blank" class="btn btn-gold" style="text-decoration:none" onclick="closeModal()">Upgrade to Pro — $29.99/mo</a>
       </div>
     </div>
   `);
+  // Build Stripe link with firm_id and email so webhook can auto-identify firm
+  const baseUrl = 'https://buy.stripe.com/7sYcN69J9byXbbzayp8N200';
+  const params = new URLSearchParams();
+  if (_firmId) params.set('client_reference_id', _firmId);
+  if (_currentUser?.email) params.set('prefilled_email', _currentUser.email);
+  const stripeLink = document.getElementById('stripe-upgrade-link');
+  if (stripeLink) stripeLink.href = params.toString() ? `${baseUrl}?${params}` : baseUrl;
 }
 
 function hexToRgb(hex) {

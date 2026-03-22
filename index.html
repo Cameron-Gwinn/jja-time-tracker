@@ -997,8 +997,10 @@ function showUpgradeModal() {
           ✓ &nbsp;Priority support
         </div>
       </div>
-      <p style="font-size:12px;color:var(--text2)">Contact your firm owner to upgrade, or reach out to us at <strong>support@jasejonesinvoicing.com</strong></p>
-      <button class="btn btn-ghost" style="margin-top:16px" onclick="closeModal()">Maybe Later</button>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:4px">
+        <button class="btn btn-ghost" onclick="closeModal()">Maybe Later</button>
+        <a href="https://buy.stripe.com/7sYcN69J9byXbbzayp8N200" target="_blank" class="btn btn-gold" style="text-decoration:none" onclick="closeModal()">Upgrade to Pro — $29.99/mo</a>
+      </div>
     </div>
   `);
 }

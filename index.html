@@ -973,20 +973,25 @@ const INVOICE_TEMPLATES = [
 ];
 
 let _firmPlan = 'free';
+let _firmCreatedAt = null;
 
-const FREE_INVOICE_LIMIT = 15;
-function invoiceCount() { return loadInvoices().length + loadExpInvoices().length; }
-function isAtInvoiceLimit() { return _firmPlan !== 'pro' && invoiceCount() >= FREE_INVOICE_LIMIT; }
+function trialDaysRemaining() {
+  if(!_firmCreatedAt) return 30;
+  const ms = Date.now() - new Date(_firmCreatedAt).getTime();
+  return Math.max(0, 30 - Math.floor(ms / 86400000));
+}
+function isTrialActive()   { return _firmPlan !== 'pro' && trialDaysRemaining() > 0; }
+function isTrialExpired()  { return _firmPlan !== 'pro' && trialDaysRemaining() === 0; }
+function isAtInvoiceLimit(){ return isTrialExpired(); }
+
 function showUpgradeModal() {
-  const used = invoiceCount();
   showModal(`
-    <div class="modal-hd"><h2>Invoice Limit Reached</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="modal-hd"><h2>Free Trial Ended</h2><button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="padding:24px;text-align:center">
       <div style="font-size:40px;margin-bottom:12px">🔒</div>
-      <p style="font-size:15px;font-weight:600;margin-bottom:8px">You've used all ${FREE_INVOICE_LIMIT} free invoices</p>
+      <p style="font-size:15px;font-weight:600;margin-bottom:8px">Your 30-day free trial has ended</p>
       <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">
-        The free plan includes ${FREE_INVOICE_LIMIT} invoices to get you started.<br>
-        Upgrade to Pro for unlimited invoices, premium templates, and more.
+        Upgrade to Pro to keep creating invoices, unlock premium templates, and more.
       </p>
       <div style="background:var(--accent-lt);border-radius:10px;padding:16px 20px;margin-bottom:20px;text-align:left">
         <div style="font-size:12px;font-weight:700;color:var(--accent-dk);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Pro Plan includes</div>
@@ -2594,6 +2599,37 @@ function renderSettings(){
     </div>
 
     <div class="card" style="max-width:640px;margin-bottom:18px">
+      <h2 style="margin-bottom:6px">Plan &amp; Billing</h2>
+      ${_firmPlan === 'pro' ? `
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:rgba(61,107,79,0.15);border:1px solid rgba(61,107,79,0.3);border-radius:var(--radius);margin-bottom:0">
+          <span style="font-size:22px">✓</span>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#6DBD8A">Pro Plan Active</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">Unlimited invoices, all templates, no watermarks.</div>
+          </div>
+        </div>
+      ` : isTrialActive() ? `
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--accent-lt);border-radius:var(--radius);margin-bottom:16px">
+          <span style="font-size:22px">⏳</span>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--accent-dk)">Free Trial — ${trialDaysRemaining()} day${trialDaysRemaining()===1?'':'s'} remaining</div>
+            <div style="font-size:12px;color:var(--accent-dk);opacity:0.8;margin-top:2px">All features unlocked during your trial.</div>
+          </div>
+        </div>
+        <a href="https://buy.stripe.com/7sYcN69J9byXbbzayp8N200?client_reference_id=${_firmId}&prefilled_email=${encodeURIComponent(_currentUser?.email||'')}" target="_blank" class="btn btn-gold" style="text-decoration:none;display:inline-block">Upgrade to Pro — $29.99/mo</a>
+      ` : `
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:rgba(180,90,70,0.12);border:1px solid rgba(180,90,70,0.25);border-radius:var(--radius);margin-bottom:16px">
+          <span style="font-size:22px">🔒</span>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#D4806A">Free Trial Ended</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">Upgrade to keep creating invoices and access all features.</div>
+          </div>
+        </div>
+        <a href="https://buy.stripe.com/7sYcN69J9byXbbzayp8N200?client_reference_id=${_firmId}&prefilled_email=${encodeURIComponent(_currentUser?.email||'')}" target="_blank" class="btn btn-gold" style="text-decoration:none;display:inline-block">Upgrade to Pro — $29.99/mo</a>
+      `}
+    </div>
+
+    <div class="card" style="max-width:640px;margin-bottom:18px">
       <h2 style="margin-bottom:6px">Team Access</h2>
       <p class="col2 fs12" style="margin-bottom:16px">Share your invite code with other designers to give them access to <strong>${esc(_firmName||'your firm')}</strong>. All team members share the same data.</p>
       <div class="form-group">
@@ -2948,7 +2984,7 @@ async function loadFirmContext() {
   try {
     const { data } = await _sb
       .from('firm_members')
-      .select('firm_id, role, firms(id, name, invite_code, plan)')
+      .select('firm_id, role, firms(id, name, invite_code, plan, created_at)')
       .eq('user_id', _currentUser.id)
       .maybeSingle();
     if(data?.firm_id) {
@@ -2957,6 +2993,7 @@ async function loadFirmContext() {
       _firmName       = data.firms?.name;
       _firmInviteCode = data.firms?.invite_code;
       _firmPlan       = data.firms?.plan || 'free';
+      _firmCreatedAt  = data.firms?.created_at || null;
       return true;
     }
     return false;
@@ -4328,6 +4365,21 @@ function initRealtime() {
       localStorage.setItem(key, JSON.stringify(value));
       render();
       toast('↻ Synced');
+    })
+    .subscribe();
+
+  // Watch for plan upgrades (Stripe webhook updates firms.plan)
+  _sb.channel(`firm_${_firmId}_plan`)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'firms',filter:`id=eq.${_firmId}`}, payload=>{
+      const newPlan = payload.new?.plan;
+      if(newPlan && newPlan !== _firmPlan) {
+        _firmPlan = newPlan;
+        if(newPlan === 'pro') {
+          closeModal();
+          toast('🎉 You\'re now on Pro! All features unlocked.');
+          render();
+        }
+      }
     })
     .subscribe();
 }

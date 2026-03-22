@@ -974,6 +974,35 @@ const INVOICE_TEMPLATES = [
 
 let _firmPlan = 'free';
 
+const FREE_INVOICE_LIMIT = 15;
+function invoiceCount() { return loadInvoices().length + loadExpInvoices().length; }
+function isAtInvoiceLimit() { return _firmPlan !== 'pro' && invoiceCount() >= FREE_INVOICE_LIMIT; }
+function showUpgradeModal() {
+  const used = invoiceCount();
+  showModal(`
+    <div class="modal-hd"><h2>Invoice Limit Reached</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="padding:24px;text-align:center">
+      <div style="font-size:40px;margin-bottom:12px">🔒</div>
+      <p style="font-size:15px;font-weight:600;margin-bottom:8px">You've used all ${FREE_INVOICE_LIMIT} free invoices</p>
+      <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">
+        The free plan includes ${FREE_INVOICE_LIMIT} invoices to get you started.<br>
+        Upgrade to Pro for unlimited invoices, premium templates, and more.
+      </p>
+      <div style="background:var(--accent-lt);border-radius:10px;padding:16px 20px;margin-bottom:20px;text-align:left">
+        <div style="font-size:12px;font-weight:700;color:var(--accent-dk);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Pro Plan includes</div>
+        <div style="font-size:13px;color:#2A1E08;line-height:1.8">
+          ✓ &nbsp;Unlimited invoices<br>
+          ✓ &nbsp;All 15 premium templates<br>
+          ✓ &nbsp;No watermark on PDFs<br>
+          ✓ &nbsp;Priority support
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text2)">Contact your firm owner to upgrade, or reach out to us at <strong>support@jasejonesinvoicing.com</strong></p>
+      <button class="btn btn-ghost" style="margin-top:16px" onclick="closeModal()">Maybe Later</button>
+    </div>
+  `);
+}
+
 function hexToRgb(hex) {
   const h = hex.replace('#','');
   return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
@@ -1794,7 +1823,7 @@ function renderGenerate(){
   if(!clients.length){document.getElementById('app').innerHTML=`<div class="page-head"><div><h1>Generate Invoice</h1></div></div><div class="empty"><div class="e-icon">↗</div><p>Add clients and log time first.</p><button class="btn btn-gold" onclick="navigate('#clients')">Go to Clients</button></div>`;return;}
   const [ws,we]=weekRange(0);
   document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Generate Invoice</h1><div class="sub">Select a client and period to create a PDF invoice</div></div></div>
+    <div class="page-head"><div><h1>Generate Invoice</h1><div class="sub">Select a client and period to create a PDF invoice</div></div>${_firmPlan!=='pro'?`<div style="font-size:12px;color:var(--text2);text-align:right"><span style="font-weight:600;color:${invoiceCount()>=FREE_INVOICE_LIMIT?'var(--danger)':'var(--accent-dk)'}">${invoiceCount()}/${FREE_INVOICE_LIMIT}</span> free invoices used${invoiceCount()>=FREE_INVOICE_LIMIT?' · <strong style="color:var(--danger)">Limit reached</strong>':''}</div>`:''}</div>
     <div class="card" style="max-width:600px;margin-bottom:16px">
       <div class="card-head" style="margin-bottom:14px"><h2>Billing Calendar</h2></div>
       <div class="form-group" style="margin-bottom:14px">
@@ -2005,6 +2034,7 @@ function previewGeneratedPDF() {
 
 let _pendingInvDoc=null, _pendingInvFilename='';
 async function generatePDF(){
+  if(isAtInvoiceLimit()){showUpgradeModal();return;}
   const result=_buildGeneratedPDFDoc();
   if(!result) return;
   const {doc,totH,totA,invNum,c,clientId,designerId,projectId,start,end,settings,entries}=result;
@@ -3605,6 +3635,7 @@ function renderExpGenerate() {
    EXPENSE PDF GENERATOR
 ══════════════════════════════════════════════════════ */
 function generateExpPDF() {
+  if(isAtInvoiceLimit()){showUpgradeModal();return;}
   const cliId  = document.getElementById('eg-cli').value;
   const projId = document.getElementById('eg-proj').value;
   let items=loadExpItems().filter(i=>i.clientId===cliId&&i.status==='filed');

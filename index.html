@@ -2081,7 +2081,7 @@ window.exportTimeInvQBO = invId => {
   const rows=[['InvoiceNo','Customer','InvoiceDate','DueDate','Terms','Memo','Item(Product/Service)','ItemDescription','ItemQuantity','ItemRate','ItemAmount']];
   entries.forEach((e,i)=>{
     const d=e.designerId?getDesignerById(e.designerId):null;
-    const desc=`${e.description||'Design Services'}${d?` — ${d.name}`:''}${e.date?` (${fmtQBDate(e.date)})':''}`;
+    const desc=`${e.description||'Design Services'}${d?` — ${d.name}`:''}${e.date?` (${fmtQBDate(e.date)})`:''}`;
     rows.push([
       i===0?inv.invoiceNumber:'',
       i===0?(c?.name||''):'',
@@ -2118,7 +2118,7 @@ window.exportExpInvQBO = invId => {
   const fmtQBDate=d=>{ const [y,m,dd]=d.split('-'); return `${m}/${dd}/${y}`; };
   const rows=[['InvoiceNo','Customer','InvoiceDate','DueDate','Terms','Memo','Item(Product/Service)','ItemDescription','ItemQuantity','ItemRate','ItemAmount']];
   items.forEach((item,i)=>{
-    const desc=`${item.description||''}${item.vendorName?` — ${item.vendorName}`:''}${item.date?` (${fmtQBDate(item.date)})':''}`;
+    const desc=`${item.description||''}${item.vendorName?` — ${item.vendorName}`:''}${item.date?` (${fmtQBDate(item.date)})`:''}`;
     const ct=calcItem(item).clientTotal;
     rows.push([
       i===0?inv.invoiceNumber:'',

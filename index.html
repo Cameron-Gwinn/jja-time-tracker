@@ -451,9 +451,7 @@
     body.dark-mode .table-wrap th { background: var(--bg2); }
     body.dark-mode .kpi { background: var(--card); }
 
-    /* Settings cog */
-    #settings-cog { position: absolute; bottom: 14px; left: 14px; background: rgba(255,255,255,0.08); border: none; color: rgba(255,255,255,0.7); width: 44px; height: 44px; border-radius: 12px; cursor: pointer; font-size: 22px; display: flex; align-items: center; justify-content: center; transition: background .2s, transform .3s; }
-    #settings-cog:hover { background: rgba(255,255,255,0.15); color: #fff; transform: rotate(45deg); }
+    .app-pill-settings { grid-column: 1 / -1; justify-self: center; width: 60%; }
     body.dark-mode .btn-dark { background: #3D3830; color: #EDE9E2; }
 
     /* ── Mobile hamburger ───────────────────────────── */
@@ -853,6 +851,7 @@
     <button class="app-pill" id="pill-expenses" onclick="switchApp('expenses')">Expenses</button>
     <button class="app-pill" id="pill-invoicing" onclick="switchApp('invoicing')">Invoices</button>
     <button class="app-pill" id="pill-analytics" onclick="switchApp('analytics')">Analytics</button>
+    <button class="app-pill app-pill-settings" id="pill-settings" onclick="navigate('#settings')">⚙ Settings</button>
   </div>
   <div id="sidebar-cta">
     <div id="sb-normal">
@@ -872,7 +871,6 @@
   </div>
   <nav id="sidebar-nav"></nav>
   <div id="sb-user"></div>
-  <button id="settings-cog" onclick="navigate('#settings')" title="Settings">⚙</button>
 </aside>
 
 <button id="mobile-hamburger" onclick="toggleMobileMenu()">☰</button>
@@ -2713,6 +2711,11 @@ function renderSidebarNav() {
 function highlightNav() {
   const hash = window.location.hash || '#dashboard';
   document.querySelectorAll('#sidebar-nav a').forEach(a => a.classList.toggle('active', a.getAttribute('href') === hash));
+  // Highlight settings pill when on settings page, otherwise highlight current app pill
+  const onSettings = hash === '#settings' || hash === '#exp-settings';
+  document.getElementById('pill-settings')?.classList.toggle('active', onSettings);
+  if(onSettings) document.querySelectorAll('.app-pill:not(#pill-settings)').forEach(p => p.classList.remove('active'));
+  else document.getElementById(`pill-${currentApp}`)?.classList.add('active');
 }
 
 /* ══════════════════════════════════════════════════════

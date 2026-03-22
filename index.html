@@ -451,9 +451,10 @@
     body.dark-mode .table-wrap th { background: var(--bg2); }
     body.dark-mode .kpi { background: var(--card); }
 
-    /* Dark mode toggle */
-    #dm-toggle { position: absolute; bottom: 14px; right: 14px; background: rgba(255,255,255,0.08); border: none; color: rgba(255,255,255,0.55); width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background .2s; }
-    #dm-toggle:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    /* Settings cog */
+    #settings-cog { position: absolute; bottom: 14px; left: 14px; background: rgba(255,255,255,0.08); border: none; color: rgba(255,255,255,0.7); width: 44px; height: 44px; border-radius: 12px; cursor: pointer; font-size: 22px; display: flex; align-items: center; justify-content: center; transition: background .2s, transform .3s; }
+    #settings-cog:hover { background: rgba(255,255,255,0.15); color: #fff; transform: rotate(45deg); }
+    body.dark-mode .btn-dark { background: #3D3830; color: #EDE9E2; }
 
     /* ── Mobile hamburger ───────────────────────────── */
     #mobile-hamburger { display: none; position: fixed; top: 12px; left: 12px; z-index: 300; background: var(--text); color: #fff; border: none; width: 42px; height: 42px; border-radius: 10px; font-size: 19px; cursor: pointer; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
@@ -871,7 +872,7 @@
   </div>
   <nav id="sidebar-nav"></nav>
   <div id="sb-user"></div>
-  <button id="dm-toggle" onclick="toggleDarkMode()" title="Toggle dark mode">◑</button>
+  <button id="settings-cog" onclick="navigate('#settings')" title="Settings">⚙</button>
 </aside>
 
 <button id="mobile-hamburger" onclick="toggleMobileMenu()">☰</button>
@@ -2376,6 +2377,19 @@ function renderSettings(){
     <div class="page-head"><div><h1>Settings</h1><div class="sub">Firm info, preferences, and data management</div></div></div>
 
     <div class="card" style="max-width:760px;margin-bottom:18px">
+      <h2 style="margin-bottom:16px">Appearance</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:14px;font-weight:600">Dark Mode</div>
+          <div class="col2 fs12" style="margin-top:2px">Switch between light and dark interface</div>
+        </div>
+        <button class="btn ${isDark?'btn-gold':'btn-ghost'}" onclick="toggleDarkMode();renderSettings()" style="min-width:80px">
+          ${isDark?'☀ Light':'◑ Dark'}
+        </button>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:760px;margin-bottom:18px">
       <h2 style="margin-bottom:6px">Invoice Template</h2>
       <p class="col2 fs12" style="margin-bottom:14px">Choose a design for your invoices. All future PDFs will use this template.</p>
       <div class="tpl-grid">${INVOICE_TEMPLATES.map(tplCard).join('')}</div>
@@ -2538,13 +2552,13 @@ function clearAll(){if(!confirm('Clear ALL data? Cannot be undone.'))return;['tt
 function toggleDarkMode() {
   const on=document.body.classList.toggle('dark-mode');
   localStorage.setItem('tt_dark_mode',on?'1':'0');
-  document.getElementById('dm-toggle').textContent=on?'☀':'◑';
 }
 function initDarkMode() {
-  if(localStorage.getItem('tt_dark_mode')==='1'){
+  const pref = localStorage.getItem('tt_dark_mode');
+  // Default to dark mode unless user has explicitly set light mode
+  if(pref === null || pref === '1') {
     document.body.classList.add('dark-mode');
-    const btn=document.getElementById('dm-toggle');
-    if(btn) btn.textContent='☀';
+    if(pref === null) localStorage.setItem('tt_dark_mode','1');
   }
 }
 

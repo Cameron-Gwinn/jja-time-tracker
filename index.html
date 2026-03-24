@@ -3389,7 +3389,15 @@ const idbDelete = id   => getDB().then(db=>new Promise((res,rej)=>{const tx=db.t
 const SUPABASE_URL    = 'https://iftyienthkleigkzfcvx.supabase.co';
 const SUPABASE_KEY    = 'sb_publishable_Ivt-yiruN15VIyBpBgB4cQ_xniDysy9';
 const SUPABASE_BUCKET = 'expense-attachments';
-const _sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
+const _sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession:     true,
+    autoRefreshToken:   true,
+    detectSessionInUrl: false,
+    storageKey:         'jja-tracker-auth',
+    storage:            window.localStorage
+  }
+});
 
 async function uploadToSupabase(itemId, fileData) {
   if(!_sb) throw new Error('Supabase not loaded');

@@ -4537,10 +4537,19 @@ function startTimer() {
   const projectId=projSel?projSel.value:'', projectText=projTxt?projTxt.value.trim():'';
   const description=document.getElementById('t-desc').value.trim();
   if(!clientId){toast('Please select a client');return;}
-  saveTimerData({running:true,startedAt:new Date().toISOString(),clientId,designerId,projectId,projectText,description});
+  const existing=loadTimer();
+  if(existing&&existing.running){
+    const existingClients=existing.mode==='multi'
+      ?existing.clients
+      :[{clientId:existing.clientId,designerId:existing.designerId,projectId:existing.projectId,projectText:existing.projectText,description:existing.description}];
+    saveTimerData({...existing,mode:'multi',clients:[...existingClients,{clientId,designerId,projectId,projectText,description}]});
+    toast('Timer added');
+  } else {
+    saveTimerData({running:true,startedAt:new Date().toISOString(),clientId,designerId,projectId,projectText,description});
+    toast('Timer started');
+  }
   closeModal();
   startTimerDisplay();
-  toast('Timer started');
 }
 
 function startMultiTimer() {
@@ -4561,10 +4570,19 @@ function startMultiTimer() {
     if(!clientId){toast('Please select a client for every row');return;}
     clients.push({clientId,projectId,projectText,description});
   }
-  saveTimerData({running:true,mode:'multi',startedAt:new Date().toISOString(),designerId,clients});
+  const existing=loadTimer();
+  if(existing&&existing.running){
+    const existingClients=existing.mode==='multi'
+      ?existing.clients
+      :[{clientId:existing.clientId,designerId:existing.designerId,projectId:existing.projectId,projectText:existing.projectText,description:existing.description}];
+    saveTimerData({...existing,mode:'multi',clients:[...existingClients,...clients]});
+    toast(clients.length+' timer'+(clients.length===1?'':'s')+' added');
+  } else {
+    saveTimerData({running:true,mode:'multi',startedAt:new Date().toISOString(),designerId,clients});
+    toast(clients.length+' timers started');
+  }
   closeModal();
   startTimerDisplay();
-  toast(clients.length+' timers started');
 }
 
 function stopTimer() {

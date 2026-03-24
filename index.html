@@ -4538,13 +4538,17 @@ function startTimer() {
   const description=document.getElementById('t-desc').value.trim();
   if(!clientId){toast('Please select a client');return;}
   const existing=loadTimer();
+  console.log('[startTimer] existing=',JSON.stringify(existing));
   if(existing&&existing.running){
     const existingClients=existing.mode==='multi'
       ?existing.clients
       :[{clientId:existing.clientId,designerId:existing.designerId,projectId:existing.projectId,projectText:existing.projectText,description:existing.description}];
-    saveTimerData({...existing,mode:'multi',clients:[...existingClients,{clientId,designerId,projectId,projectText,description}]});
+    const merged={...existing,mode:'multi',clients:[...existingClients,{clientId,designerId,projectId,projectText,description}]};
+    console.log('[startTimer] merged=',JSON.stringify(merged));
+    saveTimerData(merged);
     toast('Timer added');
   } else {
+    console.log('[startTimer] no existing timer, starting fresh');
     saveTimerData({running:true,startedAt:new Date().toISOString(),clientId,designerId,projectId,projectText,description});
     toast('Timer started');
   }

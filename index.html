@@ -779,6 +779,9 @@
     .auth-tab { flex: 1; padding: 7px; border: none; background: transparent; border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--text2); transition: all .15s; }
     .auth-tab.active { background: var(--accent); color: #fff; font-weight: 600; }
     .auth-error { color: var(--danger); font-size: 12px; padding: 8px 10px; background: var(--danger-bg); border-radius: var(--radius); margin-bottom: 12px; border: 1px solid rgba(139,58,58,0.15); }
+    .auth-remember-row { display:flex; align-items:center; gap:8px; margin:10px 0 14px; cursor:pointer; user-select:none; }
+    .auth-remember-row input[type=checkbox] { width:16px; height:16px; accent-color:var(--accent); cursor:pointer; flex-shrink:0; }
+    .auth-remember-row span { font-size:13px; color:var(--text2); }
     .auth-submit { width: 100%; justify-content: center; margin-top: 4px; padding: 10px; font-size: 14px; }
     .auth-confirm-msg { text-align: center; padding: 16px 0; color: var(--text2); line-height: 1.8; font-size: 14px; }
     /* hide app shell until authenticated */
@@ -836,6 +839,10 @@
         <label class="field-label">Password</label>
         <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password">
       </div>
+      <label class="auth-remember-row">
+        <input type="checkbox" id="auth-remember">
+        <span>Remember me</span>
+      </label>
       <div id="auth-err-si" class="auth-error" style="display:none"></div>
       <button class="btn btn-gold auth-submit" onclick="handleSignIn()">Sign In</button>
     </div>
@@ -2958,13 +2965,16 @@ async function handleSignIn() {
   const password = document.getElementById('auth-password').value;
   const errEl    = document.getElementById('auth-err-si');
   const btn      = document.querySelector('#auth-pane-signin .auth-submit');
+  const remember = document.getElementById('auth-remember')?.checked;
   errEl.style.display = 'none';
   if(!email||!password){ errEl.textContent='Please enter your email and password.'; errEl.style.display=''; return; }
   const origText = btn.textContent;
   btn.classList.add('btn-loading'); btn.textContent = 'Signing in\u2026';
   const { error } = await _sb.auth.signInWithPassword({ email, password });
   btn.classList.remove('btn-loading'); btn.textContent = origText;
-  if(error){ errEl.textContent=error.message; errEl.style.display=''; }
+  if(error){ errEl.textContent=error.message; errEl.style.display=''; return; }
+  if(remember) localStorage.setItem('tt_remembered_email', email);
+  else localStorage.removeItem('tt_remembered_email');
 }
 async function handleSignUp() {
   const name     = document.getElementById('auth-name').value.trim();
@@ -4786,7 +4796,8 @@ async function runApp() {
   const pill=document.getElementById(`pill-${currentApp}`);
   if(pill) pill.classList.add('active');
   renderSidebarNav();
-  navigate(APP_DEFAULT[currentApp]);
+  const _savedHash = window.location.hash;
+  navigate(_savedHash && ROUTES[_savedHash] ? _savedHash : APP_DEFAULT[currentApp]);
   render();
   if(loadTimer()?.running) startTimerDisplay();
   setTimeout(promptLinkDesigner, 1500);
@@ -4827,6 +4838,9 @@ _sb.auth.onAuthStateChange(async (event, session) => {
     showAuthScreen();
   }
 });
+
+// Pre-fill remembered email
+(()=>{ const e=localStorage.getItem('tt_remembered_email'); if(e){ const f=document.getElementById('auth-email'); if(f) f.value=e; const c=document.getElementById('auth-remember'); if(c) c.checked=true; } })();
 
 // Dark mode runs before auth so the login screen respects the setting
 initDarkMode();

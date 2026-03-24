@@ -123,6 +123,20 @@
     .mc-sb-name.saved { opacity:0.35; text-decoration:line-through; }
     .mc-sb-stop { background:transparent; border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.45); border-radius:5px; padding:4px 9px; font-size:11px; cursor:pointer; flex-shrink:0; line-height:1.4; transition:all .12s; -webkit-tap-highlight-color:transparent; }
     .mc-sb-stop:hover, .mc-sb-stop:active { border-color:rgba(224,92,92,0.7); color:#E05C5C; }
+    /* Multi-client live timer cards */
+    .mc-timers-grid { display:flex; flex-direction:column; gap:14px; }
+    .mc-timer-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px; transition:opacity .3s; }
+    .mc-timer-card.card-stopped { opacity:.42; }
+    .mc-timer-card-name { font-size:19px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
+    .mc-timer-card-proj { font-size:12px; color:var(--text2); }
+    .mc-timer-card-desc { font-size:12px; color:var(--text2); font-style:italic; margin-top:3px; }
+    .mc-timer-card-elapsed { font-family:'SF Mono','Fira Code',Menlo,monospace; font-size:36px; font-weight:600; color:var(--accent-dk); letter-spacing:1px; margin:14px 0 12px; line-height:1; }
+    .mc-timer-card.card-stopped .mc-timer-card-elapsed { color:var(--text2); }
+    .mc-timer-card-stop { width:100%; padding:14px; background:#E05C5C; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; letter-spacing:.3px; transition:background .15s, transform .1s; -webkit-tap-highlight-color:transparent; }
+    .mc-timer-card-stop:active { transform:scale(0.97); background:#c74f4f; }
+    .mc-timer-saved-badge { display:flex; align-items:center; justify-content:center; gap:6px; background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:11px 16px; font-size:13px; font-weight:600; color:var(--text2); width:100%; }
+    .mc-timers-stop-all { width:100%; margin-top:4px; padding:13px; background:transparent; border:1px solid rgba(224,92,92,.4); color:#E05C5C; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; transition:all .15s; -webkit-tap-highlight-color:transparent; }
+    .mc-timers-stop-all:active { background:rgba(224,92,92,.1); }
     /* Multi-client review modal */
     .mc-review-rows { display:flex; flex-direction:column; gap:10px; }
     .mc-review-client { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
@@ -4142,7 +4156,7 @@ window.shiftBillingCal = (calKey,dir) => {
 /* ══════════════════════════════════════════════════════
    ROUTER
 ══════════════════════════════════════════════════════ */
-const ROUTES={'#dashboard':renderDashboard,'#designers':renderDesigners,'#hours':renderHours,'#projects':renderProjects,'#clients':renderClients,'#invoices':renderInvoices,'#generate':renderGenerate,'#analytics':renderAnalytics,'#settings':renderSettings,'#exp-items':renderExpItems,'#exp-generate':renderExpGenerate,'#exp-invoices':renderExpInvoices,'#exp-settings':renderExpSettings,'#exp-analytics':renderExpAnalytics};
+const ROUTES={'#dashboard':renderDashboard,'#timers':renderMcTimerDashboard,'#designers':renderDesigners,'#hours':renderHours,'#projects':renderProjects,'#clients':renderClients,'#invoices':renderInvoices,'#generate':renderGenerate,'#analytics':renderAnalytics,'#settings':renderSettings,'#exp-items':renderExpItems,'#exp-generate':renderExpGenerate,'#exp-invoices':renderExpInvoices,'#exp-settings':renderExpSettings,'#exp-analytics':renderExpAnalytics};
 function navigate(hash){window.location.hash=hash;closeMobileMenu();}
 function labelTableCells() {
   if(window.innerWidth > 800) return;
@@ -4225,7 +4239,43 @@ function updateFAB(running) {
 
 function mobileFabClick() {
   const t=loadTimer();
-  if(t&&t.running) stopTimer(); else openTimerModal();
+  if(t&&t.running) { if(t.mode==='multi') navigate('#timers'); else stopTimer(); }
+  else openTimerModal();
+}
+
+function renderMcTimerDashboard() {
+  const t=loadTimer();
+  const el=document.getElementById('app');
+  if(!t||!t.running||t.mode!=='multi'){render();return;}
+  highlightNav();
+  const elapsed=Date.now()-new Date(t.startedAt).getTime();
+  const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
+  const cards=t.clients.map((c,i)=>{
+    const cl=getClientById(c.clientId);
+    const proj=c.projectId?getProjectById(c.projectId):null;
+    const projName=proj?.name||c.projectText||'';
+    const isStopped=!!c.stoppedAt;
+    const ms=isStopped?(new Date(c.stoppedAt)-new Date(t.startedAt)):elapsed;
+    const stopOrSaved=isStopped
+      ?'<div class="mc-timer-saved-badge">\u2713 Saved \u2014 '+msToHours(ms)+'h</div>'
+      :'<button class="mc-timer-card-stop" onclick="stopOneClientTimer('+i+')">\u25a0 Stop &amp; Save</button>';
+    return '<div class="mc-timer-card'+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'">'+
+      '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
+      (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
+      (c.description?'<div class="mc-timer-card-desc">'+esc(c.description)+'</div>':'')+
+      '<div class="mc-timer-card-elapsed" id="mc-card-elapsed-'+i+'">'+fmtElapsed(ms)+'</div>'+
+      '<div id="mc-card-stop-'+i+'">'+stopOrSaved+'</div>'+
+      '</div>';
+  }).join('');
+  const stopAll=activeCount>1
+    ?'<button class="mc-timers-stop-all" id="mc-stop-all" onclick="stopAllTimers()">\u25a0 Stop All Remaining</button>'
+    :'';
+  el.innerHTML=
+    '<div class="page-head"><div><h1>Active Timers</h1>'+
+    '<div class="sub">'+activeCount+' of '+t.clients.length+' still running</div></div></div>'+
+    '<div class="mc-timers-grid">'+cards+'</div>'+
+    stopAll;
+  renderTrialBadge();
 }
 
 function startTimerDisplay() {
@@ -4237,22 +4287,23 @@ function startTimerDisplay() {
   sbTimer.style.display='block';
 
   if(t.mode==='multi') {
-    const clientItems=t.clients.map((c,i)=>{
-      const cl=getClientById(c.clientId);
-      const nm=esc(cl?.name||'?');
-      if(c.saved) return '<div class="mc-sb-item" id="mc-sb-item-'+i+'">'+
-        '<span class="mc-sb-name saved">'+nm+'</span>'+
-        '<span style="font-size:10px;color:rgba(255,255,255,0.3)">saved</span></div>';
-      return '<div class="mc-sb-item" id="mc-sb-item-'+i+'">'+
-        '<span class="mc-sb-name">'+nm+'</span>'+
-        '<button class="mc-sb-stop" onclick="stopOneClientTimer('+i+')" title="Stop &amp; save this client">&#x2715;</button></div>';
-    }).join('');
+    const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
     sbTimer.innerHTML=
       '<div class="timer-live">'+
-      '<div class="timer-top"><div class="timer-dot"></div><div id="sb-elapsed">00:00:00</div></div>'+
-      '<div class="mc-sb-list">'+clientItems+'</div>'+
-      '<button class="btn-stoptimer" onclick="stopAllTimers()">&#9632; Stop All &amp; Save</button>'+
+      '<div class="timer-top"><div class="timer-dot"></div>'+
+      '<span class="mc-active-count" style="font-size:12px">'+activeCount+' timer'+(activeCount===1?'':'s')+' running</span></div>'+
+      '<button class="btn-stoptimer" style="margin-top:8px" onclick="navigate(\'#timers\')">View Timers</button>'+
       '</div>';
+    updateFAB(true);
+    _timerInterval=setInterval(()=>{
+      const td=loadTimer();
+      if(!td||!td.running) return;
+      const elapsed=Date.now()-new Date(td.startedAt).getTime();
+      td.clients.forEach((c,i)=>{ if(c.stoppedAt) return; const el=document.getElementById('mc-card-elapsed-'+i); if(el) el.textContent=fmtElapsed(elapsed); });
+      const pill=document.getElementById('fab-elapsed-pill');
+      if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed);
+    },1000);
+    navigate('#timers');
   } else {
     sbTimer.innerHTML=
       '<div class="timer-live">'+
@@ -4262,21 +4313,20 @@ function startTimerDisplay() {
       '</div>';
     const c=getClientById(t.clientId), p=t.projectId?getProjectById(t.projectId):null;
     document.getElementById('sb-timer-info').textContent=[c?.name,p?.name||t.projectText].filter(Boolean).join(' \xb7 ')||'Timer running\u2026';
-  }
-
-  updateFAB(true);
-  _timerInterval=setInterval(()=>{
+    updateFAB(true);
+    _timerInterval=setInterval(()=>{
+      const elapsed=Date.now()-new Date(t.startedAt).getTime();
+      const el=document.getElementById('sb-elapsed');
+      if(el) el.textContent=fmtElapsed(elapsed);
+      const pill=document.getElementById('fab-elapsed-pill');
+      if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed);
+    },1000);
     const elapsed=Date.now()-new Date(t.startedAt).getTime();
     const el=document.getElementById('sb-elapsed');
     if(el) el.textContent=fmtElapsed(elapsed);
     const pill=document.getElementById('fab-elapsed-pill');
     if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed);
-  },1000);
-  const elapsed=Date.now()-new Date(t.startedAt).getTime();
-  const el=document.getElementById('sb-elapsed');
-  if(el) el.textContent=fmtElapsed(elapsed);
-  const pill=document.getElementById('fab-elapsed-pill');
-  if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed);
+  }
 }
 
 function stopTimerDisplay() {
@@ -4433,39 +4483,56 @@ function stopTimer() {
 function stopAllTimers() {
   const t=loadTimer();
   if(!t||!t.running||t.mode!=='multi') return;
-  const elapsed=Date.now()-new Date(t.startedAt).getTime();
+  const stoppedAt=new Date().toISOString();
+  let saved=0;
+  t.clients.forEach(c=>{
+    if(c.stoppedAt) return;
+    c.stoppedAt=stoppedAt;
+    const elapsed=new Date(c.stoppedAt)-new Date(t.startedAt);
+    const hours=msToHours(elapsed);
+    addEntry({date:todayStr(),hours,clientId:c.clientId,designerId:t.designerId,
+      projectId:c.projectId,projectText:c.projectText,description:c.description});
+    saved++;
+  });
   stopTimerDisplay();
   clearTimerData();
-  const unsaved=t.clients.filter(c=>!c.saved);
-  if(!unsaved.length){render();return;}
-  showMultiTimerReview(t, elapsed, unsaved);
+  if(saved>0) toast(saved+' entr'+(saved===1?'y':'ies')+' saved \u2713');
+  navigate('#dashboard');
 }
 
 window.stopOneClientTimer = idx => {
   const t=loadTimer();
   if(!t||!t.running||t.mode!=='multi') return;
   const client=t.clients[idx];
-  if(!client||client.saved) return;
-  const elapsed=Date.now()-new Date(t.startedAt).getTime();
-  const hours=msToHours(elapsed);
+  if(!client||client.stoppedAt) return;
   client.stoppedAt=new Date().toISOString();
-  client.saved=true;
-  const allDone=t.clients.every(c=>c.saved);
-  if(allDone){stopTimerDisplay();clearTimerData();}
-  else {
-    saveTimerData(t);
-    const item=document.getElementById('mc-sb-item-'+idx);
-    if(item){
-      const cl=getClientById(client.clientId);
-      item.innerHTML='<span class="mc-sb-name saved">'+esc(cl?.name||'?')+'</span>'+
-        '<span style="font-size:10px;color:rgba(255,255,255,0.3)">saved</span>';
-    }
-  }
+  const elapsed=new Date(client.stoppedAt)-new Date(t.startedAt);
+  const hours=msToHours(elapsed);
   addEntry({date:todayStr(),hours,clientId:client.clientId,designerId:t.designerId,
-    projectId:client.projectId,projectText:client.projectText,description:t.description});
+    projectId:client.projectId,projectText:client.projectText,description:client.description});
   const cl=getClientById(client.clientId);
   toast((cl?.name||'Client')+' \u2014 '+hours+'h saved \u2713');
-  if(allDone) render();
+  const allDone=t.clients.every(c=>c.stoppedAt);
+  if(allDone){stopTimerDisplay();clearTimerData();navigate('#dashboard');return;}
+  saveTimerData(t);
+  // Update card inline
+  const card=document.getElementById('mc-card-'+idx);
+  if(card){
+    card.classList.add('card-stopped');
+    const elEl=document.getElementById('mc-card-elapsed-'+idx);
+    if(elEl) elEl.textContent=fmtElapsed(elapsed);
+    const stopEl=document.getElementById('mc-card-stop-'+idx);
+    if(stopEl) stopEl.innerHTML='<div class="mc-timer-saved-badge">\u2713 Saved \u2014 '+hours+'h</div>';
+  }
+  // Update sidebar count
+  const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
+  const countEl=document.querySelector('#sb-timer .mc-active-count');
+  if(countEl) countEl.textContent=activeCount+' timer'+(activeCount===1?'':'s')+' running';
+  // Update page subtitle
+  const sub=document.querySelector('#app .sub');
+  if(sub) sub.textContent=activeCount+' of '+t.clients.length+' still running';
+  // Hide stop-all if only 1 left
+  if(activeCount<=1){ const sa=document.getElementById('mc-stop-all'); if(sa) sa.remove(); }
 };
 
 function showTimerReview(t, hours, elapsedStr) {

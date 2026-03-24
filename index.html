@@ -1548,14 +1548,18 @@ function renderDashboard(){
         <span class="badge ${inv?'badge-invoiced':'badge-unbilled'}" style="font-size:10px;flex-shrink:0">${inv?'Invoiced':'Unbilled'}</span>
       </div>
       <div class="mec-meta">${fmtDate(e.date)} &middot; ${e.hours}h${proj&&proj!=='—'?` &middot; ${esc(proj)}`:''}</div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="btn btn-ghost btn-sm" onclick="openEntryModal('${e.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelEntry('${e.id}')">Delete</button>
+      </div>
     </div>`;
   }).join(''):`<div style="padding:22px 14px;text-align:center;color:var(--text2);font-size:13px">No entries yet — tap the clock button or <strong>+ Log</strong> to start</div>`;
 
   // Desktop table rows
   const rows=recent.length?recent.map(e=>{
     const c=getClientById(e.clientId),d=e.designerId?getDesignerById(e.designerId):null,inv=isInvoiced(e);
-    return `<tr><td>${fmtDate(e.date)}</td><td><strong>${esc(c?.name||'?')}</strong></td><td class="col2">${d?esc(d.name):'—'}</td><td>${esc(entryProjectName(e))}</td><td>${e.hours}h</td><td class="gold-txt">${cur(entryAmount(e))}</td><td>${inv?'<span class="badge badge-invoiced">Invoiced</span>':'<span class="badge badge-unbilled">Unbilled</span>'}</td></tr>`;
-  }).join(''):`<tr><td colspan="7" class="col2" style="text-align:center;padding:24px">No entries yet — click <strong>Log Time</strong> to get started</td></tr>`;
+    return `<tr><td>${fmtDate(e.date)}</td><td><strong>${esc(c?.name||'?')}</strong></td><td class="col2">${d?esc(d.name):'—'}</td><td>${esc(entryProjectName(e))}</td><td>${e.hours}h</td><td class="gold-txt">${cur(entryAmount(e))}</td><td>${inv?'<span class="badge badge-invoiced">Invoiced</span>':'<span class="badge badge-unbilled">Unbilled</span>'}</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="openEntryModal('${e.id}')">Edit</button> <button class="btn btn-danger btn-sm" onclick="confirmDelEntry('${e.id}')">Delete</button></td></tr>`;
+  }).join(''):`<tr><td colspan="8" class="col2" style="text-align:center;padding:24px">No entries yet — click <strong>Log Time</strong> to get started</td></tr>`;
 
   document.getElementById('app').innerHTML=`
     <div class="page-head"><div><h1>Dashboard</h1><div class="sub">${mLabel}</div></div>
@@ -1585,7 +1589,7 @@ function renderDashboard(){
     <!-- Desktop recent entries table -->
     <div class="card dash-desktop-only"><div class="card-head"><h2>Recent Entries</h2></div>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Date</th><th>Client</th><th>Designer</th><th>Project</th><th>Hours</th><th>Amount</th><th>Status</th></tr></thead>
+        <thead><tr><th>Date</th><th>Client</th><th>Designer</th><th>Project</th><th>Hours</th><th>Amount</th><th>Status</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
     </div>`;

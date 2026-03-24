@@ -4313,14 +4313,14 @@ function renderMcTimerDashboard() {
     renderTrialBadge();
     return;
   }
-  const elapsed=Date.now()-new Date(t.startedAt).getTime();
   const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
   const cards=t.clients.map((c,i)=>{
     const cl=getClientById(c.clientId);
     const proj=c.projectId?getProjectById(c.projectId):null;
     const projName=proj?.name||c.projectText||'';
     const isStopped=!!c.stoppedAt;
-    const ms=isStopped?(new Date(c.stoppedAt)-new Date(t.startedAt)):elapsed;
+    const cStart=c.startedAt||t.startedAt;
+    const ms=isStopped?(new Date(c.stoppedAt)-new Date(cStart)):(Date.now()-new Date(cStart).getTime());
     const stopOrSaved=isStopped
       ?'<div class="mc-timer-saved-badge">\u2713 Saved \u2014 '+msToHours(ms)+'h</div>'
       :'<button class="mc-timer-card-stop" onclick="stopOneClientTimer('+i+')">\u25a0 Stop &amp; Save</button>';
@@ -4366,10 +4366,10 @@ function startTimerDisplay() {
     _timerInterval=setInterval(()=>{
       const td=loadTimer();
       if(!td||!td.running) return;
-      const elapsed=Date.now()-new Date(td.startedAt).getTime();
-      td.clients.forEach((c,i)=>{ if(c.stoppedAt) return; const el=document.getElementById('mc-card-elapsed-'+i); if(el) el.textContent=fmtElapsed(elapsed); });
+      const now=Date.now();
+      td.clients.forEach((c,i)=>{ if(c.stoppedAt) return; const el=document.getElementById('mc-card-elapsed-'+i); if(el) el.textContent=fmtElapsed(now-new Date(c.startedAt||td.startedAt).getTime()); });
       const pill=document.getElementById('fab-elapsed-pill');
-      if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed);
+      if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(now-new Date(td.startedAt).getTime());
     },1000);
     window.location.hash='#timers';
     renderMcTimerDashboard();
@@ -4538,18 +4538,15 @@ function startTimer() {
   const description=document.getElementById('t-desc').value.trim();
   if(!clientId){toast('Please select a client');return;}
   const existing=loadTimer();
-  console.log('[startTimer] existing=',JSON.stringify(existing));
+  const now=new Date().toISOString();
   if(existing&&existing.running){
     const existingClients=existing.mode==='multi'
       ?existing.clients
-      :[{clientId:existing.clientId,designerId:existing.designerId,projectId:existing.projectId,projectText:existing.projectText,description:existing.description}];
-    const merged={...existing,mode:'multi',clients:[...existingClients,{clientId,designerId,projectId,projectText,description}]};
-    console.log('[startTimer] merged=',JSON.stringify(merged));
-    saveTimerData(merged);
+      :[{clientId:existing.clientId,designerId:existing.designerId,projectId:existing.projectId,projectText:existing.projectText,description:existing.description,startedAt:existing.startedAt}];
+    saveTimerData({...existing,mode:'multi',clients:[...existingClients,{clientId,designerId,projectId,projectText,description,startedAt:now}]});
     toast('Timer added');
   } else {
-    console.log('[startTimer] no existing timer, starting fresh');
-    saveTimerData({running:true,startedAt:new Date().toISOString(),clientId,designerId,projectId,projectText,description});
+    saveTimerData({running:true,startedAt:now,clientId,designerId,projectId,projectText,description});
     toast('Timer started');
   }
   closeModal();
@@ -4572,13 +4569,13 @@ function startMultiTimer() {
     const projectText=projTxt?projTxt.value.trim():'';
     const description=document.getElementById('mc-desc-'+idx)?.value.trim()||'';
     if(!clientId){toast('Please select a client for every row');return;}
-    clients.push({clientId,projectId,projectText,description});
+    clients.push({clientId,projectId,projectText,description,startedAt:new Date().toISOString()});
   }
   const existing=loadTimer();
   if(existing&&existing.running){
     const existingClients=existing.mode==='multi'
       ?existing.clients
-      :[{clientId:existing.clientId,designerId:existing.designerId,projectId:existing.projectId,projectText:existing.projectText,description:existing.description}];
+      :[{clientId:existing.clientId,designerId:existing.designerId,projectId:existing.projectId,projectText:existing.projectText,description:existing.description,startedAt:existing.startedAt}];
     saveTimerData({...existing,mode:'multi',clients:[...existingClients,...clients]});
     toast(clients.length+' timer'+(clients.length===1?'':'s')+' added');
   } else {
@@ -4609,7 +4606,7 @@ function stopAllTimers() {
   t.clients.forEach(c=>{
     if(c.stoppedAt) return;
     c.stoppedAt=stoppedAt;
-    const elapsed=new Date(c.stoppedAt)-new Date(t.startedAt);
+    const elapsed=new Date(c.stoppedAt)-new Date(c.startedAt||t.startedAt);
     const hours=msToHours(elapsed);
     addEntry({date:todayStr(),hours,clientId:c.clientId,designerId:t.designerId,
       projectId:c.projectId,projectText:c.projectText,description:c.description});
@@ -4627,7 +4624,7 @@ window.stopOneClientTimer = idx => {
   const client=t.clients[idx];
   if(!client||client.stoppedAt) return;
   client.stoppedAt=new Date().toISOString();
-  const elapsed=new Date(client.stoppedAt)-new Date(t.startedAt);
+  const elapsed=new Date(client.stoppedAt)-new Date(client.startedAt||t.startedAt);
   const hours=msToHours(elapsed);
   addEntry({date:todayStr(),hours,clientId:client.clientId,designerId:t.designerId,
     projectId:client.projectId,projectText:client.projectText,description:client.description});

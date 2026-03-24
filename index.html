@@ -118,10 +118,6 @@
     }
     .btn-stoptimer:hover { background: #C44A4A; }
 
-    /* Timer mode toggle (Single / Multi-Client) */
-    .timer-mode-toggle { display:flex; border:1px solid var(--border); border-radius:var(--radius); padding:3px; margin-bottom:20px; }
-    .tmt-btn { flex:1; padding:8px; border:none; background:transparent; border-radius:5px; font-size:13px; cursor:pointer; color:var(--text2); transition:all .15s; -webkit-tap-highlight-color:transparent; }
-    .tmt-btn.active { background:var(--accent); color:var(--sidebar); font-weight:600; }
     /* Multi-client modal rows — card style */
     .mc-client-rows { display:flex; flex-direction:column; gap:10px; margin-bottom:8px; }
     .mc-client-row { position:relative; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 12px 10px; }
@@ -129,8 +125,8 @@
     .mc-remove-btn { position:absolute; top:8px; right:8px; background:transparent; border:none; color:var(--text2); font-size:17px; cursor:pointer; padding:4px 6px; line-height:1; border-radius:4px; transition:color .12s; -webkit-tap-highlight-color:transparent; }
     .mc-remove-btn:hover { color:var(--danger); }
     .mc-client-num { font-size:10px; font-weight:700; color:var(--accent-dk); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:4px; }
-    .btn-add-client { background:transparent; border:1px dashed var(--border); color:var(--text2); width:100%; padding:10px; border-radius:var(--radius); cursor:pointer; font-size:13px; transition:all .15s; -webkit-tap-highlight-color:transparent; }
-    .btn-add-client:hover { border-color:var(--accent); color:var(--accent-dk); }
+    .btn-add-client { background:rgba(196,168,122,0.08); border:2px dashed var(--accent); color:var(--accent-dk); width:100%; padding:12px; border-radius:var(--radius); cursor:pointer; font-size:14px; font-weight:600; transition:all .15s; -webkit-tap-highlight-color:transparent; }
+    .btn-add-client:hover { background:rgba(196,168,122,0.18); border-color:var(--accent-dk); color:var(--accent-dk); }
     /* Multi-client sidebar live list */
     .mc-sb-list { display:flex; flex-direction:column; gap:5px; margin:6px 0 10px; }
     .mc-sb-item { display:flex; align-items:center; gap:8px; }
@@ -309,7 +305,7 @@
     }
     .overlay.closing .modal { animation: modal-out 0.18s ease both; }
     .modal button, .modal select, .modal textarea, .modal input,
-    .modal a, .tmt-btn, .mc-remove-btn, .btn-add-client {
+    .modal a, .mc-remove-btn, .btn-add-client {
       touch-action: manipulation; cursor: pointer;
     }
 
@@ -4709,59 +4705,27 @@ function _tap(id, fn) {
   });
 }
 
-function openTimerModal(mode) {
-  mode = mode || 'single';
+function openTimerModal() {
   closeMobileMenu();
   const clients=loadClients(), designers=loadDesigners();
   if(!clients.length){toast('Please add a client first');navigate('#clients');return;}
   const desSel=designers.map(d=>`<option value="${d.id}" ${d.id===_myDesignerId?'selected':''}>${esc(d.name)}</option>`).join('');
   const designerRow=designers.length?'<div class="form-group"><label class="field-label">Designer</label><select id="t-des"><option value="">— unassigned —</option>'+desSel+'</select></div>':'';
-  const modeTabs='<div class="timer-mode-toggle"><button class="tmt-btn'+(mode==='single'?' active':'')+'" id="tmt-btn-single">Single Client</button><button class="tmt-btn'+(mode==='multi'?' active':'')+'" id="tmt-btn-multi">Multi-Client</button></div>';
-
-  if(mode==='single') {
-    const cliId=clients[0]?.id||'';
-    const projs=getProjectsByClient(cliId);
-    const projContent=projs.length
-      ?'<select id="t-proj">'+projectOptsForClient(cliId,'')+'</select>'
-      :'<input type="text" id="t-proj-text" placeholder="e.g. Brand Identity">';
-    const clientOpts=clients.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
-    showModal(
-      '<div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" id="tm-close">×</button></div>'+
-      modeTabs+
-      '<div class="form-group"><label class="field-label">Client</label>'+
-      '<select id="t-cli" onchange="refreshTimerProj(this.value)">'+clientOpts+'</select></div>'+
-      designerRow+
-      '<div class="form-group"><label class="field-label">Project</label>'+
-      '<div id="t-proj-wrap">'+projContent+'</div></div>'+
-      '<div class="form-group"><label class="field-label">What are you working on?</label>'+
-      '<textarea id="t-desc" placeholder="Describe the work you\'re about to start\u2026" style="min-height:64px"></textarea></div>'+
-      '<div class="form-actions">'+
-      '<button class="btn btn-ghost" id="tm-cancel">Cancel</button>'+
-      '<button class="btn btn-gold" id="tm-start" style="gap:8px;font-size:14px;padding:9px 20px">&#9654;&nbsp;&nbsp;Start Timer</button>'+
-      '</div>');
-  } else {
-    const row0=buildMcClientRow(clients,0);
-    const row1=buildMcClientRow(clients,1);
-    showModal(
-      '<div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" id="tm-close">×</button></div>'+
-      modeTabs+
-      designerRow+
-      '<div class="form-group"><label class="field-label">Clients to Bill</label>'+
-      '<div id="mc-client-rows" class="mc-client-rows">'+row0+row1+'</div>'+
-      '<button class="btn-add-client" id="tm-add-client">+ Add Another Client</button></div>'+
-      '<div class="form-actions">'+
-      '<button class="btn btn-ghost" id="tm-cancel">Cancel</button>'+
-      '<button class="btn btn-gold" id="tm-start" style="gap:8px;font-size:14px;padding:9px 20px">&#9654;&nbsp;&nbsp;Start Multi-Client Timer</button>'+
-      '</div>');
-    _tap('tm-add-client', addMcClientRow);
-  }
-
-  // Wire all modal buttons via _tap (touchend+click, ghost-safe)
+  const row0=buildMcClientRow(clients,0);
+  showModal(
+    '<div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" id="tm-close">×</button></div>'+
+    designerRow+
+    '<div class="form-group"><label class="field-label">Clients</label>'+
+    '<div id="mc-client-rows" class="mc-client-rows">'+row0+'</div>'+
+    '<button class="btn-add-client" id="tm-add-client">+ Add Another Client</button></div>'+
+    '<div class="form-actions">'+
+    '<button class="btn btn-ghost" id="tm-cancel">Cancel</button>'+
+    '<button class="btn btn-gold" id="tm-start" style="gap:8px;font-size:14px;padding:9px 20px">&#9654;&nbsp;&nbsp;Start Timer</button>'+
+    '</div>');
+  _tap('tm-add-client', addMcClientRow);
   _tap('tm-close',  closeModal);
   _tap('tm-cancel', closeModal);
-  _tap('tmt-btn-single', () => openTimerModal('single'));
-  _tap('tmt-btn-multi',  () => openTimerModal('multi'));
-  _tap('tm-start', mode==='single' ? startTimer : startMultiTimer);
+  _tap('tm-start', startMultiTimer);
 }
 
 window.refreshTimerProj = cliId => {
@@ -4810,37 +4774,12 @@ window.removeMcClientRow = idx => {
   if(row) row.remove();
 };
 
-function startTimer() {
-  closeMobileMenu();
-  const clientId=document.getElementById('t-cli').value;
-  const desEl=document.getElementById('t-des');
-  const designerId=desEl?desEl.value:'';
-  const projSel=document.getElementById('t-proj'), projTxt=document.getElementById('t-proj-text');
-  const projectId=projSel?projSel.value:'', projectText=projTxt?projTxt.value.trim():'';
-  const description=document.getElementById('t-desc').value.trim();
-  if(!clientId){toast('Please select a client');return;}
-  const existing=loadTimer();
-  const now=new Date().toISOString();
-  if(existing&&existing.running){
-    const existingClients=existing.mode==='multi'
-      ?existing.clients
-      :[{clientId:existing.clientId,designerId:existing.designerId,projectId:existing.projectId,projectText:existing.projectText,description:existing.description,startedAt:existing.startedAt}];
-    saveTimerData({...existing,mode:'multi',clients:[...existingClients,{clientId,designerId,projectId,projectText,description,startedAt:now}]});
-    toast('Timer added');
-  } else {
-    saveTimerData({running:true,startedAt:now,clientId,designerId,projectId,projectText,description});
-    toast('Timer started');
-  }
-  closeModal();
-  startTimerDisplay();
-}
-
 function startMultiTimer() {
   closeMobileMenu();
   const desEl=document.getElementById('t-des');
   const designerId=desEl?desEl.value:'';
   const rows=document.querySelectorAll('.mc-client-row');
-  if(rows.length<2){toast('Add at least 2 clients');return;}
+  if(!rows.length){toast('Add at least one client');return;}
   const clients=[];
   for(const row of rows){
     const idx=row.dataset.idx;
@@ -4854,14 +4793,21 @@ function startMultiTimer() {
     clients.push({clientId,projectId,projectText,description,startedAt:new Date().toISOString()});
   }
   const existing=loadTimer();
+  const now=new Date().toISOString();
   if(existing&&existing.running){
+    // Merge into existing — always multi when adding to running timer
     const existingClients=existing.mode==='multi'
       ?existing.clients
       :[{clientId:existing.clientId,designerId:existing.designerId,projectId:existing.projectId,projectText:existing.projectText,description:existing.description,startedAt:existing.startedAt}];
     saveTimerData({...existing,mode:'multi',clients:[...existingClients,...clients]});
     toast(clients.length+' timer'+(clients.length===1?'':'s')+' added');
+  } else if(clients.length===1) {
+    // Single client, no existing timer — use simple format
+    const c=clients[0];
+    saveTimerData({running:true,startedAt:c.startedAt||now,clientId:c.clientId,designerId,projectId:c.projectId,projectText:c.projectText,description:c.description});
+    toast('Timer started');
   } else {
-    saveTimerData({running:true,mode:'multi',startedAt:new Date().toISOString(),designerId,clients});
+    saveTimerData({running:true,mode:'multi',startedAt:now,designerId,clients});
     toast(clients.length+' timers started');
   }
   closeModal();

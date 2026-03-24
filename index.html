@@ -249,12 +249,13 @@
     .overlay {
       position: fixed; inset: 0; background: rgba(20,20,18,0.55);
       display: flex; align-items: center; justify-content: center;
-      z-index: 500;
+      z-index: 500; touch-action: none; overflow: hidden;
     }
     .modal {
       background: var(--card); border-radius: 12px; padding: 26px;
-      width: 500px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
-      box-shadow: var(--shadow-lg); touch-action: manipulation;
+      width: 500px; max-width: 95vw; max-height: 90vh;
+      overflow-y: auto; overflow-x: hidden;
+      box-shadow: var(--shadow-lg); touch-action: pan-y;
       -webkit-overflow-scrolling: touch;
     }
     .modal button, .modal select, .modal textarea, .modal input,
@@ -649,7 +650,7 @@
 
       /* Modals — bottom sheet on mobile */
       .overlay { align-items: flex-end; padding: 0; }
-      .modal { width: 100% !important; max-width: 100% !important; border-radius: 16px 16px 0 0; max-height: 88vh; padding: 20px 16px 32px; margin: 0; }
+      .modal { width: 100% !important; max-width: 100% !important; border-radius: 16px 16px 0 0; max-height: 88vh; padding: 20px 16px 32px; margin: 0; overflow-x: hidden !important; touch-action: pan-y !important; }
 
       /* Analytics tabs */
       .analytics-tabs { flex-wrap: wrap; gap: 6px; }

@@ -565,8 +565,11 @@
       /* Toast above FAB */
       #toast { bottom: 96px; right: 20px; }
 
+      /* Top bar background — prevents content scrolling visibly under hamburger */
+      body::before { content:''; position:fixed; top:0; left:0; right:0; height:66px; background:var(--bg); z-index:200; pointer-events:none; }
+
       /* Main content — full width, space for hamburger + FAB clearance */
-      #main { margin-left: 0 !important; padding: 60px 14px 96px !important; width: 100%; min-width: 0; }
+      #main { margin-left: 0 !important; padding: 74px 14px 96px !important; width: 100%; min-width: 0; }
 
       /* Hide amount/revenue columns in card layout */
       tbody td[data-label="Amount"] { display: none !important; }
@@ -650,7 +653,7 @@
     }
 
     @media (max-width: 480px) {
-      #main { padding: 58px 10px 28px !important; }
+      #main { padding: 74px 10px 96px !important; }
       .stats { grid-template-columns: 1fr 1fr; gap: 8px; }
       .kpi-grid-6, .kpi-grid-4, .kpi-grid-3 { grid-template-columns: 1fr 1fr; }
       .insight-cards { grid-template-columns: 1fr 1fr; }
@@ -4251,8 +4254,6 @@ const clearTimerData = () => {
   if(_sb && _currentUser)(async()=>{ try{ await _sb.from('user_timers').delete().eq('user_id',_currentUser.id); }catch(e){} })();
 };
 let _timerInterval = null;
-let _modalBlocked = false;
-function blockModal() { _modalBlocked = true; setTimeout(() => { _modalBlocked = false; }, 800); }
 
 function fmtElapsed(ms) {
   const s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
@@ -4296,7 +4297,8 @@ function renderMcTimerDashboard() {
     const projName=proj?.name||t.projectText||'';
     const elapsed=Date.now()-new Date(t.startedAt).getTime();
     el.innerHTML=
-      '<div class="page-head"><div><h1>Active Timer</h1><div class="sub">Timer is running</div></div></div>'+
+      '<div class="page-head"><div><h1>Active Timer</h1><div class="sub">Timer is running</div></div>'+
+      '<button class="btn btn-gold" onclick="openTimerModal()" style="white-space:nowrap;font-size:13px;padding:8px 14px">+ Start Timer</button></div>'+
       '<div class="mc-timers-grid">'+
       '<div class="mc-timer-card" id="mc-card-single" style="animation-delay:0s">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
@@ -4332,7 +4334,8 @@ function renderMcTimerDashboard() {
     :'';
   el.innerHTML=
     '<div class="page-head"><div><h1>Active Timers</h1>'+
-    '<div class="sub">'+activeCount+' of '+t.clients.length+' still running</div></div></div>'+
+    '<div class="sub">'+activeCount+' of '+t.clients.length+' still running</div></div>'+
+    '<button class="btn btn-gold" onclick="openTimerModal()" style="white-space:nowrap;font-size:13px;padding:8px 14px">+ Start Timer</button></div>'+
     '<div class="mc-timers-grid">'+cards+'</div>'+
     stopAll;
   renderTrialBadge();
@@ -4422,7 +4425,6 @@ function _tap(id, fn) {
 }
 
 function openTimerModal(mode) {
-  if (_modalBlocked) return;
   mode = mode || 'single';
   closeMobileMenu();
   const clients=loadClients(), designers=loadDesigners();
@@ -4533,7 +4535,6 @@ function startTimer() {
   const description=document.getElementById('t-desc').value.trim();
   if(!clientId){toast('Please select a client');return;}
   saveTimerData({running:true,startedAt:new Date().toISOString(),clientId,designerId,projectId,projectText,description});
-  blockModal();
   closeModal();
   startTimerDisplay();
   toast('Timer started');
@@ -4558,7 +4559,6 @@ function startMultiTimer() {
     clients.push({clientId,projectId,projectText,description});
   }
   saveTimerData({running:true,mode:'multi',startedAt:new Date().toISOString(),designerId,clients});
-  blockModal();
   closeModal();
   startTimerDisplay();
   toast(clients.length+' timers started');

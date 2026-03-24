@@ -103,6 +103,30 @@
     }
     .btn-stoptimer:hover { background: #C44A4A; }
 
+    /* Timer mode toggle (Single / Multi-Client) */
+    .timer-mode-toggle { display:flex; border:1px solid var(--border); border-radius:var(--radius); padding:3px; margin-bottom:20px; }
+    .tmt-btn { flex:1; padding:6px; border:none; background:transparent; border-radius:5px; font-size:12.5px; cursor:pointer; color:var(--text2); transition:all .15s; }
+    .tmt-btn.active { background:var(--accent); color:var(--sidebar); font-weight:600; }
+    /* Multi-client modal rows */
+    .mc-client-rows { display:flex; flex-direction:column; gap:8px; margin-bottom:6px; }
+    .mc-client-row { display:flex; gap:7px; align-items:flex-start; }
+    .mc-row-fields { flex:1; display:flex; flex-direction:column; gap:5px; }
+    .mc-remove-btn { background:transparent; border:1px solid var(--border); color:var(--text2); border-radius:var(--radius); padding:4px 8px; cursor:pointer; font-size:13px; flex-shrink:0; margin-top:2px; transition:all .12s; }
+    .mc-remove-btn:hover { color:var(--danger); border-color:var(--danger); background:var(--danger-bg); }
+    .btn-add-client { background:transparent; border:1px dashed var(--border); color:var(--text2); width:100%; padding:7px; border-radius:var(--radius); cursor:pointer; font-size:12.5px; transition:all .15s; }
+    .btn-add-client:hover { border-color:var(--accent); color:var(--accent-dk); }
+    /* Multi-client sidebar live list */
+    .mc-sb-list { display:flex; flex-direction:column; gap:5px; margin:6px 0 10px; }
+    .mc-sb-item { display:flex; align-items:center; gap:6px; font-size:11px; }
+    .mc-sb-name { flex:1; color:rgba(255,255,255,0.55); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .mc-sb-name.saved { opacity:0.38; text-decoration:line-through; }
+    .mc-sb-stop { background:transparent; border:1px solid rgba(255,255,255,0.13); color:rgba(255,255,255,0.4); border-radius:4px; padding:1px 5px; font-size:10px; cursor:pointer; flex-shrink:0; line-height:1.5; transition:all .12s; }
+    .mc-sb-stop:hover { border-color:rgba(224,92,92,0.6); color:#E05C5C; }
+    /* Multi-client review modal */
+    .mc-review-rows { display:flex; flex-direction:column; gap:10px; }
+    .mc-review-client { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:11px 13px; }
+    .mc-review-client-name { font-size:12px; font-weight:600; color:var(--accent-dk); margin-bottom:9px; }
+
     /* Timer review modal banner */
     .timer-banner {
       background: var(--bg2); border: 1px solid var(--border);
@@ -4208,9 +4232,37 @@ function startTimerDisplay() {
   const t=loadTimer();
   if(!t||!t.running) return;
   document.getElementById('sb-normal').style.display='none';
-  document.getElementById('sb-timer').style.display='block';
-  const c=getClientById(t.clientId), p=t.projectId?getProjectById(t.projectId):null;
-  document.getElementById('sb-timer-info').textContent=[c?.name, p?.name||t.projectText].filter(Boolean).join(' · ')||'Timer running…';
+  const sbTimer=document.getElementById('sb-timer');
+  sbTimer.style.display='block';
+
+  if(t.mode==='multi') {
+    const clientItems=t.clients.map((c,i)=>{
+      const cl=getClientById(c.clientId);
+      const nm=esc(cl?.name||'?');
+      if(c.saved) return '<div class="mc-sb-item" id="mc-sb-item-'+i+'">'+
+        '<span class="mc-sb-name saved">'+nm+'</span>'+
+        '<span style="font-size:10px;color:rgba(255,255,255,0.3)">saved</span></div>';
+      return '<div class="mc-sb-item" id="mc-sb-item-'+i+'">'+
+        '<span class="mc-sb-name">'+nm+'</span>'+
+        '<button class="mc-sb-stop" onclick="stopOneClientTimer('+i+')" title="Stop &amp; save this client">&#x2715;</button></div>';
+    }).join('');
+    sbTimer.innerHTML=
+      '<div class="timer-live">'+
+      '<div class="timer-top"><div class="timer-dot"></div><div id="sb-elapsed">00:00:00</div></div>'+
+      '<div class="mc-sb-list">'+clientItems+'</div>'+
+      '<button class="btn-stoptimer" onclick="stopAllTimers()">&#9632; Stop All &amp; Save</button>'+
+      '</div>';
+  } else {
+    sbTimer.innerHTML=
+      '<div class="timer-live">'+
+      '<div class="timer-top"><div class="timer-dot"></div><div id="sb-elapsed">00:00:00</div></div>'+
+      '<div id="sb-timer-info">Starting\u2026</div>'+
+      '<button class="btn-stoptimer" onclick="stopTimer()">&#9632; Stop &amp; Save</button>'+
+      '</div>';
+    const c=getClientById(t.clientId), p=t.projectId?getProjectById(t.projectId):null;
+    document.getElementById('sb-timer-info').textContent=[c?.name,p?.name||t.projectText].filter(Boolean).join(' \xb7 ')||'Timer running\u2026';
+  }
+
   updateFAB(true);
   _timerInterval=setInterval(()=>{
     const elapsed=Date.now()-new Date(t.startedAt).getTime();
@@ -4219,7 +4271,6 @@ function startTimerDisplay() {
     const pill=document.getElementById('fab-elapsed-pill');
     if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed);
   },1000);
-  // set initial immediately
   const elapsed=Date.now()-new Date(t.startedAt).getTime();
   const el=document.getElementById('sb-elapsed');
   if(el) el.textContent=fmtElapsed(elapsed);
@@ -4235,37 +4286,54 @@ function stopTimerDisplay() {
   updateFAB(false);
 }
 
-function openTimerModal() {
+function openTimerModal(mode) {
+  mode = mode || 'single';
   const t=loadTimer();
   if(t&&t.running){toast('A timer is already running — stop it first');return;}
   const clients=loadClients(), designers=loadDesigners();
   if(!clients.length){toast('Please add a client first');navigate('#clients');return;}
-  const cliId=clients[0]?.id||'';
-  const projs=getProjectsByClient(cliId);
   const desSel=designers.map(d=>`<option value="${d.id}" ${d.id===_myDesignerId?'selected':''}>${esc(d.name)}</option>`).join('');
-  const projContent=projs.length
-    ?`<select id="t-proj">${projectOptsForClient(cliId,'')}</select>`
-    :`<input type="text" id="t-proj-text" placeholder="e.g. Brand Identity">`;
+  const designerRow=designers.length?'<div class="form-group"><label class="field-label">Designer</label><select id="t-des"><option value="">— unassigned —</option>'+desSel+'</select></div>':'';
+  const modeTabs='<div class="timer-mode-toggle"><button class="tmt-btn'+(mode==='single'?' active':'')+'" onclick="openTimerModal(\'single\')">Single Client</button><button class="tmt-btn'+(mode==='multi'?' active':'')+'" onclick="openTimerModal(\'multi\')">Multi-Client</button></div>';
 
-  showModal(`
-    <div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" onclick="closeModal()">×</button></div>
-    <div class="form-group">
-      <label class="field-label">Client</label>
-      <select id="t-cli" onchange="refreshTimerProj(this.value)">${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
-    </div>
-    ${designers.length?`<div class="form-group"><label class="field-label">Designer</label><select id="t-des"><option value="">— unassigned —</option>${desSel}</select></div>`:''}
-    <div class="form-group">
-      <label class="field-label">Project</label>
-      <div id="t-proj-wrap">${projContent}</div>
-    </div>
-    <div class="form-group">
-      <label class="field-label">What are you working on?</label>
-      <textarea id="t-desc" placeholder="Describe the work you're about to start…" style="min-height:64px"></textarea>
-    </div>
-    <div class="form-actions">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-gold" onclick="startTimer()" style="gap:8px;font-size:14px;padding:9px 20px">▶ &nbsp;Start Timer</button>
-    </div>`);
+  if(mode==='single') {
+    const cliId=clients[0]?.id||'';
+    const projs=getProjectsByClient(cliId);
+    const projContent=projs.length
+      ?'<select id="t-proj">'+projectOptsForClient(cliId,'')+'</select>'
+      :'<input type="text" id="t-proj-text" placeholder="e.g. Brand Identity">';
+    const clientOpts=clients.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
+    showModal(
+      '<div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" onclick="closeModal()">×</button></div>'+
+      modeTabs+
+      '<div class="form-group"><label class="field-label">Client</label>'+
+      '<select id="t-cli" onchange="refreshTimerProj(this.value)">'+clientOpts+'</select></div>'+
+      designerRow+
+      '<div class="form-group"><label class="field-label">Project</label>'+
+      '<div id="t-proj-wrap">'+projContent+'</div></div>'+
+      '<div class="form-group"><label class="field-label">What are you working on?</label>'+
+      '<textarea id="t-desc" placeholder="Describe the work you\'re about to start\u2026" style="min-height:64px"></textarea></div>'+
+      '<div class="form-actions">'+
+      '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'+
+      '<button class="btn btn-gold" onclick="startTimer()" style="gap:8px;font-size:14px;padding:9px 20px">&#9654;&nbsp;&nbsp;Start Timer</button>'+
+      '</div>');
+  } else {
+    const row0=buildMcClientRow(clients,0);
+    const row1=buildMcClientRow(clients,1);
+    showModal(
+      '<div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" onclick="closeModal()">×</button></div>'+
+      modeTabs+
+      designerRow+
+      '<div class="form-group"><label class="field-label">What are you working on?</label>'+
+      '<textarea id="t-desc" placeholder="e.g. Shopping for kitchen materials\u2026" style="min-height:56px"></textarea></div>'+
+      '<div class="form-group"><label class="field-label">Clients to Bill</label>'+
+      '<div id="mc-client-rows" class="mc-client-rows">'+row0+row1+'</div>'+
+      '<button class="btn-add-client" onclick="addMcClientRow()">+ Add Another Client</button></div>'+
+      '<div class="form-actions">'+
+      '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'+
+      '<button class="btn btn-gold" onclick="startMultiTimer()" style="gap:8px;font-size:14px;padding:9px 20px">&#9654;&nbsp;&nbsp;Start Multi-Client Timer</button>'+
+      '</div>');
+  }
 }
 
 window.refreshTimerProj = cliId => {
@@ -4273,6 +4341,42 @@ window.refreshTimerProj = cliId => {
   document.getElementById('t-proj-wrap').innerHTML=projs.length
     ?`<select id="t-proj">${projectOptsForClient(cliId,'')}</select>`
     :`<input type="text" id="t-proj-text" placeholder="e.g. Brand Identity">`;
+};
+
+// ── Multi-client modal helpers ────────────────────────────────────────
+function buildMcClientRow(clients, idx) {
+  const cliId=clients[0]?.id||'';
+  const projs=getProjectsByClient(cliId);
+  const projContent=projs.length
+    ?'<select id="mc-proj-'+idx+'">'+projectOptsForClient(cliId,'')+'</select>'
+    :'<input type="text" id="mc-proj-text-'+idx+'" placeholder="Project name">';
+  const clientOpts=clients.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
+  const removeBtn=idx>0?'<button class="mc-remove-btn" onclick="removeMcClientRow('+idx+')" title="Remove">&#x2715;</button>':'';
+  return '<div class="mc-client-row" id="mc-row-'+idx+'" data-idx="'+idx+'">'+
+    '<div class="mc-row-fields">'+
+    '<select id="mc-cli-'+idx+'" onchange="refreshMcProj('+idx+',this.value)">'+clientOpts+'</select>'+
+    '<div id="mc-proj-wrap-'+idx+'">'+projContent+'</div>'+
+    '</div>'+removeBtn+'</div>';
+}
+window.refreshMcProj = (idx, cliId) => {
+  const projs=getProjectsByClient(cliId);
+  const wrap=document.getElementById('mc-proj-wrap-'+idx);
+  if(!wrap) return;
+  wrap.innerHTML=projs.length
+    ?'<select id="mc-proj-'+idx+'">'+projectOptsForClient(cliId,'')+'</select>'
+    :'<input type="text" id="mc-proj-text-'+idx+'" placeholder="Project name">';
+};
+window.addMcClientRow = () => {
+  const rows=document.querySelectorAll('.mc-client-row');
+  const maxIdx=rows.length?Math.max(...[...rows].map(r=>parseInt(r.dataset.idx))):-1;
+  const nextIdx=maxIdx+1;
+  const div=document.createElement('div');
+  div.innerHTML=buildMcClientRow(loadClients(), nextIdx);
+  document.getElementById('mc-client-rows').appendChild(div.firstElementChild);
+};
+window.removeMcClientRow = idx => {
+  const row=document.getElementById('mc-row-'+idx);
+  if(row) row.remove();
 };
 
 function startTimer() {
@@ -4289,9 +4393,33 @@ function startTimer() {
   toast('Timer started');
 }
 
+function startMultiTimer() {
+  const desEl=document.getElementById('t-des');
+  const designerId=desEl?desEl.value:'';
+  const description=document.getElementById('t-desc').value.trim();
+  const rows=document.querySelectorAll('.mc-client-row');
+  if(rows.length<2){toast('Add at least 2 clients');return;}
+  const clients=[];
+  for(const row of rows){
+    const idx=row.dataset.idx;
+    const clientId=document.getElementById('mc-cli-'+idx)?.value;
+    const projSel=document.getElementById('mc-proj-'+idx);
+    const projTxt=document.getElementById('mc-proj-text-'+idx);
+    const projectId=projSel?projSel.value:'';
+    const projectText=projTxt?projTxt.value.trim():'';
+    if(!clientId||(!projectId&&!projectText)){toast('Please select a client and project for every row');return;}
+    clients.push({clientId,projectId,projectText});
+  }
+  saveTimerData({running:true,mode:'multi',startedAt:new Date().toISOString(),designerId,description,clients});
+  closeModal();
+  startTimerDisplay();
+  toast('Multi-client timer started \u2014 '+clients.length+' clients');
+}
+
 function stopTimer() {
   const t=loadTimer();
   if(!t||!t.running) return;
+  if(t.mode==='multi'){stopAllTimers();return;}
   const elapsed=Date.now()-new Date(t.startedAt).getTime();
   const hours=msToHours(elapsed);
   const elapsedStr=fmtElapsed(elapsed);
@@ -4299,6 +4427,44 @@ function stopTimer() {
   clearTimerData();
   showTimerReview(t, hours, elapsedStr);
 }
+
+function stopAllTimers() {
+  const t=loadTimer();
+  if(!t||!t.running||t.mode!=='multi') return;
+  const elapsed=Date.now()-new Date(t.startedAt).getTime();
+  stopTimerDisplay();
+  clearTimerData();
+  const unsaved=t.clients.filter(c=>!c.saved);
+  if(!unsaved.length){render();return;}
+  showMultiTimerReview(t, elapsed, unsaved);
+}
+
+window.stopOneClientTimer = idx => {
+  const t=loadTimer();
+  if(!t||!t.running||t.mode!=='multi') return;
+  const client=t.clients[idx];
+  if(!client||client.saved) return;
+  const elapsed=Date.now()-new Date(t.startedAt).getTime();
+  const hours=msToHours(elapsed);
+  client.stoppedAt=new Date().toISOString();
+  client.saved=true;
+  const allDone=t.clients.every(c=>c.saved);
+  if(allDone){stopTimerDisplay();clearTimerData();}
+  else {
+    saveTimerData(t);
+    const item=document.getElementById('mc-sb-item-'+idx);
+    if(item){
+      const cl=getClientById(client.clientId);
+      item.innerHTML='<span class="mc-sb-name saved">'+esc(cl?.name||'?')+'</span>'+
+        '<span style="font-size:10px;color:rgba(255,255,255,0.3)">saved</span>';
+    }
+  }
+  addEntry({date:todayStr(),hours,clientId:client.clientId,designerId:t.designerId,
+    projectId:client.projectId,projectText:client.projectText,description:t.description});
+  const cl=getClientById(client.clientId);
+  toast((cl?.name||'Client')+' \u2014 '+hours+'h saved \u2713');
+  if(allDone) render();
+};
 
 function showTimerReview(t, hours, elapsedStr) {
   const clients=loadClients(), designers=loadDesigners();
@@ -4378,6 +4544,72 @@ function saveTimerEntry() {
 
 function discardTimerEntry() {
   if(confirm('Discard this time entry?')) closeModal();
+}
+
+function showMultiTimerReview(t, elapsed, unsaved) {
+  const elapsedStr=fmtElapsed(elapsed);
+  const hours=msToHours(elapsed);
+  const designers=loadDesigners();
+  const desSel=designers.map(d=>'<option value="'+d.id+'"'+(d.id===t.designerId?' selected':'')+'>'+esc(d.name)+'</option>').join('');
+  const designerRow=designers.length
+    ?'<div class="form-group"><label class="field-label">Designer</label><select id="mtr-des"><option value="">— unassigned —</option>'+desSel+'</select></div>'
+    :'';
+  const clientRows=unsaved.map((c,i)=>{
+    const cl=getClientById(c.clientId);
+    const projs=getProjectsByClient(c.clientId);
+    const projContent=projs.length
+      ?'<select id="mtr-proj-'+i+'">'+projectOptsForClient(c.clientId,c.projectId)+'</select>'
+      :'<input type="text" id="mtr-proj-text-'+i+'" value="'+esc(c.projectText||'')+'" placeholder="Project name">';
+    return '<div class="mc-review-client" data-idx="'+i+'" data-client-id="'+c.clientId+'">'+
+      '<div class="mc-review-client-name">'+esc(cl?.name||'Unknown Client')+'</div>'+
+      '<div class="form-row" style="margin-bottom:0">'+
+      '<div class="form-group"><label class="field-label">Hours</label>'+
+      '<input type="number" id="mtr-hrs-'+i+'" step="0.25" min="0.25" value="'+hours+'"></div>'+
+      '<div class="form-group" style="flex:2"><label class="field-label">Project</label>'+
+      projContent+'</div></div></div>';
+  }).join('');
+  showModal(
+    '<div class="modal-hd"><h2>Review Entries</h2><button class="modal-x" onclick="discardTimerEntry()">&#x00D7;</button></div>'+
+    '<div class="timer-banner">'+
+    '<div class="tb-time">'+elapsedStr+'</div>'+
+    '<div class="tb-arrow">\u2192</div>'+
+    '<div><div class="tb-billed">'+unsaved.length+' clients &middot; '+hours+'h each</div>'+
+    '<div style="font-size:11px;color:var(--text2)">Adjust hours below if needed</div></div></div>'+
+    '<div class="form-row"><div class="form-group"><label class="field-label">Date</label>'+
+    '<input type="date" id="mtr-date" value="'+todayStr()+'"></div></div>'+
+    designerRow+
+    '<div class="form-group"><label class="field-label">Description</label>'+
+    '<textarea id="mtr-desc">'+esc(t.description||'')+'</textarea></div>'+
+    '<div class="mc-review-rows">'+clientRows+'</div>'+
+    '<div class="form-actions" style="margin-top:16px">'+
+    '<button class="btn btn-danger" onclick="discardTimerEntry()">Discard</button>'+
+    '<button class="btn btn-gold" onclick="saveMultiTimerEntries()">Save '+unsaved.length+' Entr'+(unsaved.length===1?'y':'ies')+'</button>'+
+    '</div>');
+}
+
+function saveMultiTimerEntries() {
+  const date=document.getElementById('mtr-date').value;
+  const desEl=document.getElementById('mtr-des');
+  const designerId=desEl?desEl.value:'';
+  const description=document.getElementById('mtr-desc').value.trim();
+  if(!date||!description){toast('Please fill in date and description');return;}
+  const rows=document.querySelectorAll('.mc-review-client');
+  let saved=0;
+  for(const row of rows){
+    const i=row.dataset.idx;
+    const clientId=row.dataset.clientId;
+    const hours=parseFloat(document.getElementById('mtr-hrs-'+i)?.value);
+    const projSel=document.getElementById('mtr-proj-'+i);
+    const projTxt=document.getElementById('mtr-proj-text-'+i);
+    const projectId=projSel?projSel.value:'';
+    const projectText=projTxt?projTxt.value.trim():'';
+    if(!clientId||isNaN(hours)||hours<=0) continue;
+    addEntry({date,hours,clientId,designerId,projectId,projectText,description});
+    saved++;
+  }
+  toast(saved+' entr'+(saved===1?'y':'ies')+' saved \u2713');
+  closeModal();
+  render();
 }
 
 /* ══════════════════════════════════════════════════════

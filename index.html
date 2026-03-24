@@ -4250,7 +4250,27 @@ function mobileFabClick() {
 function renderMcTimerDashboard() {
   const t=loadTimer();
   const el=document.getElementById('app');
-  if(!t||!t.running||t.mode!=='multi'){render();return;}
+  if(!t||!t.running){ render(); return; }
+  if(t.mode!=='multi') {
+    // Single-client timer — show one card
+    highlightNav();
+    const cl=getClientById(t.clientId);
+    const proj=t.projectId?getProjectById(t.projectId):null;
+    const projName=proj?.name||t.projectText||'';
+    const elapsed=Date.now()-new Date(t.startedAt).getTime();
+    el.innerHTML=
+      '<div class="page-head"><div><h1>Active Timer</h1><div class="sub">Timer is running</div></div></div>'+
+      '<div class="mc-timers-grid">'+
+      '<div class="mc-timer-card" id="mc-card-single" style="animation-delay:0s">'+
+      '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
+      (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
+      (t.description?'<div class="mc-timer-card-desc">'+esc(t.description)+'</div>':'')+
+      '<div class="mc-timer-card-elapsed" id="mc-card-elapsed-single">'+fmtElapsed(elapsed)+'</div>'+
+      '<button class="mc-timer-card-stop" onclick="stopTimer()">\u25a0 Stop &amp; Save</button>'+
+      '</div></div>';
+    renderTrialBadge();
+    return;
+  }
   highlightNav();
   const elapsed=Date.now()-new Date(t.startedAt).getTime();
   const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
@@ -4318,18 +4338,18 @@ function startTimerDisplay() {
     const c=getClientById(t.clientId), p=t.projectId?getProjectById(t.projectId):null;
     document.getElementById('sb-timer-info').textContent=[c?.name,p?.name||t.projectText].filter(Boolean).join(' \xb7 ')||'Timer running\u2026';
     updateFAB(true);
+    navigate('#timers');
     _timerInterval=setInterval(()=>{
       const elapsed=Date.now()-new Date(t.startedAt).getTime();
-      const el=document.getElementById('sb-elapsed');
-      if(el) el.textContent=fmtElapsed(elapsed);
+      const s=document.getElementById('sb-elapsed'); if(s) s.textContent=fmtElapsed(elapsed);
+      const card=document.getElementById('mc-card-elapsed-single'); if(card) card.textContent=fmtElapsed(elapsed);
       const pill=document.getElementById('fab-elapsed-pill');
       if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed);
     },1000);
-    const elapsed=Date.now()-new Date(t.startedAt).getTime();
-    const el=document.getElementById('sb-elapsed');
-    if(el) el.textContent=fmtElapsed(elapsed);
+    const elapsed0=Date.now()-new Date(t.startedAt).getTime();
+    const s0=document.getElementById('sb-elapsed'); if(s0) s0.textContent=fmtElapsed(elapsed0);
     const pill=document.getElementById('fab-elapsed-pill');
-    if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed);
+    if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed0);
   }
 }
 
@@ -4444,11 +4464,9 @@ function startTimer() {
   const description=document.getElementById('t-desc').value.trim();
   if(!clientId||(!projectId&&!projectText)){toast('Please select a client and project');return;}
   saveTimerData({running:true,startedAt:new Date().toISOString(),clientId,designerId,projectId,projectText,description});
-  const startBtn=document.querySelector('.overlay .btn-gold[onclick*="startTimer()"]');
-  if(startBtn){ startBtn.classList.add('btn-loading'); startBtn.textContent='Starting\u2026'; }
-  const modal=document.querySelector('.modal');
-  if(modal) modal.classList.add('modal-launching');
-  setTimeout(()=>{ closeModal(); startTimerDisplay(); toast('Timer started'); }, 230);
+  closeModal();
+  startTimerDisplay();
+  toast('Timer started');
 }
 
 function startMultiTimer() {
@@ -4469,12 +4487,9 @@ function startMultiTimer() {
     clients.push({clientId,projectId,projectText,description});
   }
   saveTimerData({running:true,mode:'multi',startedAt:new Date().toISOString(),designerId,clients});
-  // Animate button → modal exit → navigate
-  const startBtn=document.querySelector('.overlay .btn-gold[onclick*="startMultiTimer"]');
-  if(startBtn){ startBtn.classList.add('btn-loading'); startBtn.textContent='Starting\u2026'; }
-  const modal=document.querySelector('.modal');
-  if(modal) modal.classList.add('modal-launching');
-  setTimeout(()=>{ closeModal(); startTimerDisplay(); toast(clients.length+' timers started'); }, 230);
+  closeModal();
+  startTimerDisplay();
+  toast(clients.length+' timers started');
 }
 
 function stopTimer() {

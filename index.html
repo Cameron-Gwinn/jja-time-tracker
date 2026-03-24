@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>JJ&A Time Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -513,7 +513,7 @@
     body.dark-mode .btn-dark { background: #3D3830; color: #EDE9E2; }
 
     /* ── Mobile hamburger ───────────────────────────── */
-    #mobile-hamburger { display: none; position: fixed; top: 12px; left: 12px; z-index: 300; background: #1A1916; color: #E8E3D8; border: none; width: 42px; height: 42px; border-radius: 10px; font-size: 19px; cursor: pointer; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+    #mobile-hamburger { display: none; position: fixed; top: calc(12px + env(safe-area-inset-top, 44px)); left: 12px; z-index: 300; background: #1A1916; color: #E8E3D8; border: none; width: 42px; height: 42px; border-radius: 10px; font-size: 19px; cursor: pointer; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
     #mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 149; }
     #mobile-overlay.show { display: block; }
 
@@ -567,11 +567,11 @@
       /* Toast above FAB */
       #toast { bottom: 96px; right: 20px; }
 
-      /* Top bar background — prevents content scrolling visibly under hamburger */
-      body::before { content:''; position:fixed; top:-200px; left:0; right:0; height:calc(66px + 200px + env(safe-area-inset-top, 0px)); background:var(--bg); z-index:200; pointer-events:none; }
+      /* Top bar background — covers status bar + hamburger area, extends above for iOS overscroll */
+      body::before { content:''; position:fixed; top:-200px; left:0; right:0; height:calc(200px + 66px + env(safe-area-inset-top, 44px)); background:var(--bg); z-index:200; pointer-events:none; }
 
-      /* Main content — full width, space for hamburger + FAB clearance */
-      #main { margin-left: 0 !important; padding: 74px 14px 96px !important; width: 100%; min-width: 0; }
+      /* Main content — full width, padded below status bar + hamburger + FAB clearance */
+      #main { margin-left: 0 !important; padding: calc(74px + env(safe-area-inset-top, 44px)) 14px calc(96px + env(safe-area-inset-bottom, 0px)) !important; width: 100%; min-width: 0; }
 
       /* Hide amount/revenue columns in card layout */
       tbody td[data-label="Amount"] { display: none !important; }

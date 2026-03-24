@@ -140,8 +140,19 @@
     .mc-sb-stop:hover, .mc-sb-stop:active { border-color:rgba(224,92,92,0.7); color:#E05C5C; }
     /* Multi-client live timer cards */
     .mc-timers-grid { display:flex; flex-direction:column; gap:14px; }
-    .mc-timer-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px; transition:opacity .3s; }
+    .mc-timer-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px; transition:opacity .3s, max-height .45s ease, margin .45s ease, padding .45s ease, border-width .45s ease; overflow:hidden; }
     .mc-timer-card.card-stopped { opacity:.42; }
+    .mc-timer-card.card-collapsing {
+      max-height:0 !important; padding-top:0 !important; padding-bottom:0 !important;
+      margin-top:0 !important; margin-bottom:0 !important;
+      border-width:0 !important; opacity:0 !important;
+    }
+    @keyframes mc-card-saved-flash {
+      0%   { background:var(--card); }
+      30%  { background:rgba(61,107,79,0.25); border-color:rgba(61,107,79,0.5); }
+      100% { background:rgba(61,107,79,0.1); border-color:rgba(61,107,79,0.25); opacity:0.6; }
+    }
+    .mc-timer-card.card-saving { animation: mc-card-saved-flash 0.6s ease forwards; }
     .mc-timer-card-name { font-size:19px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
     .mc-timer-card-proj { font-size:12px; color:var(--text2); }
     .mc-timer-card-desc { font-size:12px; color:var(--text2); font-style:italic; margin-top:3px; }
@@ -4835,27 +4846,50 @@ window.stopOneClientTimer = idx => {
     projectId:client.projectId,projectText:client.projectText,description:client.description});
   const cl=getClientById(client.clientId);
   toast((cl?.name||'Client')+' \u2014 '+hours+'h saved \u2713');
+
+  // Check if all timers are now done
   const allDone=t.clients.every(c=>c.stoppedAt);
   if(allDone){stopTimerDisplay();clearTimerData();navigate('#dashboard');return;}
-  saveTimerData(t);
-  // Update card inline
+
+  // Remove this client from the timer data immediately
+  t.clients.splice(idx,1);
+  // If only one client left and it's still running, convert to single-timer format
+  if(t.clients.length===1 && !t.clients[0].stoppedAt) {
+    const last=t.clients[0];
+    saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
+      designerId:t.designerId,projectId:last.projectId,projectText:last.projectText,description:last.description});
+  } else {
+    saveTimerData(t);
+  }
+
+  // Animate: flash green "Saved", then collapse card, then re-render
   const card=document.getElementById('mc-card-'+idx);
   if(card){
-    card.classList.add('card-stopped');
+    // Capture current height for smooth collapse
+    const h=card.offsetHeight;
+    card.style.maxHeight=h+'px';
+
+    // Phase 1: show saved badge with green flash
+    card.classList.add('card-saving');
     const elEl=document.getElementById('mc-card-elapsed-'+idx);
     if(elEl) elEl.textContent=fmtElapsed(elapsed);
     const stopEl=document.getElementById('mc-card-stop-'+idx);
     if(stopEl) stopEl.innerHTML='<div class="mc-timer-saved-badge">\u2713 Saved \u2014 '+hours+'h</div>';
+
+    // Phase 2: after flash, collapse the card
+    setTimeout(()=>{
+      card.classList.add('card-collapsing');
+      // Phase 3: after collapse animation, re-render the list cleanly
+      setTimeout(()=>{ renderMcTimerDashboard(); }, 480);
+    }, 700);
+  } else {
+    renderMcTimerDashboard();
   }
+
   // Update sidebar count
   const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
   const countEl=document.querySelector('#sb-timer .mc-active-count');
   if(countEl) countEl.textContent=activeCount+' timer'+(activeCount===1?'':'s')+' running';
-  // Update page subtitle
-  const sub=document.querySelector('#app .sub');
-  if(sub) sub.textContent=activeCount+' of '+t.clients.length+' still running';
-  // Hide stop-all if only 1 left
-  if(activeCount<=1){ const sa=document.getElementById('mc-stop-all'); if(sa) sa.remove(); }
 };
 
 function showTimerReview(t, hours, elapsedStr) {

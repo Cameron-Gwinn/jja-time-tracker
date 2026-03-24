@@ -578,7 +578,7 @@
       html, body { overflow-x: hidden; width: 100%; }
 
       /* Sidebar — slides in from left, wider on mobile */
-      #sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 285px; z-index: 310; transform: translateX(-100%); transition: transform .25s cubic-bezier(.4,0,.2,1); box-shadow: 4px 0 24px rgba(0,0,0,0.35); }
+      #sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 285px; z-index: 310; transform: translateX(-100%); transition: transform .25s cubic-bezier(.4,0,.2,1); box-shadow: 4px 0 24px rgba(0,0,0,0.35); padding-top: env(safe-area-inset-top, 44px); }
       #sidebar.mobile-open { transform: translateX(0); }
       #mobile-hamburger { display: flex; }
 

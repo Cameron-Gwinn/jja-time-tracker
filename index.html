@@ -1398,8 +1398,12 @@ function toast(msg, duration=2800) {
   clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),duration);
 }
 let _activeModal = null;
+function _removeAllOverlays(){
+  if(_activeModal){ _activeModal.remove(); _activeModal=null; }
+  document.querySelectorAll('.overlay').forEach(m=>m.remove());
+}
 function showModal(html) {
-  closeModal();
+  _removeAllOverlays(); // instant cleanup — no animation when replacing
   const ov=document.createElement('div'); ov.className='overlay';
   ov.innerHTML=`<div class="modal">${html}</div>`;
   ov.addEventListener('click',e=>{if(e.target===ov)closeModal();});
@@ -1411,7 +1415,7 @@ function closeModal(){
   if(!ov){ _activeModal=null; return; }
   ov.classList.add('closing');
   _activeModal = null;
-  setTimeout(()=>{ ov.remove(); document.querySelectorAll('.overlay').forEach(m=>m.remove()); }, 190);
+  setTimeout(()=>{ ov.remove(); }, 190);
 }
 
 // PDF preview modal — works for generated jsPDF docs and remote/blob URLs

@@ -36,7 +36,10 @@
       --radius:       8px;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { -webkit-font-smoothing: antialiased; }
+    html { -webkit-font-smoothing: antialiased; touch-action: manipulation; }
+    a, button, label, select, input, textarea, [onclick] {
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent; cursor: pointer;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
@@ -214,7 +217,7 @@
     @keyframes btn-spin { to { transform: rotate(360deg); } }
     .btn-loading { opacity: 0.7 !important; pointer-events: none; cursor: default; }
     .btn-loading::before { content:''; display:inline-block; width:13px; height:13px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation: btn-spin 0.65s linear infinite; margin-right:6px; vertical-align: middle; }
-    .btn-dark    { background: var(--text); color: #fff; }
+    .btn-dark    { background: #1A1916; color: #E8E3D8; }
     .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--text2); }
     .btn-ghost:hover { color: var(--text); border-color: var(--text2); opacity: 1; }
     .btn-danger  { background: var(--danger-bg); color: var(--danger); border: 1px solid #E8C8C8; }
@@ -240,14 +243,19 @@
 
     /* Modal */
     .overlay {
-      position: fixed; inset: 0; background: rgba(20,20,18,0.5);
+      position: fixed; inset: 0; background: rgba(20,20,18,0.55);
       display: flex; align-items: center; justify-content: center;
-      z-index: 500; backdrop-filter: blur(2px);
+      z-index: 500;
     }
     .modal {
       background: var(--card); border-radius: 12px; padding: 26px;
       width: 500px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
-      box-shadow: var(--shadow-lg);
+      box-shadow: var(--shadow-lg); touch-action: manipulation;
+      -webkit-overflow-scrolling: touch;
+    }
+    .modal button, .modal select, .modal textarea, .modal input,
+    .modal a, .tmt-btn, .mc-remove-btn, .btn-add-client {
+      touch-action: manipulation; cursor: pointer;
     }
 
     /* PDF Preview Modal */
@@ -371,7 +379,7 @@
     .inv-total-row { display: flex; justify-content: space-between; padding: 10px 0 3px; font-family: Georgia, serif; font-size: 16px; }
 
     /* Toast */
-    #toast { position: fixed; bottom: 26px; right: 26px; background: var(--text); color: #fff; padding: 11px 18px; border-radius: var(--radius); font-size: 13px; z-index: 1000; opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; pointer-events: none; max-width: 300px; }
+    #toast { position: fixed; bottom: 26px; right: 26px; background: #1A1916; color: #E8E3D8; padding: 11px 18px; border-radius: var(--radius); font-size: 13px; z-index: 1000; opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; pointer-events: none; max-width: 300px; }
     #toast.show { opacity: 1; transform: translateY(0); }
 
     .danger-zone { border: 1px solid #EBCFCF; border-radius: var(--radius); padding: 16px 20px; background: #FDF6F6; }
@@ -505,7 +513,7 @@
     body.dark-mode .btn-dark { background: #3D3830; color: #EDE9E2; }
 
     /* ── Mobile hamburger ───────────────────────────── */
-    #mobile-hamburger { display: none; position: fixed; top: 12px; left: 12px; z-index: 300; background: var(--text); color: #fff; border: none; width: 42px; height: 42px; border-radius: 10px; font-size: 19px; cursor: pointer; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+    #mobile-hamburger { display: none; position: fixed; top: 12px; left: 12px; z-index: 300; background: #1A1916; color: #E8E3D8; border: none; width: 42px; height: 42px; border-radius: 10px; font-size: 19px; cursor: pointer; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
     #mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 149; }
     #mobile-overlay.show { display: block; }
 
@@ -534,7 +542,7 @@
 
     /* ── Mobile Timer FAB ───────────────────────────── */
     #mobile-fab-area { display: none; position: fixed; bottom: 24px; right: 20px; flex-direction: column; align-items: flex-end; gap: 8px; z-index: 400; }
-    #fab-elapsed-pill { background: var(--text); color: #fff; font-family: 'SF Mono','Fira Code',Menlo,monospace; font-size: 13px; padding: 5px 13px; border-radius: 20px; display: none; letter-spacing: 1.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); white-space: nowrap; }
+    #fab-elapsed-pill { background: #1A1916; color: #E8E3D8; font-family: 'SF Mono','Fira Code',Menlo,monospace; font-size: 13px; padding: 5px 13px; border-radius: 20px; display: none; letter-spacing: 1.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); white-space: nowrap; }
     #fab-elapsed-pill.show { display: block; }
     #mobile-timer-fab { width: 58px; height: 58px; border-radius: 50%; background: var(--accent); color: var(--sidebar); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 26px; box-shadow: 0 4px 18px rgba(0,0,0,0.25); transition: background .2s, transform .15s; -webkit-tap-highlight-color: transparent; }
     #mobile-timer-fab:active { transform: scale(0.91); }
@@ -666,7 +674,7 @@
     .analytics-tabs { display: flex; gap: 8px; margin-bottom: 22px; }
     .atab { padding: 9px 22px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; box-shadow: var(--shadow); }
     .atab:hover { color: var(--text); border-color: var(--text2); opacity: 1; }
-    .atab.active { background: var(--text); color: #fff; border-color: var(--text); }
+    .atab.active { background: #1A1916; color: #E8E3D8; border-color: #1A1916; }
 
     /* KPI grids */
     .kpi-grid { display: grid; gap: 12px; margin-bottom: 18px; }
@@ -1237,13 +1245,19 @@ function toast(msg, duration=2800) {
   el.textContent=msg; el.classList.add('show');
   clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),duration);
 }
+let _activeModal = null;
 function showModal(html) {
+  closeModal();
   const ov=document.createElement('div'); ov.className='overlay';
   ov.innerHTML=`<div class="modal">${html}</div>`;
   ov.addEventListener('click',e=>{if(e.target===ov)closeModal();});
   document.body.appendChild(ov);
+  _activeModal = ov;
 }
-function closeModal(){ const m=document.querySelector('.overlay'); if(m)m.remove(); }
+function closeModal(){
+  if(_activeModal){ _activeModal.remove(); _activeModal=null; }
+  document.querySelectorAll('.overlay').forEach(m=>m.remove());
+}
 
 // PDF preview modal — works for generated jsPDF docs and remote/blob URLs
 let _pdfPreviewBlob = null;
@@ -4237,6 +4251,8 @@ const clearTimerData = () => {
   if(_sb && _currentUser)(async()=>{ try{ await _sb.from('user_timers').delete().eq('user_id',_currentUser.id); }catch(e){} })();
 };
 let _timerInterval = null;
+let _modalBlocked = false;
+function blockModal() { _modalBlocked = true; setTimeout(() => { _modalBlocked = false; }, 800); }
 
 function fmtElapsed(ms) {
   const s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
@@ -4323,6 +4339,8 @@ function renderMcTimerDashboard() {
 }
 
 function startTimerDisplay() {
+  closeModal();
+  closeMobileMenu();
   if(_timerInterval) clearInterval(_timerInterval);
   const t=loadTimer();
   if(!t||!t.running) return;
@@ -4347,7 +4365,8 @@ function startTimerDisplay() {
       const pill=document.getElementById('fab-elapsed-pill');
       if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(elapsed);
     },1000);
-    navigate('#timers');
+    window.location.hash='#timers';
+    renderMcTimerDashboard();
   } else {
     sbTimer.innerHTML=
       '<div class="timer-live">'+
@@ -4358,7 +4377,8 @@ function startTimerDisplay() {
     const c=getClientById(t.clientId), p=t.projectId?getProjectById(t.projectId):null;
     document.getElementById('sb-timer-info').textContent=[c?.name,p?.name||t.projectText].filter(Boolean).join(' \xb7 ')||'Timer running\u2026';
     updateFAB(true);
-    navigate('#timers');
+    window.location.hash='#timers';
+    renderMcTimerDashboard();
     _timerInterval=setInterval(()=>{
       const elapsed=Date.now()-new Date(t.startedAt).getTime();
       const s=document.getElementById('sb-elapsed'); if(s) s.textContent=fmtElapsed(elapsed);
@@ -4381,13 +4401,35 @@ function stopTimerDisplay() {
   updateFAB(false);
 }
 
+// Global tap-block: prevents ghost clicks on newly-created overlays.
+// When a touchend fires, we block ALL tap handlers for 350ms — long enough
+// to swallow the iOS synthetic click that fires ~300ms after every touch.
+function _tap(id, fn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let fired = false;
+  el.addEventListener('touchend', e => {
+    e.preventDefault();
+    if (fired) return;
+    fired = true;
+    fn();
+    setTimeout(() => { fired = false; }, 500);
+  }, { passive: false });
+  el.addEventListener('click', () => {
+    if (fired) return;
+    fn();
+  });
+}
+
 function openTimerModal(mode) {
+  if (_modalBlocked) return;
   mode = mode || 'single';
+  closeMobileMenu();
   const clients=loadClients(), designers=loadDesigners();
   if(!clients.length){toast('Please add a client first');navigate('#clients');return;}
   const desSel=designers.map(d=>`<option value="${d.id}" ${d.id===_myDesignerId?'selected':''}>${esc(d.name)}</option>`).join('');
   const designerRow=designers.length?'<div class="form-group"><label class="field-label">Designer</label><select id="t-des"><option value="">— unassigned —</option>'+desSel+'</select></div>':'';
-  const modeTabs='<div class="timer-mode-toggle"><button class="tmt-btn'+(mode==='single'?' active':'')+'" onclick="openTimerModal(\'single\')">Single Client</button><button class="tmt-btn'+(mode==='multi'?' active':'')+'" onclick="openTimerModal(\'multi\')">Multi-Client</button></div>';
+  const modeTabs='<div class="timer-mode-toggle"><button class="tmt-btn'+(mode==='single'?' active':'')+'" id="tmt-btn-single">Single Client</button><button class="tmt-btn'+(mode==='multi'?' active':'')+'" id="tmt-btn-multi">Multi-Client</button></div>';
 
   if(mode==='single') {
     const cliId=clients[0]?.id||'';
@@ -4397,7 +4439,7 @@ function openTimerModal(mode) {
       :'<input type="text" id="t-proj-text" placeholder="e.g. Brand Identity">';
     const clientOpts=clients.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
     showModal(
-      '<div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" onclick="closeModal()">×</button></div>'+
+      '<div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" id="tm-close">×</button></div>'+
       modeTabs+
       '<div class="form-group"><label class="field-label">Client</label>'+
       '<select id="t-cli" onchange="refreshTimerProj(this.value)">'+clientOpts+'</select></div>'+
@@ -4407,24 +4449,32 @@ function openTimerModal(mode) {
       '<div class="form-group"><label class="field-label">What are you working on?</label>'+
       '<textarea id="t-desc" placeholder="Describe the work you\'re about to start\u2026" style="min-height:64px"></textarea></div>'+
       '<div class="form-actions">'+
-      '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'+
-      '<button class="btn btn-gold" onclick="startTimer()" style="gap:8px;font-size:14px;padding:9px 20px">&#9654;&nbsp;&nbsp;Start Timer</button>'+
+      '<button class="btn btn-ghost" id="tm-cancel">Cancel</button>'+
+      '<button class="btn btn-gold" id="tm-start" style="gap:8px;font-size:14px;padding:9px 20px">&#9654;&nbsp;&nbsp;Start Timer</button>'+
       '</div>');
   } else {
     const row0=buildMcClientRow(clients,0);
     const row1=buildMcClientRow(clients,1);
     showModal(
-      '<div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" onclick="closeModal()">×</button></div>'+
+      '<div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" id="tm-close">×</button></div>'+
       modeTabs+
       designerRow+
       '<div class="form-group"><label class="field-label">Clients to Bill</label>'+
       '<div id="mc-client-rows" class="mc-client-rows">'+row0+row1+'</div>'+
-      '<button class="btn-add-client" onclick="addMcClientRow()">+ Add Another Client</button></div>'+
+      '<button class="btn-add-client" id="tm-add-client">+ Add Another Client</button></div>'+
       '<div class="form-actions">'+
-      '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'+
-      '<button class="btn btn-gold" onclick="startMultiTimer()" style="gap:8px;font-size:14px;padding:9px 20px">&#9654;&nbsp;&nbsp;Start Multi-Client Timer</button>'+
+      '<button class="btn btn-ghost" id="tm-cancel">Cancel</button>'+
+      '<button class="btn btn-gold" id="tm-start" style="gap:8px;font-size:14px;padding:9px 20px">&#9654;&nbsp;&nbsp;Start Multi-Client Timer</button>'+
       '</div>');
+    _tap('tm-add-client', addMcClientRow);
   }
+
+  // Wire all modal buttons via _tap (touchend+click, ghost-safe)
+  _tap('tm-close',  closeModal);
+  _tap('tm-cancel', closeModal);
+  _tap('tmt-btn-single', () => openTimerModal('single'));
+  _tap('tmt-btn-multi',  () => openTimerModal('multi'));
+  _tap('tm-start', mode==='single' ? startTimer : startMultiTimer);
 }
 
 window.refreshTimerProj = cliId => {
@@ -4474,20 +4524,23 @@ window.removeMcClientRow = idx => {
 };
 
 function startTimer() {
+  closeMobileMenu();
   const clientId=document.getElementById('t-cli').value;
   const desEl=document.getElementById('t-des');
   const designerId=desEl?desEl.value:'';
   const projSel=document.getElementById('t-proj'), projTxt=document.getElementById('t-proj-text');
   const projectId=projSel?projSel.value:'', projectText=projTxt?projTxt.value.trim():'';
   const description=document.getElementById('t-desc').value.trim();
-  if(!clientId||(!projectId&&!projectText)){toast('Please select a client and project');return;}
+  if(!clientId){toast('Please select a client');return;}
   saveTimerData({running:true,startedAt:new Date().toISOString(),clientId,designerId,projectId,projectText,description});
+  blockModal();
   closeModal();
   startTimerDisplay();
   toast('Timer started');
 }
 
 function startMultiTimer() {
+  closeMobileMenu();
   const desEl=document.getElementById('t-des');
   const designerId=desEl?desEl.value:'';
   const rows=document.querySelectorAll('.mc-client-row');
@@ -4501,10 +4554,11 @@ function startMultiTimer() {
     const projectId=projSel?projSel.value:'';
     const projectText=projTxt?projTxt.value.trim():'';
     const description=document.getElementById('mc-desc-'+idx)?.value.trim()||'';
-    if(!clientId||(!projectId&&!projectText)){toast('Please select a client and project for every row');return;}
+    if(!clientId){toast('Please select a client for every row');return;}
     clients.push({clientId,projectId,projectText,description});
   }
   saveTimerData({running:true,mode:'multi',startedAt:new Date().toISOString(),designerId,clients});
+  blockModal();
   closeModal();
   startTimerDisplay();
   toast(clients.length+' timers started');

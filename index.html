@@ -568,6 +568,21 @@
       #sidebar.mobile-open { transform: translateX(0); }
       #mobile-hamburger { display: flex; }
 
+      /* Nav items — large full-width rectangles on mobile */
+      #sidebar-nav { padding: 6px 0; }
+      #sidebar-nav .nav-section { padding: 18px 18px 4px; font-size: 9px; }
+      #sidebar-nav a {
+        padding: 15px 20px; font-size: 16px; gap: 14px;
+        border-right: none; border-radius: 0; margin: 0;
+        border-left: 3px solid transparent;
+      }
+      #sidebar-nav a .icon { font-size: 18px; width: 22px; }
+      #sidebar-nav a.active {
+        background: rgba(196,168,122,0.18); color: #fff;
+        border-left-color: var(--accent); border-right: none;
+      }
+      #sidebar-nav a:active { background: rgba(255,255,255,0.08); }
+
       /* FAB visible on mobile */
       #mobile-fab-area { display: flex; }
 

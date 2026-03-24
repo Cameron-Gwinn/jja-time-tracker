@@ -563,10 +563,17 @@
       *, *::before, *::after { box-sizing: border-box; }
       html, body { overflow-x: hidden; width: 100%; }
 
-      /* Sidebar — slides in from left */
-      #sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 150; transform: translateX(-100%); transition: transform .25s cubic-bezier(.4,0,.2,1); box-shadow: 4px 0 24px rgba(0,0,0,0.35); }
+      /* Sidebar — slides in from left, wider on mobile */
+      #sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 285px; z-index: 150; transform: translateX(-100%); transition: transform .25s cubic-bezier(.4,0,.2,1); box-shadow: 4px 0 24px rgba(0,0,0,0.35); }
       #sidebar.mobile-open { transform: translateX(0); }
       #mobile-hamburger { display: flex; }
+
+      /* App switcher — large full-width rectangles instead of small pills */
+      #app-switcher { padding: 14px 12px 10px; gap: 7px; }
+      .app-pill {
+        padding: 13px 6px; font-size: 14px; font-weight: 700;
+        border-radius: 8px; letter-spacing: 0;
+      }
 
       /* Nav items — large full-width rectangles on mobile */
       #sidebar-nav { padding: 6px 0; }

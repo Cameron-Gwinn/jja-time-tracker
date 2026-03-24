@@ -2874,6 +2874,7 @@ const NAV_TIME = `
   <div class="nav-section">Overview</div>
   <a href="#dashboard"><span class="icon">◈</span> Dashboard</a>
   <div class="nav-section">Time</div>
+  <a href="#timers"><span class="icon">⏱</span> Active Timers</a>
   <a href="#designers"><span class="icon">✦</span> Designers</a>
   <a href="#hours"><span class="icon">◷</span> All Hours</a>
   <div class="nav-section">Work</div>
@@ -4260,10 +4261,20 @@ function mobileFabClick() {
 function renderMcTimerDashboard() {
   const t=loadTimer();
   const el=document.getElementById('app');
-  if(!t||!t.running){ render(); return; }
+  highlightNav();
+  if(!t||!t.running){
+    el.innerHTML=
+      '<div class="page-head"><div><h1>Active Timers</h1><div class="sub">No timers running</div></div></div>'+
+      '<div class="empty" style="margin-top:32px">'+
+      '<div class="e-icon">⏱</div>'+
+      '<p>No timers are running right now.</p>'+
+      '<button class="btn btn-gold" onclick="openTimerModal()">Start a Timer</button>'+
+      '</div>';
+    renderTrialBadge();
+    return;
+  }
   if(t.mode!=='multi') {
     // Single-client timer — show one card
-    highlightNav();
     const cl=getClientById(t.clientId);
     const proj=t.projectId?getProjectById(t.projectId):null;
     const projName=proj?.name||t.projectText||'';
@@ -4281,7 +4292,6 @@ function renderMcTimerDashboard() {
     renderTrialBadge();
     return;
   }
-  highlightNav();
   const elapsed=Date.now()-new Date(t.startedAt).getTime();
   const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
   const cards=t.clients.map((c,i)=>{
@@ -4373,8 +4383,6 @@ function stopTimerDisplay() {
 
 function openTimerModal(mode) {
   mode = mode || 'single';
-  const t=loadTimer();
-  if(t&&t.running){toast('A timer is already running — stop it first');return;}
   const clients=loadClients(), designers=loadDesigners();
   if(!clients.length){toast('Please add a client first');navigate('#clients');return;}
   const desSel=designers.map(d=>`<option value="${d.id}" ${d.id===_myDesignerId?'selected':''}>${esc(d.name)}</option>`).join('');

@@ -762,6 +762,10 @@
       align-items: center; justify-content: center; padding: 20px;
     }
     @keyframes auth-in { from { opacity:0; transform: translateY(14px); } to { opacity:1; transform: translateY(0); } }
+    @keyframes modal-out { from { opacity:1; transform:translateY(0) scale(1); } to { opacity:0; transform:translateY(22px) scale(0.97); } }
+    .modal-launching { animation: modal-out 0.22s ease forwards; pointer-events:none; }
+    @keyframes mc-card-in { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+    .mc-timer-card { animation: mc-card-in 0.38s cubic-bezier(0.22,1,0.36,1) both; }
     .auth-card {
       background: var(--card); border: 1px solid var(--border);
       border-radius: 12px; padding: 40px 36px;
@@ -4211,14 +4215,14 @@ window.addEventListener('hashchange',render);
 /* ══════════════════════════════════════════════════════
    TIMER
 ══════════════════════════════════════════════════════ */
-const loadTimer     = () => load('tt_timer', null);
+const timerKey      = () => `tt_timer_${_currentUser?.id||'anon'}`;
+const loadTimer     = () => load(timerKey(), null);
 const saveTimerData = t => {
-  store('tt_timer', t);
+  const k=timerKey(); store(k, t);
   if(_sb && _currentUser)(async()=>{ try{ await _sb.from('user_timers').upsert({user_id:_currentUser.id,timer_data:t,updated_at:new Date().toISOString()}); }catch(e){} })();
 };
 const clearTimerData = () => {
-  localStorage.removeItem('tt_timer');
-  delete _cache['tt_timer'];
+  const k=timerKey(); localStorage.removeItem(k); delete _cache[k];
   if(_sb && _currentUser)(async()=>{ try{ await _sb.from('user_timers').delete().eq('user_id',_currentUser.id); }catch(e){} })();
 };
 let _timerInterval = null;
@@ -4259,7 +4263,7 @@ function renderMcTimerDashboard() {
     const stopOrSaved=isStopped
       ?'<div class="mc-timer-saved-badge">\u2713 Saved \u2014 '+msToHours(ms)+'h</div>'
       :'<button class="mc-timer-card-stop" onclick="stopOneClientTimer('+i+')">\u25a0 Stop &amp; Save</button>';
-    return '<div class="mc-timer-card'+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'">'+
+    return '<div class="mc-timer-card'+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'" style="animation-delay:'+(i*0.07)+'s">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
       (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
       (c.description?'<div class="mc-timer-card-desc">'+esc(c.description)+'</div>':'')+
@@ -4440,9 +4444,11 @@ function startTimer() {
   const description=document.getElementById('t-desc').value.trim();
   if(!clientId||(!projectId&&!projectText)){toast('Please select a client and project');return;}
   saveTimerData({running:true,startedAt:new Date().toISOString(),clientId,designerId,projectId,projectText,description});
-  closeModal();
-  startTimerDisplay();
-  toast('Timer started');
+  const startBtn=document.querySelector('.overlay .btn-gold[onclick*="startTimer()"]');
+  if(startBtn){ startBtn.classList.add('btn-loading'); startBtn.textContent='Starting\u2026'; }
+  const modal=document.querySelector('.modal');
+  if(modal) modal.classList.add('modal-launching');
+  setTimeout(()=>{ closeModal(); startTimerDisplay(); toast('Timer started'); }, 230);
 }
 
 function startMultiTimer() {
@@ -4463,9 +4469,12 @@ function startMultiTimer() {
     clients.push({clientId,projectId,projectText,description});
   }
   saveTimerData({running:true,mode:'multi',startedAt:new Date().toISOString(),designerId,clients});
-  closeModal();
-  startTimerDisplay();
-  toast('Multi-client timer started \u2014 '+clients.length+' clients');
+  // Animate button → modal exit → navigate
+  const startBtn=document.querySelector('.overlay .btn-gold[onclick*="startMultiTimer"]');
+  if(startBtn){ startBtn.classList.add('btn-loading'); startBtn.textContent='Starting\u2026'; }
+  const modal=document.querySelector('.modal');
+  if(modal) modal.classList.add('modal-launching');
+  setTimeout(()=>{ closeModal(); startTimerDisplay(); toast(clients.length+' timers started'); }, 230);
 }
 
 function stopTimer() {

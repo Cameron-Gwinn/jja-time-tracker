@@ -224,7 +224,8 @@
     .btn-dark    { background: #1A1916; color: #E8E3D8; }
     .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--text2); }
     .btn-ghost:hover { color: var(--text); border-color: var(--text2); opacity: 1; }
-    .btn-danger  { background: var(--danger-bg); color: var(--danger); border: 1px solid #E8C8C8; }
+    .btn-danger  { background: #7A2020; color: #fff; border: 1px solid #5C1515; }
+    .btn-danger:hover { background: #5C1515; opacity: 1; }
     .btn-sm      { padding: 4px 10px; font-size: 12px; }
 
     /* Forms */
@@ -327,9 +328,11 @@
     .designer-card-hd .dname { font-family: Georgia, serif; font-size: 17px; }
     .designer-card-hd .dmeta { font-size: 12px; color: var(--text2); margin-top: 2px; }
     .designer-card-hd .dright { display: flex; gap: 10px; align-items: center; }
+    .dstats-group { display: flex; gap: 10px; align-items: center; }
     .designer-card-hd .dstats { text-align: right; margin-right: 10px; }
     .designer-card-hd .dstats .big { font-family: Georgia, serif; font-size: 19px; color: var(--accent-dk); }
     .designer-card-hd .dstats .sm  { font-size: 10.5px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+    .card-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .designer-hours { border-top: 1px solid var(--border); }
 
     /* Project card */
@@ -687,13 +690,17 @@
 
       /* Designer cards — stack on mobile */
       .designer-card-hd { flex-direction: column; align-items: flex-start; gap: 10px; }
-      .designer-card-hd .dright { flex-wrap: wrap; width: 100%; gap: 8px; }
-      .designer-card-hd .dstats { margin-right: 4px; }
+      .designer-card-hd .dright { flex-direction: column; width: 100%; gap: 10px; align-items: flex-start; }
+      .dstats-group { flex-wrap: wrap; gap: 12px; }
+      .designer-card-hd .dstats { text-align: left; margin-right: 0; }
 
       /* Project cards — stack on mobile */
       .proj-card-hd { flex-direction: column; align-items: flex-start; gap: 10px; }
       .proj-card-right { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; width: 100%; }
       .flex-gap { flex-wrap: wrap; }
+
+      /* Consistent action button row across all cards */
+      .card-actions { width: 100%; justify-content: flex-start; }
 
       /* Entries table actions — allow wrap on mobile */
       .td-actions { white-space: normal !important; display: flex !important; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
@@ -1665,12 +1672,16 @@ function renderDesigners(){
       <div class="designer-card-hd">
         <div><div class="dname">${esc(d.name)}</div><div class="dmeta">${cur(d.hourlyRate)}/hr</div></div>
         <div class="dright">
-          <div class="dstats"><div class="big">${totH.toFixed(1)}h</div><div class="sm">total</div></div>
-          <div class="dstats"><div class="big">${unbH.toFixed(1)}h</div><div class="sm">unbilled</div></div>
-          <div class="dstats"><div class="big">${cur(totA)}</div><div class="sm">all time</div></div>
-          <button class="btn btn-ghost btn-sm" onclick="openDesignerModal('${d.id}')">Edit</button>
-          <button class="btn btn-danger btn-sm" onclick="confirmDelDesigner('${d.id}')">Delete</button>
-          <button class="btn btn-ghost btn-sm" onclick="toggleDesignerHours('${d.id}')">View Hours</button>
+          <div class="dstats-group">
+            <div class="dstats"><div class="big">${totH.toFixed(1)}h</div><div class="sm">total</div></div>
+            <div class="dstats"><div class="big">${unbH.toFixed(1)}h</div><div class="sm">unbilled</div></div>
+            <div class="dstats"><div class="big">${cur(totA)}</div><div class="sm">all time</div></div>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-ghost btn-sm" onclick="openDesignerModal('${d.id}')">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="confirmDelDesigner('${d.id}')">Delete</button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleDesignerHours('${d.id}')">View Hours</button>
+          </div>
         </div>
       </div>
       <div class="designer-hours" id="dh-${d.id}" style="display:none">
@@ -1731,7 +1742,7 @@ function projCardHtml(p, c, entries) {
             <div class="toggle-thumb"></div>
           </label>
         </div>
-        <div class="flex-gap">
+        <div class="flex-gap card-actions">
           <button class="btn btn-ghost btn-sm" onclick="openProjectModal('${p.id}')">Edit</button>
           <button class="btn btn-danger btn-sm" onclick="confirmDelProject('${p.id}')">Delete</button>
           ${!done?`<button class="btn btn-ghost btn-sm" onclick="navigate('#hours');setTimeout(()=>applyHoursProjectFilter('${p.id}'),100)">View Hours</button>`:''}
@@ -1912,7 +1923,7 @@ function renderClients(){
           <span class="col2 fs12">${totH.toFixed(1)} hrs · ${cur(totA)} total</span>
         </div>
       </div>
-      <div class="flex-gap">
+      <div class="flex-gap card-actions">
         <button class="btn btn-ghost btn-sm" onclick="openClientModal('${c.id}')">Edit</button>
         <button class="btn btn-danger btn-sm" onclick="confirmDelClient('${c.id}')">Delete</button>
       </div>

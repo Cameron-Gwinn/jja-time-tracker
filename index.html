@@ -393,6 +393,7 @@
     .danger-zone h3 { font-family: inherit; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--danger); margin-bottom: 10px; }
     .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
     .flex-gap { display: flex; gap: 10px; flex-wrap: wrap; }
+    .td-actions { white-space: nowrap; }
     .ml-auto { margin-left: auto; }
     .fw7 { font-weight: 700; }
     .fs12 { font-size: 12px; }
@@ -681,8 +682,21 @@
       .inv-card-hd .inv-right { text-align: left; width: 100%; }
       .exp-inv-card-hd { flex-direction: column; align-items: flex-start; }
       .exp-inv-card-right { align-items: flex-start; width: 100%; margin-top: 8px; }
-      .inv-actions { gap: 6px; }
+      .inv-actions { gap: 6px; flex-wrap: wrap; }
       .inv-actions .btn { font-size: 12px; padding: 6px 10px; }
+
+      /* Designer cards — stack on mobile */
+      .designer-card-hd { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .designer-card-hd .dright { flex-wrap: wrap; width: 100%; gap: 8px; }
+      .designer-card-hd .dstats { margin-right: 4px; }
+
+      /* Project cards — stack on mobile */
+      .proj-card-hd { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .proj-card-right { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; width: 100%; }
+      .flex-gap { flex-wrap: wrap; }
+
+      /* Entries table actions — allow wrap on mobile */
+      .td-actions { white-space: normal !important; display: flex !important; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 
       /* Analytics tabs */
       .analytics-tabs { flex-wrap: wrap; gap: 6px; }
@@ -1535,7 +1549,7 @@ function entriesTableHtml(entries,{showDesigner=true,showClient=false,showProjec
     const inv=isInvoiced(e);
     const badge=inv?'<span class="badge badge-invoiced">Invoiced</span>':'<span class="badge badge-unbilled">Unbilled</span>';
     const recurBadge=e.recurring?`<span class="badge-recurring">↻ ${e.recurring}</span> `:'';
-    const actions=showActions?`<td style="white-space:nowrap">
+    const actions=showActions?`<td class="td-actions">
       <button class="btn btn-ghost btn-sm" onclick="openEntryModal('${e.id}')">Edit</button>
       ${e.recurring?`<button class="btn btn-ghost btn-sm" onclick="logAgain('${e.id}')" title="Log again today">↻</button>`:''}
       <button class="btn btn-danger btn-sm" onclick="confirmDelEntry('${e.id}')">Del</button></td>`:'';
@@ -1704,7 +1718,7 @@ function projCardHtml(p, c, entries) {
           <span class="col2 fs12">${esc(c.name)}</span>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:16px">
+      <div class="proj-card-right" style="display:flex;align-items:center;gap:16px">
         <div class="proj-stats">
           <span>${totH.toFixed(1)} hrs &nbsp;·&nbsp; <strong>${cur(totA)}</strong></span>
           ${!done&&unbH>0?`<span class="badge badge-unbilled" style="margin-left:6px">Unbilled</span>`:''}

@@ -1,0 +1,82 @@
+# ─────────────────────────────────────────────
+#  JJ&A Time Tracker — Apache Security Config
+# ─────────────────────────────────────────────
+
+# ── Force HTTPS ───────────────────────────────
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# ── Security Headers ──────────────────────────
+<IfModule mod_headers.c>
+    # Prevent clickjacking
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # Prevent MIME-type sniffing
+    Header always set X-Content-Type-Options "nosniff"
+
+    # XSS protection (legacy browsers)
+    Header always set X-XSS-Protection "1; mode=block"
+
+    # Referrer policy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Disable browser features not used by this app
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+
+    # HTTPS-only for 1 year (enable after confirming HTTPS works)
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+    # Content Security Policy
+    # unsafe-inline required because app uses inline scripts/event handlers
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: *.supabase.co; connect-src 'self' *.supabase.co wss://*.supabase.co https://buy.stripe.com; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
+
+    # Remove server fingerprint headers
+    Header always unset X-Powered-By
+    Header always unset Server
+</IfModule>
+
+# ── Block directory listings ──────────────────
+Options -Indexes
+
+# ── Block access to sensitive files ──────────
+<FilesMatch "(^\.htaccess|^\.env|^\.git|package\.json|package-lock\.json|netlify\.toml|app\.js)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "\.(env|log|sh|bak|sql|conf|ini|swp|orig)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# ── Block hidden files/directories ───────────
+<IfModule mod_rewrite.c>
+    RewriteRule "(^|/)\." - [F]
+</IfModule>
+
+# ── Rate limiting (if mod_ratelimit available) ─
+<IfModule mod_ratelimit.c>
+    SetOutputFilter RATE_LIMIT
+    SetEnv rate-limit 600
+</IfModule>
+
+# ── Limit request size (prevent large payloads) ─
+LimitRequestBody 10485760
+
+# ── Disable HTTP methods not needed ──────────
+<LimitExcept GET POST HEAD>
+    Order allow,deny
+    Deny from all
+</LimitExcept>
+
+# ── Cache static assets ───────────────────────
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+</IfModule>

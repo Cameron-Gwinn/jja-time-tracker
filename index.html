@@ -4,12 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>JJ&A Time Tracker</title>
+  <!-- Security meta tags -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=(), payment=()">
+  <!-- CDN scripts (duplicate Supabase import removed) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg:           #F9F8F5;
@@ -2990,6 +2994,21 @@ function showAuthTab(tab) {
   document.getElementById('tab-signin').classList.toggle('active', tab==='signin');
   document.getElementById('tab-signup').classList.toggle('active', tab==='signup');
 }
+/* ── Auth rate limiting ─────────────────────────────── */
+const _AUTH_MAX = 5, _AUTH_LOCKOUT_MS = 15 * 60 * 1000;
+function _authAttempts() { try { return JSON.parse(sessionStorage.getItem('_tt_auth')||'{}'); } catch { return {}; } }
+function _authLocked() {
+  const d=_authAttempts();
+  if(d.until && Date.now()<d.until) return Math.ceil((d.until-Date.now())/60000);
+  return 0;
+}
+function _authFail() {
+  const d=_authAttempts(); d.n=(d.n||0)+1;
+  if(d.n>=_AUTH_MAX) d.until=Date.now()+_AUTH_LOCKOUT_MS;
+  sessionStorage.setItem('_tt_auth',JSON.stringify(d));
+}
+function _authOk() { sessionStorage.removeItem('_tt_auth'); }
+
 async function handleSignIn() {
   const email    = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
@@ -2997,12 +3016,15 @@ async function handleSignIn() {
   const btn      = document.querySelector('#auth-pane-signin .auth-submit');
   const remember = document.getElementById('auth-remember')?.checked;
   errEl.style.display = 'none';
+  const locked = _authLocked();
+  if(locked){ errEl.textContent=`Too many failed attempts. Try again in ${locked} minute${locked===1?'':'s'}.`; errEl.style.display=''; return; }
   if(!email||!password){ errEl.textContent='Please enter your email and password.'; errEl.style.display=''; return; }
   const origText = btn.textContent;
   btn.classList.add('btn-loading'); btn.textContent = 'Signing in\u2026';
   const { error } = await _sb.auth.signInWithPassword({ email, password });
   btn.classList.remove('btn-loading'); btn.textContent = origText;
-  if(error){ errEl.textContent=error.message; errEl.style.display=''; return; }
+  if(error){ _authFail(); errEl.textContent=error.message; errEl.style.display=''; return; }
+  _authOk();
   if(remember) localStorage.setItem('tt_remembered_email', email);
   else localStorage.removeItem('tt_remembered_email');
 }
@@ -3013,7 +3035,7 @@ async function handleSignUp() {
   const errEl    = document.getElementById('auth-err-su');
   errEl.style.display = 'none';
   if(!name||!email||!password){ errEl.textContent='Please fill in all fields.'; errEl.style.display=''; return; }
-  if(password.length<6){ errEl.textContent='Password must be at least 6 characters.'; errEl.style.display=''; return; }
+  if(password.length<8){ errEl.textContent='Password must be at least 8 characters.'; errEl.style.display=''; return; }
   const { error } = await _sb.auth.signUp({ email, password, options:{ data:{ full_name:name } } });
   if(error){ errEl.textContent=error.message; errEl.style.display=''; return; }
   document.getElementById('auth-pane-signup').style.display  = 'none';

@@ -105,27 +105,28 @@
 
     /* Timer mode toggle (Single / Multi-Client) */
     .timer-mode-toggle { display:flex; border:1px solid var(--border); border-radius:var(--radius); padding:3px; margin-bottom:20px; }
-    .tmt-btn { flex:1; padding:6px; border:none; background:transparent; border-radius:5px; font-size:12.5px; cursor:pointer; color:var(--text2); transition:all .15s; }
+    .tmt-btn { flex:1; padding:8px; border:none; background:transparent; border-radius:5px; font-size:13px; cursor:pointer; color:var(--text2); transition:all .15s; -webkit-tap-highlight-color:transparent; }
     .tmt-btn.active { background:var(--accent); color:var(--sidebar); font-weight:600; }
-    /* Multi-client modal rows */
-    .mc-client-rows { display:flex; flex-direction:column; gap:8px; margin-bottom:6px; }
-    .mc-client-row { display:flex; gap:7px; align-items:flex-start; }
-    .mc-row-fields { flex:1; display:flex; flex-direction:column; gap:5px; }
-    .mc-remove-btn { background:transparent; border:1px solid var(--border); color:var(--text2); border-radius:var(--radius); padding:4px 8px; cursor:pointer; font-size:13px; flex-shrink:0; margin-top:2px; transition:all .12s; }
-    .mc-remove-btn:hover { color:var(--danger); border-color:var(--danger); background:var(--danger-bg); }
-    .btn-add-client { background:transparent; border:1px dashed var(--border); color:var(--text2); width:100%; padding:7px; border-radius:var(--radius); cursor:pointer; font-size:12.5px; transition:all .15s; }
+    /* Multi-client modal rows — card style */
+    .mc-client-rows { display:flex; flex-direction:column; gap:10px; margin-bottom:8px; }
+    .mc-client-row { position:relative; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 12px 10px; }
+    .mc-row-fields { display:flex; flex-direction:column; gap:8px; }
+    .mc-remove-btn { position:absolute; top:8px; right:8px; background:transparent; border:none; color:var(--text2); font-size:17px; cursor:pointer; padding:4px 6px; line-height:1; border-radius:4px; transition:color .12s; -webkit-tap-highlight-color:transparent; }
+    .mc-remove-btn:hover { color:var(--danger); }
+    .mc-client-num { font-size:10px; font-weight:700; color:var(--accent-dk); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:4px; }
+    .btn-add-client { background:transparent; border:1px dashed var(--border); color:var(--text2); width:100%; padding:10px; border-radius:var(--radius); cursor:pointer; font-size:13px; transition:all .15s; -webkit-tap-highlight-color:transparent; }
     .btn-add-client:hover { border-color:var(--accent); color:var(--accent-dk); }
     /* Multi-client sidebar live list */
     .mc-sb-list { display:flex; flex-direction:column; gap:5px; margin:6px 0 10px; }
-    .mc-sb-item { display:flex; align-items:center; gap:6px; font-size:11px; }
-    .mc-sb-name { flex:1; color:rgba(255,255,255,0.55); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .mc-sb-name.saved { opacity:0.38; text-decoration:line-through; }
-    .mc-sb-stop { background:transparent; border:1px solid rgba(255,255,255,0.13); color:rgba(255,255,255,0.4); border-radius:4px; padding:1px 5px; font-size:10px; cursor:pointer; flex-shrink:0; line-height:1.5; transition:all .12s; }
-    .mc-sb-stop:hover { border-color:rgba(224,92,92,0.6); color:#E05C5C; }
+    .mc-sb-item { display:flex; align-items:center; gap:8px; }
+    .mc-sb-name { flex:1; font-size:12px; color:rgba(255,255,255,0.65); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .mc-sb-name.saved { opacity:0.35; text-decoration:line-through; }
+    .mc-sb-stop { background:transparent; border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.45); border-radius:5px; padding:4px 9px; font-size:11px; cursor:pointer; flex-shrink:0; line-height:1.4; transition:all .12s; -webkit-tap-highlight-color:transparent; }
+    .mc-sb-stop:hover, .mc-sb-stop:active { border-color:rgba(224,92,92,0.7); color:#E05C5C; }
     /* Multi-client review modal */
     .mc-review-rows { display:flex; flex-direction:column; gap:10px; }
-    .mc-review-client { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:11px 13px; }
-    .mc-review-client-name { font-size:12px; font-weight:600; color:var(--accent-dk); margin-bottom:9px; }
+    .mc-review-client { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
+    .mc-review-client-name { font-size:12px; font-weight:700; color:var(--accent-dk); margin-bottom:10px; letter-spacing:0.3px; text-transform:uppercase; }
 
     /* Timer review modal banner */
     .timer-banner {
@@ -4324,8 +4325,6 @@ function openTimerModal(mode) {
       '<div class="modal-hd"><h2>Start Timer</h2><button class="modal-x" onclick="closeModal()">×</button></div>'+
       modeTabs+
       designerRow+
-      '<div class="form-group"><label class="field-label">What are you working on?</label>'+
-      '<textarea id="t-desc" placeholder="e.g. Shopping for kitchen materials\u2026" style="min-height:56px"></textarea></div>'+
       '<div class="form-group"><label class="field-label">Clients to Bill</label>'+
       '<div id="mc-client-rows" class="mc-client-rows">'+row0+row1+'</div>'+
       '<button class="btn-add-client" onclick="addMcClientRow()">+ Add Another Client</button></div>'+
@@ -4352,11 +4351,14 @@ function buildMcClientRow(clients, idx) {
     :'<input type="text" id="mc-proj-text-'+idx+'" placeholder="Project name">';
   const clientOpts=clients.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
   const removeBtn=idx>0?'<button class="mc-remove-btn" onclick="removeMcClientRow('+idx+')" title="Remove">&#x2715;</button>':'';
+  const label='<div class="mc-client-num">Client '+(idx+1)+'</div>';
   return '<div class="mc-client-row" id="mc-row-'+idx+'" data-idx="'+idx+'">'+
+    removeBtn+label+
     '<div class="mc-row-fields">'+
     '<select id="mc-cli-'+idx+'" onchange="refreshMcProj('+idx+',this.value)">'+clientOpts+'</select>'+
     '<div id="mc-proj-wrap-'+idx+'">'+projContent+'</div>'+
-    '</div>'+removeBtn+'</div>';
+    '<textarea id="mc-desc-'+idx+'" placeholder="What are you working on for this client\u2026" style="min-height:52px;resize:vertical"></textarea>'+
+    '</div></div>';
 }
 window.refreshMcProj = (idx, cliId) => {
   const projs=getProjectsByClient(cliId);
@@ -4396,7 +4398,6 @@ function startTimer() {
 function startMultiTimer() {
   const desEl=document.getElementById('t-des');
   const designerId=desEl?desEl.value:'';
-  const description=document.getElementById('t-desc').value.trim();
   const rows=document.querySelectorAll('.mc-client-row');
   if(rows.length<2){toast('Add at least 2 clients');return;}
   const clients=[];
@@ -4407,10 +4408,11 @@ function startMultiTimer() {
     const projTxt=document.getElementById('mc-proj-text-'+idx);
     const projectId=projSel?projSel.value:'';
     const projectText=projTxt?projTxt.value.trim():'';
+    const description=document.getElementById('mc-desc-'+idx)?.value.trim()||'';
     if(!clientId||(!projectId&&!projectText)){toast('Please select a client and project for every row');return;}
-    clients.push({clientId,projectId,projectText});
+    clients.push({clientId,projectId,projectText,description});
   }
-  saveTimerData({running:true,mode:'multi',startedAt:new Date().toISOString(),designerId,description,clients});
+  saveTimerData({running:true,mode:'multi',startedAt:new Date().toISOString(),designerId,clients});
   closeModal();
   startTimerDisplay();
   toast('Multi-client timer started \u2014 '+clients.length+' clients');
@@ -4562,11 +4564,14 @@ function showMultiTimerReview(t, elapsed, unsaved) {
       :'<input type="text" id="mtr-proj-text-'+i+'" value="'+esc(c.projectText||'')+'" placeholder="Project name">';
     return '<div class="mc-review-client" data-idx="'+i+'" data-client-id="'+c.clientId+'">'+
       '<div class="mc-review-client-name">'+esc(cl?.name||'Unknown Client')+'</div>'+
-      '<div class="form-row" style="margin-bottom:0">'+
+      '<div class="form-row" style="margin-bottom:8px">'+
       '<div class="form-group"><label class="field-label">Hours</label>'+
       '<input type="number" id="mtr-hrs-'+i+'" step="0.25" min="0.25" value="'+hours+'"></div>'+
       '<div class="form-group" style="flex:2"><label class="field-label">Project</label>'+
-      projContent+'</div></div></div>';
+      projContent+'</div></div>'+
+      '<div class="form-group" style="margin-bottom:0"><label class="field-label">Description</label>'+
+      '<textarea id="mtr-desc-'+i+'" style="min-height:48px">'+esc(c.description||'')+'</textarea></div>'+
+      '</div>';
   }).join('');
   showModal(
     '<div class="modal-hd"><h2>Review Entries</h2><button class="modal-x" onclick="discardTimerEntry()">&#x00D7;</button></div>'+
@@ -4578,8 +4583,6 @@ function showMultiTimerReview(t, elapsed, unsaved) {
     '<div class="form-row"><div class="form-group"><label class="field-label">Date</label>'+
     '<input type="date" id="mtr-date" value="'+todayStr()+'"></div></div>'+
     designerRow+
-    '<div class="form-group"><label class="field-label">Description</label>'+
-    '<textarea id="mtr-desc">'+esc(t.description||'')+'</textarea></div>'+
     '<div class="mc-review-rows">'+clientRows+'</div>'+
     '<div class="form-actions" style="margin-top:16px">'+
     '<button class="btn btn-danger" onclick="discardTimerEntry()">Discard</button>'+
@@ -4591,8 +4594,7 @@ function saveMultiTimerEntries() {
   const date=document.getElementById('mtr-date').value;
   const desEl=document.getElementById('mtr-des');
   const designerId=desEl?desEl.value:'';
-  const description=document.getElementById('mtr-desc').value.trim();
-  if(!date||!description){toast('Please fill in date and description');return;}
+  if(!date){toast('Please set a date');return;}
   const rows=document.querySelectorAll('.mc-review-client');
   let saved=0;
   for(const row of rows){
@@ -4603,6 +4605,7 @@ function saveMultiTimerEntries() {
     const projTxt=document.getElementById('mtr-proj-text-'+i);
     const projectId=projSel?projSel.value:'';
     const projectText=projTxt?projTxt.value.trim():'';
+    const description=document.getElementById('mtr-desc-'+i)?.value.trim()||'';
     if(!clientId||isNaN(hours)||hours<=0) continue;
     addEntry({date,hours,clientId,designerId,projectId,projectText,description});
     saved++;

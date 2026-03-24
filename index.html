@@ -568,7 +568,7 @@
       #toast { bottom: 96px; right: 20px; }
 
       /* Top bar background — prevents content scrolling visibly under hamburger */
-      body::before { content:''; position:fixed; top:0; left:0; right:0; height:66px; background:var(--bg); z-index:200; pointer-events:none; }
+      body::before { content:''; position:fixed; top:-200px; left:0; right:0; height:calc(66px + 200px + env(safe-area-inset-top, 0px)); background:var(--bg); z-index:200; pointer-events:none; }
 
       /* Main content — full width, space for hamburger + FAB clearance */
       #main { margin-left: 0 !important; padding: 74px 14px 96px !important; width: 100%; min-width: 0; }

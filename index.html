@@ -351,6 +351,8 @@
     .inv-card-hd .inv-amt   { font-family: Georgia, serif; font-size: 18px; color: var(--accent-dk); }
     .inv-card-hd .inv-meta  { font-size: 12px; color: var(--text2); margin-top: 2px; }
     .inv-detail { padding: 0; }
+    .inv-badges { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+    .inv-actions { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
 
     /* Analytics */
     .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
@@ -673,6 +675,14 @@
       /* Modals — bottom sheet on mobile */
       .overlay { align-items: flex-end; padding: 0; }
       .modal { width: 100% !important; max-width: 100% !important; border-radius: 16px 16px 0 0; max-height: 88vh; padding: 20px 16px 32px; margin: 0; overflow-x: hidden !important; touch-action: pan-y !important; }
+
+      /* Invoice cards — stack vertically on mobile */
+      .inv-card-hd { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .inv-card-hd .inv-right { text-align: left; width: 100%; }
+      .exp-inv-card-hd { flex-direction: column; align-items: flex-start; }
+      .exp-inv-card-right { align-items: flex-start; width: 100%; margin-top: 8px; }
+      .inv-actions { gap: 6px; }
+      .inv-actions .btn { font-size: 12px; padding: 6px 10px; }
 
       /* Analytics tabs */
       .analytics-tabs { flex-wrap: wrap; gap: 6px; }
@@ -1928,14 +1938,18 @@ function renderInvoices(){
           <div class="inv-right">
             <div class="inv-amt">${cur(inv.totalAmount)}</div>
             <div class="inv-meta">${inv.totalHours.toFixed(1)} hrs · Generated ${fmtDate(inv.generatedAt.split('T')[0])}</div>
-            <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
+            <div class="inv-badges">
               <span class="badge badge-invoiced" style="font-size:10px">Invoiced</span>
               ${isPaid?`<span class="badge-paid">✓ Paid ${inv.paidAt?fmtDate(inv.paidAt.split('T')[0]):''}</span>`:`<span class="badge-unpaid">Unpaid</span>`}
+            </div>
+            <div class="inv-actions">
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();${isPaid?`markInvoicePaid('${inv.id}',false)`:`markInvoicePaid('${inv.id}',true)`}">${isPaid?'↩ Unpaid':'💵 Mark Paid'}</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();emailInvoice('${inv.id}')">✉ Email</button>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewTimePDF('${inv.id}')">👁 Preview PDF</button>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();redownloadTimePDF('${inv.id}')">⬇ Download PDF</button>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();exportTimeInvQBO('${inv.id}')" title="Export for QuickBooks Online import">QB Export</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewTimePDF('${inv.id}')">👁 Preview</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();redownloadTimePDF('${inv.id}')">⬇ PDF</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();exportTimeInvQBO('${inv.id}')">QB</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editInvoice('${inv.id}')">Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteInvoice('${inv.id}')">Delete</button>
             </div>
           </div>
         </div>
@@ -2872,6 +2886,81 @@ function markExpInvoicePaid(invId, paid=true) {
   renderExpInvoices();
 }
 
+function deleteInvoice(invId) {
+  if(!confirm('Delete this invoice? This cannot be undone.')) return;
+  saveInvoices(loadInvoices().filter(i=>i.id!==invId));
+  toast('Invoice deleted');
+  renderInvoices();
+}
+function deleteExpInvoice(invId) {
+  if(!confirm('Delete this expense invoice? This cannot be undone.')) return;
+  saveExpInvoices(loadExpInvoices().filter(i=>i.id!==invId));
+  toast('Expense invoice deleted');
+  renderExpInvoices();
+}
+
+function editInvoice(invId) {
+  const inv=loadInvoices().find(i=>i.id===invId);
+  if(!inv) return;
+  showModal(`
+    <div class="modal-hd"><h2>Edit Invoice</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="form-group"><label class="field-label">Invoice Number</label>
+      <input type="text" id="ei-num" value="${esc(inv.invoiceNumber)}"></div>
+    <div class="form-group"><label class="field-label">Paid Date (leave blank if unpaid)</label>
+      <input type="date" id="ei-paid" value="${inv.paidAt?inv.paidAt.split('T')[0]:''}"></div>
+    <div class="form-group"><label class="field-label">Notes</label>
+      <textarea id="ei-notes" rows="2" style="width:100%">${esc(inv.notes||'')}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn btn-gold" style="flex:1" onclick="saveEditInvoice('${invId}')">Save</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+function saveEditInvoice(invId) {
+  const invs=loadInvoices();
+  const inv=invs.find(i=>i.id===invId);
+  if(!inv) return;
+  inv.invoiceNumber=document.getElementById('ei-num').value.trim()||inv.invoiceNumber;
+  const paidDate=document.getElementById('ei-paid').value;
+  inv.paid=!!paidDate;
+  inv.paidAt=paidDate?new Date(paidDate).toISOString():null;
+  inv.notes=document.getElementById('ei-notes').value.trim();
+  saveInvoices(invs);
+  closeModal();
+  toast('Invoice updated');
+  renderInvoices();
+}
+
+function editExpInvoice(invId) {
+  const inv=loadExpInvoices().find(i=>i.id===invId);
+  if(!inv) return;
+  showModal(`
+    <div class="modal-hd"><h2>Edit Expense Invoice</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="form-group"><label class="field-label">Invoice Number</label>
+      <input type="text" id="eei-num" value="${esc(inv.invoiceNumber)}"></div>
+    <div class="form-group"><label class="field-label">Paid Date (leave blank if unpaid)</label>
+      <input type="date" id="eei-paid" value="${inv.paidAt?inv.paidAt.split('T')[0]:''}"></div>
+    <div class="form-group"><label class="field-label">Notes</label>
+      <textarea id="eei-notes" rows="2" style="width:100%">${esc(inv.notes||'')}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn btn-gold" style="flex:1" onclick="saveEditExpInvoice('${invId}')">Save</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+function saveEditExpInvoice(invId) {
+  const invs=loadExpInvoices();
+  const inv=invs.find(i=>i.id===invId);
+  if(!inv) return;
+  inv.invoiceNumber=document.getElementById('eei-num').value.trim()||inv.invoiceNumber;
+  const paidDate=document.getElementById('eei-paid').value;
+  inv.paid=!!paidDate;
+  inv.paidAt=paidDate?new Date(paidDate).toISOString():null;
+  inv.notes=document.getElementById('eei-notes').value.trim();
+  saveExpInvoices(invs);
+  closeModal();
+  toast('Expense invoice updated');
+  renderExpInvoices();
+}
+
 /* ══════════════════════════════════════════════════════
    EMAIL INVOICE
 ══════════════════════════════════════════════════════ */
@@ -3794,17 +3883,19 @@ function renderExpInvoices() {
           </div>
           <div class="exp-inv-card-right">
             <div class="inv-amt">${cur(inv.clientTotal)}</div>
-            <div class="exp-inv-status-row">
+            <div class="inv-badges">
               ${inv.paid
                 ?`<span class="badge-paid">✓ Paid${inv.paidAt?` ${fmtDate(inv.paidAt.split('T')[0])}`:''}</span>`
                 :`<span class="badge-unpaid">Unpaid</span>`}
+            </div>
+            <div class="inv-actions">
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();${inv.paid?`markExpInvoicePaid('${inv.id}',false)`:`markExpInvoicePaid('${inv.id}',true)`}">${inv.paid?'↩ Unpaid':'💵 Mark Paid'}</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();emailExpInvoice('${inv.id}')">✉ Email</button>
-            </div>
-            <div class="exp-inv-action-row">
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewInternalExpInv('${inv.id}')">👁 Preview Invoice</button>
-              <button class="btn btn-dark btn-sm" onclick="event.stopPropagation();downloadClientExpPDF('${inv.id}')">⬇ Client Invoice</button>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();exportExpInvQBO('${inv.id}')" title="Export for QuickBooks Online import">QB Export</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewInternalExpInv('${inv.id}')">👁 Preview</button>
+              <button class="btn btn-dark btn-sm" onclick="event.stopPropagation();downloadClientExpPDF('${inv.id}')">⬇ PDF</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();exportExpInvQBO('${inv.id}')">QB</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editExpInvoice('${inv.id}')">Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteExpInvoice('${inv.id}')">Delete</button>
             </div>
           </div>
         </div>

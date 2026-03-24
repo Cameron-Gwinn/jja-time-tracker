@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#2A2620"/>
+      <stop offset="100%" stop-color="#0F0E0C"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#D4B882"/>
+      <stop offset="100%" stop-color="#A8884A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="114" fill="url(#bg)"/>
+
+  <!-- Top gold accent bar -->
+  <rect x="80" y="72" width="352" height="3" rx="2" fill="url(#gold)" opacity="0.7"/>
+
+  <!-- JJ&A monogram -->
+  <text
+    x="256" y="255"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="162"
+    font-weight="400"
+    fill="url(#gold)"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    letter-spacing="-4">JJ&amp;A</text>
+
+  <!-- Bottom label -->
+  <text
+    x="256" y="358"
+    font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif"
+    font-size="36"
+    font-weight="600"
+    fill="#8A7A5E"
+    text-anchor="middle"
+    letter-spacing="7">TIME</text>
+
+  <!-- Bottom gold accent bar -->
+  <rect x="80" y="437" width="352" height="3" rx="2" fill="url(#gold)" opacity="0.7"/>
+</svg>

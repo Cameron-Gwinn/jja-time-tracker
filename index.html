@@ -4952,7 +4952,7 @@ window.discardOneTimerReview = idx => {
           card.remove();
           _animatingCards.delete(idx);
           _spliceByKey(clientKey, null);
-          _updateTimerHeader();
+          _onLastAnimationDone();
         }, 1150);
       }, 950);
     });
@@ -5034,13 +5034,26 @@ window.confirmOneTimerStop = idx => {
             addEntry(entryData);
             _animatingCards.delete(idx);
             _spliceByKey(clientKey, null);
-            _updateTimerHeader();
+            _onLastAnimationDone();
           }, 1150);
         }, 950);
       }, 720);
     });
   }, 220);
 };
+
+// Called after each card animation completes — refreshes header during animations,
+// and re-syncs the full timer display once ALL animations are done
+function _onLastAnimationDone() {
+  _updateTimerHeader();
+  if(_animatingCards.size > 0) return; // other animations still playing
+  // All animations done — re-sync DOM + interval with current timer state
+  const t = loadTimer();
+  if(t && t.running) {
+    _animateCardsFrom = -1; // no entry animation on re-sync
+    startTimerDisplay();
+  }
+}
 
 // Update the timer page header counts AND sidebar count without full re-render
 function _updateTimerHeader() {

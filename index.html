@@ -1071,7 +1071,7 @@
 
 <aside id="sidebar">
   <div id="sidebar-brand">
-    <div class="firm" id="sb-firm">JJ&amp;A Design Studio</div>
+    <div class="firm" id="sb-firm">Your Firm</div>
     <div class="sub">Studio Manager</div>
   </div>
   <div id="app-switcher">
@@ -1253,7 +1253,7 @@ const loadClients   = () => load(K.clients,   []);
 const loadDesigners = () => load(K.designers, []);
 const loadProjects  = () => load(K.projects,  []);
 const loadInvoices  = () => load(K.invoices,  []);
-const loadSettings  = () => { const def={firmName:'JJ&A Design Studio',firmAddress:'',firmEmail:'',firmPhone:'',defaultRate:100,invoicePrefix:'INV',invoiceNext:1,currency:'USD',paymentTerms:14,invoiceTemplate:'classic',brandColor:'#C4A87A',logoUrl:null}; return {...def,...(load(K.settings,{})||{})}; };
+const loadSettings  = () => { const def={firmName:'Your Firm',firmAddress:'',firmEmail:'',firmPhone:'',defaultRate:100,invoicePrefix:'INV',invoiceNext:1,currency:'USD',paymentTerms:14,invoiceTemplate:'classic',brandColor:'#C4A87A',logoUrl:null}; return {...def,...(load(K.settings,{})||{})}; };
 
 const saveEntries   = v => store(K.entries,   v);
 const saveClients   = v => store(K.clients,   v);
@@ -1566,7 +1566,7 @@ function closePDFPreview(){
   if(_pdfPreviewBlob){URL.revokeObjectURL(_pdfPreviewBlob);_pdfPreviewBlob=null;}
 }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function updateSidebarFirm(){ document.getElementById('sb-firm').textContent=loadSettings().firmName||'JJ&A Design Studio'; }
+function updateSidebarFirm(){ document.getElementById('sb-firm').textContent=loadSettings().firmName||'Your Firm'; }
 
 function clientOpts(sel='',allLabel='All Clients'){
   return `<option value="">${allLabel}</option>`+loadClients().map(c=>`<option value="${c.id}" ${c.id===sel?'selected':''}>${esc(c.name)}</option>`).join('');
@@ -2302,7 +2302,7 @@ function buildTimePDF(entries, settings, invMeta, tplId) {
     doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(...fg2);
     doc.text(`# ${invNum}`,R,27,{align:'right'});
     doc.text(`Date: ${fmtDateLong(issueDate)}`,R,33,{align:'right'});
-    doc.text(`Due: ${fmtDateLong(dueDate)}`,R,39,{align:'right'});
+    doc.text(dueDate==='upon-receipt'?'Due: Upon Receipt':`Due: ${fmtDateLong(dueDate)}`,R,39,{align:'right'});
     let curY=54;
     doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,curY);curY+=6;
     doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c.name,M,curY);curY+=5;
@@ -2327,7 +2327,7 @@ function buildTimePDF(entries, settings, invMeta, tplId) {
     doc.setFontSize(14);doc.setFont('helvetica','bold');doc.setTextColor(...rc(tpl.invColor));
     doc.text('INVOICE',PW/2,topY+20,{align:'center'});
     doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(120,115,110);
-    doc.text(`${invNum}   ·   ${fmtDateLong(issueDate)}   ·   Due ${fmtDateLong(dueDate)}`,PW/2,topY+27,{align:'center'});
+    doc.text(`${invNum}   ·   ${fmtDateLong(issueDate)}   ·   ${dueDate==='upon-receipt'?'Due Upon Receipt':'Due '+fmtDateLong(dueDate)}`,PW/2,topY+27,{align:'center'});
     doc.setDrawColor(...rc(tpl.divider));doc.setLineWidth(0.3);doc.line(M,topY+32,R,topY+32);
     const btoY=topY+41;
     doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,btoY);
@@ -2357,7 +2357,7 @@ function buildTimePDF(entries, settings, invMeta, tplId) {
     doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
     doc.text(`Invoice #: ${invNum}`,R,33,{align:'right'});
     doc.text(`Date: ${fmtDateLong(issueDate)}`,R,38,{align:'right'});
-    doc.text(`Due: ${fmtDateLong(dueDate)}`,R,43,{align:'right'});
+    doc.text(dueDate==='upon-receipt'?'Due: Upon Receipt':`Due: ${fmtDateLong(dueDate)}`,R,43,{align:'right'});
     doc.setDrawColor(...rc(tpl.divider));doc.setLineWidth(0.4);doc.line(M,52,R,52);
     doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,59);
     doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c.name,M,65);
@@ -2391,10 +2391,10 @@ function buildTimePDF(entries, settings, invMeta, tplId) {
   doc.setTextColor(...rc(tpl.accent));doc.text(cur(totA),R,aft+10,{align:'right'});
 
   // ── FOOTER + WATERMARK ───────────────────────────
-  const payTerms=settings.paymentTerms||14;
+  const footTerms=settings.paymentTerms!=null?settings.paymentTerms:14;
   doc.setDrawColor(...rc(tpl.divider));doc.setLineWidth(0.3);doc.line(M,256,R,256);
   doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
-  doc.text(`Thank you for your business. Payment due within ${payTerms} days.`,PW/2,261,{align:'center'});
+  doc.text(footTerms===0?'Thank you for your business. Payment due upon receipt.':`Thank you for your business. Payment due within ${footTerms} days.`,PW/2,261,{align:'center'});
   doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(195,190,183);
   doc.text('Billed via jasejonesinvoicing.com',PW/2,268,{align:'center'});
 
@@ -2412,8 +2412,11 @@ function _buildGeneratedPDFDoc() {
   const settings=loadSettings();
   if(!entries.length){toast('No entries for this period');return null;}
   const invNum=`${settings.invoicePrefix}-${String(settings.invoiceNext).padStart(4,'0')}`;
-  const issueDate=todayStr(), dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+(settings.paymentTerms||14));
-  const dueDate=dueD.toISOString().split('T')[0];
+  const issueDate=todayStr();
+  const payTerms=settings.paymentTerms!=null?settings.paymentTerms:14;
+  let dueDate;
+  if(payTerms===0){ dueDate='upon-receipt'; }
+  else { const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+payTerms); dueDate=dueD.toISOString().split('T')[0]; }
   const {doc,totH,totA}=buildTimePDF(entries,settings,{invNum,client:c,designer,start,end,issueDate,dueDate},settings.invoiceTemplate||'classic');
   return {doc,totH,totA,invNum,c,clientId,designerId,projectId,start,end,settings,entries};
 }
@@ -2458,8 +2461,9 @@ window.exportTimeInvQBO = invId => {
   if(!entries.length){toast('No entries found for this invoice');return;}
   const s=loadSettings();
   const issueDate=inv.generatedAt.split('T')[0];
-  const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+(s.paymentTerms||14));
-  const dueDate=dueD.toISOString().split('T')[0];
+  const _qbTerms=s.paymentTerms!=null?s.paymentTerms:14;
+  let dueDate;
+  if(_qbTerms===0){ dueDate=issueDate; } else { const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+_qbTerms); dueDate=dueD.toISOString().split('T')[0]; }
   const fmtQBDate=d=>{ const [y,m,dd]=d.split('-'); return `${m}/${dd}/${y}`; };
   const rows=[['InvoiceNo','Customer','InvoiceDate','DueDate','Terms','Memo','Item(Product/Service)','ItemDescription','ItemQuantity','ItemRate','ItemAmount']];
   entries.forEach((e,i)=>{
@@ -2470,7 +2474,7 @@ window.exportTimeInvQBO = invId => {
       i===0?(c?.name||''):'',
       i===0?fmtQBDate(issueDate):'',
       i===0?fmtQBDate(dueDate):'',
-      i===0?`Net ${s.paymentTerms||14}`:'',
+      i===0?(s.paymentTerms===0?'Due on receipt':`Net ${s.paymentTerms||14}`):'',
       i===0?`Time invoice ${fmtQBDate(inv.startDate)} – ${fmtQBDate(inv.endDate)}`:'',
       'Design Services',
       desc,
@@ -2496,8 +2500,9 @@ window.exportExpInvQBO = invId => {
   if(!items.length){toast('No items found for this invoice');return;}
   const s=loadSettings();
   const issueDate=inv.generatedAt.split('T')[0];
-  const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+14);
-  const dueDate=dueD.toISOString().split('T')[0];
+  const _eqbTerms=s.paymentTerms!=null?s.paymentTerms:14;
+  let dueDate;
+  if(_eqbTerms===0){ dueDate=issueDate; } else { const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+_eqbTerms); dueDate=dueD.toISOString().split('T')[0]; }
   const fmtQBDate=d=>{ const [y,m,dd]=d.split('-'); return `${m}/${dd}/${y}`; };
   const rows=[['InvoiceNo','Customer','InvoiceDate','DueDate','Terms','Memo','Item(Product/Service)','ItemDescription','ItemQuantity','ItemRate','ItemAmount']];
   items.forEach((item,i)=>{
@@ -2508,7 +2513,7 @@ window.exportExpInvQBO = invId => {
       i===0?(c?.name||''):'',
       i===0?fmtQBDate(issueDate):'',
       i===0?fmtQBDate(dueDate):'',
-      i===0?`Net 14`:'',
+      i===0?(_eqbTerms===0?'Due on receipt':`Net ${_eqbTerms}`):'',
       i===0?`Expense invoice — ${fmtQBDate(issueDate)}`:'',
       CAT_LABELS[item.category]||item.category||'Procurement',
       desc,
@@ -2533,8 +2538,9 @@ window.redownloadTimePDF = invId => {
   const settings=loadSettings();
   if(!entries.length){toast('No entries found for this invoice period');return;}
   const issueDate=inv.generatedAt.split('T')[0];
-  const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+(settings.paymentTerms||14));
-  const {doc}=buildTimePDF(entries,settings,{invNum:inv.invoiceNumber,client:c,designer,start:inv.startDate,end:inv.endDate,issueDate,dueDate:dueD.toISOString().split('T')[0]},settings.invoiceTemplate||'classic');
+  const _rdTerms=settings.paymentTerms!=null?settings.paymentTerms:14;
+  let _rdDueDate; if(_rdTerms===0){_rdDueDate='upon-receipt';}else{const dueD=new Date(issueDate);dueD.setDate(dueD.getDate()+_rdTerms);_rdDueDate=dueD.toISOString().split('T')[0];}
+  const {doc}=buildTimePDF(entries,settings,{invNum:inv.invoiceNumber,client:c,designer,start:inv.startDate,end:inv.endDate,issueDate,dueDate:_rdDueDate},settings.invoiceTemplate||'classic');
   doc.save(`${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}.pdf`);
   toast(`${inv.invoiceNumber} re-downloaded`);
 };
@@ -2547,8 +2553,9 @@ window.previewTimePDF = invId => {
   const settings=loadSettings();
   if(!entries.length){toast('No entries found for this invoice period');return;}
   const issueDate=inv.generatedAt.split('T')[0];
-  const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+(settings.paymentTerms||14));
-  const {doc}=buildTimePDF(entries,settings,{invNum:inv.invoiceNumber,client:c,designer,start:inv.startDate,end:inv.endDate,issueDate,dueDate:dueD.toISOString().split('T')[0]},settings.invoiceTemplate||'classic');
+  const _pvTerms=settings.paymentTerms!=null?settings.paymentTerms:14;
+  let _pvDueDate; if(_pvTerms===0){_pvDueDate='upon-receipt';}else{const dueD=new Date(issueDate);dueD.setDate(dueD.getDate()+_pvTerms);_pvDueDate=dueD.toISOString().split('T')[0];}
+  const {doc}=buildTimePDF(entries,settings,{invNum:inv.invoiceNumber,client:c,designer,start:inv.startDate,end:inv.endDate,issueDate,dueDate:_pvDueDate},settings.invoiceTemplate||'classic');
   const filename=`${inv.invoiceNumber}-${(c?.name||'client').replace(/\s+/g,'-')}.pdf`;
   showPDFPreview(doc, inv.invoiceNumber, filename);
 };
@@ -2946,7 +2953,16 @@ function renderSettings(){
         <div class="form-group"><label class="field-label" for="sf-pfx">Invoice Prefix</label><input type="text" id="sf-pfx" value="${esc(s.invoicePrefix)}"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="field-label" for="sf-terms">Payment Terms (days)</label><input type="number" id="sf-terms" min="0" value="${s.paymentTerms||14}"></div>
+        <div class="form-group"><label class="field-label" for="sf-terms">Payment Terms</label>
+          <select id="sf-terms">
+            <option value="0" ${s.paymentTerms===0?'selected':''}>Due Upon Receipt</option>
+            <option value="7" ${s.paymentTerms===7?'selected':''}>Net 7 (7 days)</option>
+            <option value="14" ${(s.paymentTerms||14)===14?'selected':''}>Net 14 (14 days)</option>
+            <option value="30" ${s.paymentTerms===30?'selected':''}>Net 30 (30 days)</option>
+            <option value="45" ${s.paymentTerms===45?'selected':''}>Net 45 (45 days)</option>
+            <option value="60" ${s.paymentTerms===60?'selected':''}>Net 60 (60 days)</option>
+            <option value="90" ${s.paymentTerms===90?'selected':''}>Net 90 (90 days)</option>
+          </select></div>
         <div class="form-group"><label class="field-label" for="sf-currency">Currency</label>
           <select id="sf-currency">
             ${Object.entries(CURRENCIES).map(([code,c])=>`<option value="${code}" ${s.currency===code?'selected':''}>${code} — ${c.symbol} ${code}</option>`).join('')}
@@ -3033,7 +3049,7 @@ function renderSettings(){
 
 function saveSettingsForm(){
   const s=loadSettings();
-  s.firmName=document.getElementById('sf-name').value.trim()||'JJ&A Design Studio';
+  s.firmName=document.getElementById('sf-name').value.trim()||'Your Firm';
   s.firmEmail=document.getElementById('sf-email').value.trim();
   s.firmAddress=document.getElementById('sf-addr').value.trim();
   s.firmPhone=document.getElementById('sf-phone').value.trim();
@@ -3045,7 +3061,7 @@ function saveBillingSettings(){
   const s=loadSettings();
   s.defaultRate=parseFloat(document.getElementById('sf-rate').value)||100;
   s.invoicePrefix=document.getElementById('sf-pfx').value.trim()||'INV';
-  s.paymentTerms=parseInt(document.getElementById('sf-terms').value)||14;
+  s.paymentTerms=parseInt(document.getElementById('sf-terms').value);
   s.currency=document.getElementById('sf-currency').value||'USD';
   saveSettings(s);
   toast('Billing settings saved');
@@ -3078,6 +3094,160 @@ window.removeLogo = () => { const s=loadSettings(); s.logoUrl=null; saveSettings
 function exportData(){exportAllData();}
 function importData(input){importAllData(input);}
 function clearAll(){if(!confirm('Clear ALL data? Cannot be undone.'))return;['tt_entries','tt_clients','tt_designers','tt_projects','tt_invoices','tt_settings','tt_expense_items','tt_expense_invoices','tt_expense_settings'].forEach(k=>localStorage.removeItem(k));toast('All data cleared');render();}
+
+/* ══════════════════════════════════════════════════════
+   VIEW — INVOICE SETTINGS (from invoicing sidebar)
+══════════════════════════════════════════════════════ */
+function renderInvSettings() {
+  const s=loadSettings();
+  const brandHex=s.brandColor||'#C4A87A';
+
+  const tplCard=tpl=>{
+    const isLocked=tpl.plan==='pro'&&!isPro();
+    const isSel=s.invoiceTemplate===tpl.id;
+    const hdrColor=Array.isArray(tpl.hdrBg)?`rgb(${tpl.hdrBg.join(',')})`:tpl.hdrBg==='brand'?brandHex:'#F2F0EB';
+    const acColor=tpl.accent==='brand'?brandHex:Array.isArray(tpl.accent)?`rgb(${tpl.accent.join(',')})`:brandHex;
+    return `<div class="tpl-card${isSel?' selected':''}${isLocked?' locked':''}"
+      onclick="${isLocked?"toast('Upgrade to Pro to unlock this template')":`selectInvTemplate('${tpl.id}')`}">
+      ${isSel?'<div class="tpl-check">✓</div>':''}
+      ${isLocked?'<div class="tpl-pro-overlay">🔒</div>':''}
+      <div class="tpl-card-preview">
+        <div class="tpl-card-hdr" style="background:${hdrColor}"></div>
+        <div class="tpl-card-body">
+          <div class="tpl-card-line" style="width:55%"></div>
+          <div class="tpl-card-line" style="width:35%"></div>
+          <div class="tpl-card-line" style="width:65%;background:${acColor};opacity:0.55"></div>
+        </div>
+      </div>
+      <div class="tpl-card-foot">
+        <span>${tpl.name}</span>
+        <span class="tpl-badge tpl-badge-${isLocked?'lock':tpl.plan}">${isLocked?'Pro':tpl.plan==='free'?'Free':'Pro'}</span>
+      </div>
+    </div>`;
+  };
+
+  document.getElementById('app').innerHTML=`
+    <div class="page-head"><div><h1>Invoice Settings</h1><div class="sub">Customize your invoice appearance, firm info, and payment terms</div></div></div>
+
+    <div class="card" style="max-width:640px;margin-bottom:18px">
+      <h2 style="margin-bottom:16px">Firm Name &amp; Info</h2>
+      <p class="col2 fs12" style="margin-bottom:14px">This is the name and contact info that appears at the top of every invoice.</p>
+      <div class="form-row">
+        <div class="form-group"><label class="field-label" for="is-name">Firm Name</label><input type="text" id="is-name" value="${esc(s.firmName)}" placeholder="Your Company Name"></div>
+        <div class="form-group"><label class="field-label" for="is-email">Email</label><input type="email" id="is-email" value="${esc(s.firmEmail)}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="field-label" for="is-addr">Address</label><input type="text" id="is-addr" value="${esc(s.firmAddress)}"></div>
+        <div class="form-group"><label class="field-label" for="is-phone">Phone</label><input type="text" id="is-phone" value="${esc(s.firmPhone)}"></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-gold" onclick="saveInvSettingsFirm()">Save Firm Info</button></div>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-bottom:18px">
+      <h2 style="margin-bottom:16px">Billing Defaults</h2>
+      <div class="form-row">
+        <div class="form-group"><label class="field-label" for="is-pfx">Invoice Prefix</label><input type="text" id="is-pfx" value="${esc(s.invoicePrefix)}"></div>
+        <div class="form-group"><label class="field-label" for="is-terms">Payment Terms</label>
+          <select id="is-terms">
+            <option value="0" ${s.paymentTerms===0?'selected':''}>Due Upon Receipt</option>
+            <option value="7" ${s.paymentTerms===7?'selected':''}>Net 7 (7 days)</option>
+            <option value="14" ${(s.paymentTerms!=null?s.paymentTerms:14)===14?'selected':''}>Net 14 (14 days)</option>
+            <option value="30" ${s.paymentTerms===30?'selected':''}>Net 30 (30 days)</option>
+            <option value="45" ${s.paymentTerms===45?'selected':''}>Net 45 (45 days)</option>
+            <option value="60" ${s.paymentTerms===60?'selected':''}>Net 60 (60 days)</option>
+            <option value="90" ${s.paymentTerms===90?'selected':''}>Net 90 (90 days)</option>
+          </select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="field-label" for="is-currency">Currency</label>
+          <select id="is-currency">
+            ${Object.entries(CURRENCIES).map(([code,c])=>`<option value="${code}" ${s.currency===code?'selected':''}>${code} — ${c.symbol} ${code}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label class="field-label" for="is-rate">Default Hourly Rate</label><input type="number" id="is-rate" step="0.01" value="${s.defaultRate}"></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-gold" onclick="saveInvSettingsBilling()">Save Billing Defaults</button></div>
+    </div>
+
+    <div class="card" style="max-width:760px;margin-bottom:18px">
+      <h2 style="margin-bottom:6px">Invoice Template</h2>
+      <p class="col2 fs12" style="margin-bottom:14px">Choose a design for your invoices. All future PDFs will use this template.</p>
+      <div class="tpl-grid">${INVOICE_TEMPLATES.map(tplCard).join('')}</div>
+      ${!isPro()?`<div style="margin-top:14px;padding:10px 14px;background:var(--accent-lt);border-radius:var(--radius);font-size:12px;color:var(--accent-dk)">
+        <strong>12 Pro templates locked.</strong> Upgrade to Pro to unlock all templates and remove the watermark.
+      </div>`:''}
+    </div>
+
+    <div class="card" style="max-width:760px;margin-bottom:18px">
+      <h2 style="margin-bottom:16px">Branding</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label">Brand Color</label>
+          <div style="display:flex;gap:10px;align-items:center">
+            <input type="color" id="is-brand-color" value="${brandHex}" style="width:44px;height:36px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;padding:2px" oninput="document.getElementById('is-brand-hex').value=this.value">
+            <input type="text" id="is-brand-hex" value="${brandHex}" maxlength="7" style="width:90px;font-family:monospace" oninput="syncInvBrandColor()">
+            <button class="btn btn-ghost" onclick="saveInvBrandColor()">Save</button>
+          </div>
+          <p style="font-size:11.5px;color:var(--text2);margin-top:6px">Accent color used on invoices for templates that support it.</p>
+        </div>
+        <div class="form-group">
+          <label class="field-label">Firm Logo</label>
+          ${s.logoUrl?`<div style="margin-bottom:8px"><img src="${s.logoUrl}" style="max-height:50px;max-width:160px;border-radius:4px;border:1px solid var(--border);padding:4px;background:#fff"></div>`:''}
+          <div style="display:flex;gap:8px">
+            <label class="btn btn-ghost" style="cursor:pointer;font-size:12px">${s.logoUrl?'↺ Change':'⬆ Upload'} Logo
+              <input type="file" accept="image/*" style="display:none" onchange="handleInvLogoUpload(this)">
+            </label>
+            ${s.logoUrl?`<button class="btn btn-ghost" style="font-size:12px" onclick="removeInvLogo()">Remove</button>`:''}
+          </div>
+          <p style="font-size:11.5px;color:var(--text2);margin-top:6px">Appears on all invoices. PNG or JPG, max 2MB.</p>
+        </div>
+      </div>
+    </div>`;
+}
+
+// Invoice Settings page save handlers
+window.saveInvSettingsFirm = () => {
+  const s=loadSettings();
+  s.firmName=document.getElementById('is-name').value.trim()||'Your Firm';
+  s.firmEmail=document.getElementById('is-email').value.trim();
+  s.firmAddress=document.getElementById('is-addr').value.trim();
+  s.firmPhone=document.getElementById('is-phone').value.trim();
+  saveSettings(s);
+  document.getElementById('sb-firm').textContent=s.firmName;
+  toast('Firm info saved');
+};
+window.saveInvSettingsBilling = () => {
+  const s=loadSettings();
+  s.invoicePrefix=document.getElementById('is-pfx').value.trim()||'INV';
+  s.paymentTerms=parseInt(document.getElementById('is-terms').value);
+  s.currency=document.getElementById('is-currency').value||'USD';
+  s.defaultRate=parseFloat(document.getElementById('is-rate').value)||100;
+  saveSettings(s);
+  toast('Billing defaults saved');
+};
+window.selectInvTemplate = id => {
+  const tpl=INVOICE_TEMPLATES.find(t=>t.id===id); if(!tpl) return;
+  if(tpl.plan==='pro'&&!isPro()){toast('Upgrade to Pro to unlock this template');return;}
+  const s=loadSettings(); s.invoiceTemplate=id; saveSettings(s);
+  renderInvSettings(); toast(`Template "${tpl.name}" selected`);
+};
+window.syncInvBrandColor = () => {
+  const hex=document.getElementById('is-brand-hex').value.trim();
+  if(/^#[0-9A-Fa-f]{6}$/.test(hex)) document.getElementById('is-brand-color').value=hex;
+};
+window.saveInvBrandColor = () => {
+  const hex=document.getElementById('is-brand-hex').value.trim();
+  if(!/^#[0-9A-Fa-f]{6}$/.test(hex)){toast('Invalid color — use format #RRGGBB');return;}
+  const s=loadSettings(); s.brandColor=hex; saveSettings(s);
+  toast('Brand color saved');
+};
+window.handleInvLogoUpload = input => {
+  const file=input.files[0]; if(!file) return;
+  if(file.size>2*1024*1024){toast('Image must be under 2MB');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{ const s=loadSettings(); s.logoUrl=e.target.result; saveSettings(s); renderInvSettings(); toast('Logo saved'); };
+  reader.readAsDataURL(file);
+};
+window.removeInvLogo = () => { const s=loadSettings(); s.logoUrl=null; saveSettings(s); renderInvSettings(); toast('Logo removed'); };
 
 /* ══════════════════════════════════════════════════════
    DARK MODE
@@ -3215,7 +3385,8 @@ function emailInvoice(invId) {
   const c=getClientById(inv.clientId);
   const s=loadSettings();
   const subj=encodeURIComponent(`Invoice ${inv.invoiceNumber} — ${s.firmName}`);
-  const body=encodeURIComponent(`Dear ${c?.name||'Client'},\n\nPlease find attached Invoice ${inv.invoiceNumber} for the period ${fmtDate(inv.startDate)} – ${fmtDate(inv.endDate)}.\n\nTotal Due: ${cur(inv.totalAmount)}\nHours: ${inv.totalHours?.toFixed(1)}\nPayment Terms: ${s.paymentTerms||14} days\n\nThank you for your business!\n\n${s.firmName}\n${s.firmEmail||''}`);
+  const _pt=s.paymentTerms!=null?s.paymentTerms:14;
+  const body=encodeURIComponent(`Dear ${c?.name||'Client'},\n\nPlease find attached Invoice ${inv.invoiceNumber} for the period ${fmtDate(inv.startDate)} – ${fmtDate(inv.endDate)}.\n\nTotal Due: ${cur(inv.totalAmount)}\nHours: ${inv.totalHours?.toFixed(1)}\nPayment Terms: ${_pt===0?'Due upon receipt':_pt+' days'}\n\nThank you for your business!\n\n${s.firmName}\n${s.firmEmail||''}`);
   window.open(`mailto:${c?.email||''}?subject=${subj}&body=${body}`);
 }
 function emailExpInvoice(invId) {
@@ -3224,7 +3395,8 @@ function emailExpInvoice(invId) {
   const c=getClientById(inv.clientId);
   const s=loadSettings();
   const subj=encodeURIComponent(`Invoice ${inv.invoiceNumber} — ${s.firmName}`);
-  const body=encodeURIComponent(`Dear ${c?.name||'Client'},\n\nPlease find attached Invoice ${inv.invoiceNumber} for procurement and expenses.\n\nTotal Due: ${cur(inv.clientTotal)}\nPayment Terms: ${s.paymentTerms||14} days\n\nThank you for your business!\n\n${s.firmName}\n${s.firmEmail||''}`);
+  const _pt2=s.paymentTerms!=null?s.paymentTerms:14;
+  const body=encodeURIComponent(`Dear ${c?.name||'Client'},\n\nPlease find attached Invoice ${inv.invoiceNumber} for procurement and expenses.\n\nTotal Due: ${cur(inv.clientTotal)}\nPayment Terms: ${_pt2===0?'Due upon receipt':_pt2+' days'}\n\nThank you for your business!\n\n${s.firmName}\n${s.firmEmail||''}`);
   window.open(`mailto:${c?.email||''}?subject=${subj}&body=${body}`);
 }
 
@@ -3288,7 +3460,9 @@ const NAV_INVOICING = `
   <a href="#generate"><span class="icon">↗</span> Generate Invoice</a>
   <div class="nav-section">Expense Invoices</div>
   <a href="#exp-invoices"><span class="icon">◻</span> Expense History</a>
-  <a href="#exp-generate"><span class="icon">↗</span> Generate Expense</a>`;
+  <a href="#exp-generate"><span class="icon">↗</span> Generate Expense</a>
+  <div class="nav-section">System</div>
+  <a href="#inv-settings"><span class="icon">◦</span> Invoice Settings</a>`;
 
 const NAV_ANALYTICS = `
   <div class="nav-section">Analytics</div>
@@ -3963,8 +4137,9 @@ function buildClientExpPDFDoc(inv) {
   doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
   doc.text(`Invoice #: ${inv.invoiceNumber}`,R,33,{align:'right'});
   doc.text(`Date: ${fmtDateLong(inv.generatedAt.split('T')[0])}`,R,38,{align:'right'});
-  const dueD=new Date(inv.generatedAt); dueD.setDate(dueD.getDate()+(s.paymentTerms||14));
-  doc.text(`Due: ${fmtDateLong(dueD.toISOString().split('T')[0])}`,R,43,{align:'right'});
+  const _expTerms=s.paymentTerms!=null?s.paymentTerms:14;
+  if(_expTerms===0){ doc.text('Due: Upon Receipt',R,43,{align:'right'}); }
+  else { const dueD=new Date(inv.generatedAt); dueD.setDate(dueD.getDate()+_expTerms); doc.text(`Due: ${fmtDateLong(dueD.toISOString().split('T')[0])}`,R,43,{align:'right'}); }
 
   doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,52,R,52);
 
@@ -3998,7 +4173,7 @@ function buildClientExpPDFDoc(inv) {
 
   doc.setDrawColor(220,215,205);doc.line(M,256,R,256);
   doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
-  doc.text(`Thank you for your business. Payment due within ${s.paymentTerms||14} days.`,PW/2,261,{align:'center'});
+  doc.text((s.paymentTerms===0)?'Thank you for your business. Payment due upon receipt.':`Thank you for your business. Payment due within ${s.paymentTerms||14} days.`,PW/2,261,{align:'center'});
   doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(195,190,183);
   doc.text('Billed via jasejonesinvoicing.com',PW/2,268,{align:'center'});
 
@@ -4268,7 +4443,10 @@ function generateExpPDF() {
   const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
   const PW=215.9, M=20, R=PW-M;
   const invNum=`${es.invoicePrefix}-${String(es.invoiceNext).padStart(4,'0')}`;
-  const issueDate=todayStr(), dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+14);
+  const issueDate=todayStr();
+  const _egTerms=s.paymentTerms!=null?s.paymentTerms:14;
+  let _egDueStr;
+  if(_egTerms===0){ _egDueStr='Upon Receipt'; } else { const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+_egTerms); _egDueStr=fmtDateLong(dueD.toISOString().split('T')[0]); }
 
   // Header
   doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
@@ -4282,7 +4460,7 @@ function generateExpPDF() {
   doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
   doc.text(`Invoice #: ${invNum}`,R,33,{align:'right'});
   doc.text(`Date: ${fmtDateLong(issueDate)}`,R,38,{align:'right'});
-  doc.text(`Due: ${fmtDateLong(dueD.toISOString().split('T')[0])}`,R,43,{align:'right'});
+  doc.text(`Due: ${_egDueStr}`,R,43,{align:'right'});
   doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,52,R,52);
   doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,59);
   doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c.name,M,65);
@@ -4309,7 +4487,7 @@ function generateExpPDF() {
   doc.text('Total Due:',R-40,aft+10);doc.setTextColor(168,140,94);doc.text(cur(total),R,aft+10,{align:'right'});
   doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(160,155,148);
   doc.setDrawColor(220,215,205);doc.line(M,256,R,256);
-  doc.text('Thank you for your business. Payment due within 14 days.',PW/2,261,{align:'center'});
+  doc.text(_egTerms===0?'Thank you for your business. Payment due upon receipt.':`Thank you for your business. Payment due within ${_egTerms} days.`,PW/2,261,{align:'center'});
   doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(195,190,183);
   doc.text('Billed via jasejonesinvoicing.com',PW/2,268,{align:'center'});
 
@@ -4595,7 +4773,7 @@ window.shiftBillingCal = (calKey,dir) => {
 /* ══════════════════════════════════════════════════════
    ROUTER
 ══════════════════════════════════════════════════════ */
-const ROUTES={'#dashboard':renderDashboard,'#timers':renderMcTimerDashboard,'#designers':renderDesigners,'#hours':renderHours,'#projects':renderProjects,'#clients':renderClients,'#invoices':renderInvoices,'#generate':renderGenerate,'#analytics':renderAnalytics,'#settings':renderSettings,'#exp-items':renderExpItems,'#exp-generate':renderExpGenerate,'#exp-invoices':renderExpInvoices,'#exp-settings':renderExpSettings,'#exp-analytics':renderExpAnalytics};
+const ROUTES={'#dashboard':renderDashboard,'#timers':renderMcTimerDashboard,'#designers':renderDesigners,'#hours':renderHours,'#projects':renderProjects,'#clients':renderClients,'#invoices':renderInvoices,'#generate':renderGenerate,'#analytics':renderAnalytics,'#settings':renderSettings,'#inv-settings':renderInvSettings,'#exp-items':renderExpItems,'#exp-generate':renderExpGenerate,'#exp-invoices':renderExpInvoices,'#exp-settings':renderExpSettings,'#exp-analytics':renderExpAnalytics};
 function navigate(hash){window.location.hash=hash;closeMobileMenu();}
 function labelTableCells() {
   if(window.innerWidth > 800) return;

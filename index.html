@@ -3793,8 +3793,8 @@ window.downloadAttachment = async (id, file) => {
 function fileBadgeHtml(item) {
   if(!item.hasPdf&&!item.hasFile) return '';
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-    <button class="btn btn-ghost btn-sm" onclick="viewExpFile('${item.id}')">👁 Preview File</button>
-    <button class="btn btn-ghost btn-sm" onclick="downloadAttachment('${item.id}')">⬇ Download File</button>
+    <button class="btn btn-ghost btn-sm" onclick="downloadAttachment('${item.id}')">👁 Preview File</button>
+    <button class="btn btn-ghost btn-sm" onclick="viewExpFile('${item.id}')">⬇ Download File</button>
   </div>`;
 }
 
@@ -4122,8 +4122,8 @@ function renderExpInvoices() {
             <div class="exp-inv-detail-name">${esc(item.description||'')}</div>
             <div class="exp-inv-detail-meta">${esc(item.vendorName||'?')} · ${CAT_LABELS[item.category]||item.category||''}${item.date?` · ${fmtDate(item.date)}`:''}</div>
             ${hasFile?`<div class="exp-inv-file-btn">
-              <button class="btn btn-ghost btn-sm" onclick="viewExpFile('${item.id}')">👁 Preview File</button>
-              <button class="btn btn-ghost btn-sm" onclick="downloadAttachment('${item.id}')">⬇ Download File</button>
+              <button class="btn btn-ghost btn-sm" onclick="downloadAttachment('${item.id}')">👁 Preview File</button>
+              <button class="btn btn-ghost btn-sm" onclick="viewExpFile('${item.id}')">⬇ Download File</button>
             </div>`:''}
           </div>
           <div class="exp-inv-detail-amount gold-txt">${cur(item.clientTotal)}</div>
@@ -4362,8 +4362,8 @@ window.previewInternalExpInv = id => {
         ${item.markupPct>0?`<div class="col2 fs12">Markup: ${item.markupPct}%</div>`:''}
         ${item.adminFeePct>0?`<div class="col2 fs12">Admin: ${item.adminFeePct}%</div>`:''}
         ${hasFile?`<div style="margin-top:5px;display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" onclick="viewExpFile('${item.id}')">👁 Preview File</button>
-          <button class="btn btn-ghost btn-sm" onclick="downloadAttachment('${item.id}')">⬇ Download File</button>
+          <button class="btn btn-ghost btn-sm" onclick="downloadAttachment('${item.id}')">👁 Preview File</button>
+          <button class="btn btn-ghost btn-sm" onclick="viewExpFile('${item.id}')">⬇ Download File</button>
         </div>`:''}
       </div>
       <div style="text-align:right;white-space:nowrap;font-size:13px;padding-left:12px">

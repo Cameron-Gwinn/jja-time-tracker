@@ -4992,7 +4992,7 @@ window.confirmOneTimerStop = idx => {
     card.style.background = 'rgba(50,120,70,0.40)';
     card.style.borderColor = 'rgba(80,180,110,0.65)';
 
-    // Hold green 1.2s → fade 0.9s → collapse 1.1s
+    // Hold green 720ms → fade 0.9s → collapse 1.1s
     setTimeout(()=>{
       // Phase 2: Fade out
       card.style.transition = 'opacity 0.9s ease';
@@ -5022,7 +5022,7 @@ window.confirmOneTimerStop = idx => {
           _updateTimerHeader();
         }, 1150);
       }, 950);
-    }, 1200);
+    }, 720);
   }, 220);
 };
 

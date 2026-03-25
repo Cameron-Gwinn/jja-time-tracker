@@ -135,12 +135,28 @@
     .mc-sb-stop { background:transparent; border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.45); border-radius:5px; padding:4px 9px; font-size:11px; cursor:pointer; flex-shrink:0; line-height:1.4; transition:all .12s; -webkit-tap-highlight-color:transparent; }
     .mc-sb-stop:hover, .mc-sb-stop:active { border-color:rgba(224,92,92,0.7); color:#E05C5C; }
     /* Multi-client live timer cards */
-    .mc-timers-grid { display:flex; flex-direction:column; gap:0; }
-    .mc-timer-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px; margin-bottom:14px; overflow:hidden; }
-    .mc-timer-card:last-child { margin-bottom:0; }
+    .mc-timers-grid { display:flex; flex-direction:column; gap:14px; }
+    .mc-timer-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px; overflow:hidden; }
     .mc-timer-card.card-stopped { opacity:.42; }
-    /* Timer card stop animations are handled entirely via inline styles in JS
-       to avoid CSS specificity conflicts with mc-card-entering */
+    /* Phase 1: green confirmation — flashes in then holds */
+    @keyframes mc-card-saved-flash {
+      0%   { background:var(--card); border-color:var(--border); }
+      35%  { background:rgba(50,120,70,0.45); border-color:rgba(80,180,110,0.7); }
+      100% { background:rgba(50,120,70,0.38); border-color:rgba(80,180,110,0.6); }
+    }
+    .mc-timer-card.card-saving { animation: mc-card-saved-flash 0.5s ease forwards; }
+    /* Phase 2: fade to transparent */
+    .mc-timer-card.card-fading { opacity:0; transition:opacity 0.95s cubic-bezier(0.4,0,0.2,1); }
+    /* Phase 3: collapse — JS sets exact height then transitions to 0 for pixel-perfect smoothness */
+    .mc-timer-card.card-collapse-ready {
+      overflow:hidden;
+      transition:height 1.2s cubic-bezier(0.22,0.61,0.36,1), padding 1.2s cubic-bezier(0.22,0.61,0.36,1), margin 1.2s cubic-bezier(0.22,0.61,0.36,1), border-width 1.2s cubic-bezier(0.22,0.61,0.36,1), opacity 0.4s ease;
+    }
+    .mc-timer-card.card-collapsing {
+      height:0 !important; padding-top:0 !important; padding-bottom:0 !important;
+      margin-top:0 !important; margin-bottom:0 !important;
+      border-width:0 !important; opacity:0 !important;
+    }
     .mc-timer-card-name { font-size:19px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
     .mc-timer-card-proj { font-size:12px; color:var(--text2); }
     .mc-timer-card-desc { font-size:12px; color:var(--text2); font-style:italic; margin-top:3px; }
@@ -904,7 +920,7 @@
     @keyframes modal-out { from { opacity:1; transform:translateY(0) scale(1); } to { opacity:0; transform:translateY(22px) scale(0.97); } }
     .modal-launching { animation: modal-out 0.22s ease forwards; pointer-events:none; }
     @keyframes mc-card-in { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
-    .mc-timer-card.mc-card-entering { animation: mc-card-in 0.38s cubic-bezier(0.22,1,0.36,1) both; }
+    .mc-timer-card { animation: mc-card-in 0.38s cubic-bezier(0.22,1,0.36,1) both; }
     .auth-card {
       background: var(--card); border: 1px solid var(--border);
       border-radius: 12px; padding: 40px 36px;
@@ -4487,7 +4503,6 @@ let _skipPageAnim = false;
 let _lastHash = '';
 let _timerAnimating = false; // true while card stop/discard animation is playing
 function render(){
-  if(_timerAnimating) return;
   if(!_currentUser || !_firmId) { showAuthScreen(); return; }
   destroyCharts();
   const hash=window.location.hash||'#dashboard';
@@ -4554,7 +4569,6 @@ function mobileFabClick() {
 }
 
 function renderMcTimerDashboard() {
-  if(_timerAnimating) return;
   const t=loadTimer();
   const el=document.getElementById('app');
   highlightNav();
@@ -4579,16 +4593,13 @@ function renderMcTimerDashboard() {
       '<div class="page-head"><div><h1>Active Timer</h1><div class="sub">Timer is running</div></div>'+
       '<button class="btn btn-gold" onclick="openTimerModal()" style="white-space:nowrap;font-size:13px;padding:8px 14px">+ Start Timer</button></div>'+
       '<div class="mc-timers-grid">'+
-      '<div class="mc-timer-card mc-card-entering" id="mc-card-single" style="animation-delay:0s">'+
+      '<div class="mc-timer-card" id="mc-card-single" style="animation-delay:0s">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
       (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
       (t.description?'<div class="mc-timer-card-desc">'+esc(t.description)+'</div>':'')+
       '<div class="mc-timer-card-elapsed" id="mc-card-elapsed-single">'+fmtElapsed(elapsed)+'</div>'+
       '<button class="mc-timer-card-stop" onclick="stopTimer()">\u25a0 Stop &amp; Save</button>'+
       '</div></div>';
-    document.querySelectorAll('.mc-card-entering').forEach(c=>{
-      c.addEventListener('animationend',()=>c.classList.remove('mc-card-entering'),{once:true});
-    });
     renderTrialBadge();
     return;
   }
@@ -4603,7 +4614,7 @@ function renderMcTimerDashboard() {
     const stopOrSaved=isStopped
       ?'<div class="mc-timer-saved-badge">\u2713 Saved \u2014 '+msToHours(ms)+'h</div>'
       :'<button class="mc-timer-card-stop" onclick="stopOneClientTimer('+i+')">\u25a0 Stop &amp; Save</button>';
-    return '<div class="mc-timer-card mc-card-entering'+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'" style="animation-delay:'+(i*0.07)+'s">'+
+    return '<div class="mc-timer-card'+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'" style="animation-delay:'+(i*0.07)+'s">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
       (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
       (c.description?'<div class="mc-timer-card-desc">'+esc(c.description)+'</div>':'')+
@@ -4620,10 +4631,6 @@ function renderMcTimerDashboard() {
     '<button class="btn btn-gold" onclick="openTimerModal()" style="white-space:nowrap;font-size:13px;padding:8px 14px">+ Start Timer</button></div>'+
     '<div class="mc-timers-grid">'+cards+'</div>'+
     stopAll;
-  // Remove entering class after animation so it won't conflict with card-saving later
-  document.querySelectorAll('.mc-card-entering').forEach(c=>{
-    c.addEventListener('animationend',()=>c.classList.remove('mc-card-entering'),{once:true});
-  });
   renderTrialBadge();
 }
 
@@ -4647,13 +4654,10 @@ function startTimerDisplay() {
       '</div>';
     updateFAB(true);
     _timerInterval=setInterval(()=>{
-      if(_timerAnimating) return; // Don't touch DOM during card animations
       const td=loadTimer();
       if(!td||!td.running) return;
       const now=Date.now();
-      if(td.mode==='multi' && td.clients) {
-        td.clients.forEach((c,i)=>{ if(c.stoppedAt) return; const el=document.getElementById('mc-card-elapsed-'+i); if(el) el.textContent=fmtElapsed(now-new Date(c.startedAt||td.startedAt).getTime()); });
-      }
+      td.clients.forEach((c,i)=>{ if(c.stoppedAt) return; const el=document.getElementById('mc-card-elapsed-'+i); if(el) el.textContent=fmtElapsed(now-new Date(c.startedAt||td.startedAt).getTime()); });
       const pill=document.getElementById('fab-elapsed-pill');
       if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(now-new Date(td.startedAt).getTime());
     },1000);
@@ -4868,7 +4872,7 @@ window.stopOneClientTimer = idx => {
   showModal(`
     <div class="modal-hd">
       <h2>Is this correct?</h2>
-      <button class="modal-x" id="otr-close">×</button>
+      <button class="modal-x" onclick="discardOneTimerReview(${idx})">×</button>
     </div>
     <div class="timer-banner">
       <div class="tb-time">${elapsedStr}</div>
@@ -4892,12 +4896,9 @@ window.stopOneClientTimer = idx => {
     <div class="form-group"><label class="field-label">Description</label>
       <textarea id="otr-desc">${esc(client.description||'')}</textarea></div>
     <div class="form-actions">
-      <button class="btn btn-danger" id="otr-discard">Discard</button>
-      <button class="btn btn-gold" id="otr-save">Save Entry</button>
+      <button class="btn btn-danger" onclick="discardOneTimerReview(${idx})">Discard</button>
+      <button class="btn btn-gold" onclick="confirmOneTimerStop(${idx})">Save Entry</button>
     </div>`);
-  _tap('otr-close', closeModal);
-  _tap('otr-discard', ()=>discardOneTimerReview(idx));
-  _tap('otr-save', ()=>confirmOneTimerStop(idx));
 };
 
 window.refreshOneTimerProj = cliId => {
@@ -4911,12 +4912,19 @@ window.discardOneTimerReview = idx => {
   if(!confirm('Discard this time entry? The timer will be removed.')) return;
   const t=loadTimer();
   if(!t||!t.running||t.mode!=='multi') { closeModal(); return; }
-  // Block all re-renders during animation
-  _timerAnimating = true;
+  t.clients.splice(idx,1);
   closeModal();
-  // Animate: fade → collapse → remove (no green for discard)
+  if(t.clients.length===0){ stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
+  if(t.clients.length===1 && !t.clients[0].stoppedAt) {
+    const last=t.clients[0];
+    saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
+      designerId:t.designerId,projectId:last.projectId,projectText:last.projectText,description:last.description});
+  } else { saveTimerData(t); }
+  // Block realtime re-renders while animation plays
+  _timerAnimating = true;
+  // Animate the card out after modal closes, then update header
   setTimeout(()=>{
-    _animateTimerCard('mc-card-'+idx, false, ()=>{ _finishTimerStop(t, idx); });
+    _animateCardOut('mc-card-'+idx, ()=>{ _timerAnimating=false; _updateTimerHeader(); });
   }, 220);
 };
 
@@ -4934,52 +4942,61 @@ window.confirmOneTimerStop = idx => {
   const description=document.getElementById('otr-desc').value.trim();
   if(!date||!clientId||isNaN(hours)||hours<=0||!description){toast('Please fill in all fields');return;}
 
-  // Block realtime re-renders BEFORE any data saves so the animation can't be interrupted
-  _timerAnimating = true;
-
   // Save the entry
   addEntry({date,hours,clientId,designerId,projectId,projectText,description});
   const cl=getClientById(clientId);
   toast((cl?.name||'Client')+' — '+hours+'h saved ✓');
   closeModal();
 
-  // Update sidebar + header counts immediately (don't modify timer data yet — wait for animation)
-  const activeCount=t.clients.filter(c=>!c.stoppedAt).length - 1;
+  // Remove this client from timer data
+  t.clients.splice(idx,1);
+  const allDone=t.clients.length===0 || t.clients.every(c=>c.stoppedAt);
+  if(allDone){ stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
+  if(t.clients.length===1 && !t.clients[0].stoppedAt) {
+    const last=t.clients[0];
+    saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
+      designerId:t.designerId,projectId:last.projectId,projectText:last.projectText,description:last.description});
+  } else { saveTimerData(t); }
+
+  // Update sidebar + header counts immediately
+  const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
   const countEl=document.querySelector('#sb-timer .mc-active-count');
   if(countEl) countEl.textContent=activeCount+' timer'+(activeCount===1?'':'s')+' running';
 
-  // Play the card animation FIRST, then update timer data AFTER animation completes
+  // Block realtime re-renders while animation plays
+  _timerAnimating = true;
+
+  // Play the card animation after modal closes
   setTimeout(()=>{
-    // Update the card UI to show "Saved" badge before animating out
+    const card=document.getElementById('mc-card-'+idx);
+    if(!card){ _timerAnimating=false; return; }
+    const h=card.offsetHeight;
+    card.style.maxHeight=h+'px';
+    card.classList.add('card-saving');
     const elEl=document.getElementById('mc-card-elapsed-'+idx);
     if(elEl) elEl.textContent=fmtElapsed(hours*3600000);
     const stopEl=document.getElementById('mc-card-stop-'+idx);
     if(stopEl) stopEl.innerHTML='<div class="mc-timer-saved-badge">✓ Saved — '+hours+'h</div>';
 
-    // Animate: green flash → fade → collapse → remove
-    _animateTimerCard('mc-card-'+idx, true, ()=>{ _finishTimerStop(t, idx); });
+    setTimeout(()=>{
+      card.classList.add('card-fading');
+      setTimeout(()=>{
+        /* Lock to exact pixel height, then collapse to 0 — no max-height guessing */
+        const h = card.offsetHeight;
+        card.style.height = h + 'px';
+        card.classList.add('card-collapse-ready');
+        requestAnimationFrame(()=>{requestAnimationFrame(()=>{
+          card.classList.add('card-collapsing');
+        });});
+        setTimeout(()=>{
+          card.remove();
+          _timerAnimating = false;
+          _updateTimerHeader();
+        }, 1250);
+      }, 1000);
+    }, 1200);
   }, 220);
 };
-
-// Finish timer stop: splice client, save data, unblock animations
-function _finishTimerStop(t, idx) {
-  t.clients.splice(idx, 1);
-  const allDone = t.clients.length === 0 || t.clients.every(c => c.stoppedAt);
-  if (allDone) {
-    _timerAnimating = false;
-    stopTimerDisplay(); clearTimerData(); _skipPageAnim = true; navigate('#dashboard');
-    return;
-  }
-  if (t.clients.length === 1 && !t.clients[0].stoppedAt) {
-    const last = t.clients[0];
-    saveTimerData({running:true, startedAt:last.startedAt||t.startedAt, clientId:last.clientId,
-      designerId:t.designerId, projectId:last.projectId, projectText:last.projectText, description:last.description});
-  } else {
-    saveTimerData(t);
-  }
-  _timerAnimating = false;
-  _updateTimerHeader();
-}
 
 // Update the timer page header counts without full re-render
 function _updateTimerHeader() {
@@ -4996,64 +5013,23 @@ function _updateTimerHeader() {
   if(active<=1){ const sa=document.getElementById('mc-stop-all'); if(sa) sa.remove(); }
 }
 
-// Animate a timer card out using inline styles only (avoids CSS specificity conflicts)
-// showGreen: if true, flash green first and hold before fading
-function _animateTimerCard(cardId, showGreen, onDone) {
-  const card = document.getElementById(cardId);
-  if (!card) { if (onDone) onDone(); return; }
-
-  // Kill any existing CSS animations (mc-card-entering etc) that could override us
-  card.style.animation = 'none';
-  card.classList.remove('mc-card-entering');
-
-  // Lock the card's current height for smooth collapse later
-  const h = card.offsetHeight;
-  card.style.overflow = 'hidden';
-
-  if (showGreen) {
-    // Phase 1: Transition to green background, hold it
-    card.style.transition = 'background 0.35s ease, border-color 0.35s ease';
-    // Force reflow so transition applies from current state
-    void card.offsetHeight;
-    card.style.background = 'rgba(50, 120, 70, 0.40)';
-    card.style.borderColor = 'rgba(80, 180, 110, 0.65)';
-
-    // Hold green for 1.2s, then start fade
-    setTimeout(() => {
-      _fadeAndCollapse(card, h, onDone);
-    }, 1200);
-  } else {
-    // No green — go straight to fade
-    _fadeAndCollapse(card, h, onDone);
-  }
-}
-
-function _fadeAndCollapse(card, h, onDone) {
-  // Phase 2: Fade opacity to 0
-  card.style.transition = 'opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1)';
-  void card.offsetHeight;
-  card.style.opacity = '0';
-
-  // After fade completes, collapse height
-  setTimeout(() => {
-    // Phase 3: Set explicit height, then collapse to 0
-    card.style.height = h + 'px';
-    card.style.transition = 'none'; // reset so height snaps to current
-    void card.offsetHeight;
-    card.style.transition = 'height 1.1s cubic-bezier(0.22, 0.61, 0.36, 1), padding 1.1s cubic-bezier(0.22, 0.61, 0.36, 1), margin-bottom 1.1s cubic-bezier(0.22, 0.61, 0.36, 1), border-width 1.1s cubic-bezier(0.22, 0.61, 0.36, 1)';
-    void card.offsetHeight;
-    card.style.height = '0px';
-    card.style.paddingTop = '0px';
-    card.style.paddingBottom = '0px';
-    card.style.marginBottom = '0px';
-    card.style.borderWidth = '0px';
-
-    // After collapse, remove card and callback
-    setTimeout(() => {
+// Animate a timer card out (fade then collapse), then remove it
+function _animateCardOut(cardId, onDone) {
+  const card=document.getElementById(cardId);
+  if(!card){ if(onDone) onDone(); return; }
+  const h=card.offsetHeight;
+  card.style.height=h+'px';
+  card.classList.add('card-collapse-ready');
+  card.classList.add('card-fading');
+  setTimeout(()=>{
+    requestAnimationFrame(()=>{requestAnimationFrame(()=>{
+      card.classList.add('card-collapsing');
+    });});
+    setTimeout(()=>{
       card.remove();
-      if (onDone) onDone();
-    }, 1150);
-  }, 950);
+      if(onDone) onDone();
+    }, 1250);
+  }, 1000);
 }
 
 function showTimerReview(t, hours, elapsedStr) {
@@ -5070,7 +5046,7 @@ function showTimerReview(t, hours, elapsedStr) {
   showModal(`
     <div class="modal-hd">
       <h2>Is this correct?</h2>
-      <button class="modal-x" id="tr-close">×</button>
+      <button class="modal-x" onclick="discardTimerEntry()">×</button>
     </div>
     <div class="timer-banner">
       <div class="tb-time">${elapsedStr}</div>
@@ -5104,12 +5080,9 @@ function showTimerReview(t, hours, elapsedStr) {
       <textarea id="tr-desc">${esc(t.description)}</textarea>
     </div>
     <div class="form-actions">
-      <button class="btn btn-danger" id="tr-discard">Discard</button>
-      <button class="btn btn-gold" id="tr-save">Save Entry</button>
+      <button class="btn btn-danger" onclick="discardTimerEntry()">Discard</button>
+      <button class="btn btn-gold" onclick="saveTimerEntry()">Save Entry</button>
     </div>`);
-  _tap('tr-close', closeModal);
-  _tap('tr-discard', discardTimerEntry);
-  _tap('tr-save', saveTimerEntry);
 }
 
 window.refreshTimerReviewProj = cliId => {
@@ -5168,18 +5141,15 @@ function showMultiTimerReview(t, elapsed, unsaved) {
       '</div>';
   }).join('');
   showModal(
-    '<div class="modal-hd"><h2>Review Entries</h2><button class="modal-x" id="mtr-close">&#x00D7;</button></div>'+
+    '<div class="modal-hd"><h2>Review Entries</h2><button class="modal-x" onclick="discardTimerEntry()">&#x00D7;</button></div>'+
     '<div class="form-row"><div class="form-group"><label class="field-label">Date</label>'+
     '<input type="date" id="mtr-date" value="'+todayStr()+'"></div></div>'+
     designerRow+
     '<div class="mc-review-rows">'+clientRows+'</div>'+
     '<div class="form-actions" style="margin-top:16px">'+
-    '<button class="btn btn-danger" id="mtr-discard">Discard All</button>'+
-    '<button class="btn btn-gold" id="mtr-save">Save '+unsaved.length+' Entr'+(unsaved.length===1?'y':'ies')+'</button>'+
+    '<button class="btn btn-danger" onclick="discardTimerEntry()">Discard All</button>'+
+    '<button class="btn btn-gold" onclick="saveMultiTimerEntries()">Save '+unsaved.length+' Entr'+(unsaved.length===1?'y':'ies')+'</button>'+
     '</div>');
-  _tap('mtr-close', closeModal);
-  _tap('mtr-discard', discardTimerEntry);
-  _tap('mtr-save', saveMultiTimerEntries);
 }
 
 function saveMultiTimerEntries() {

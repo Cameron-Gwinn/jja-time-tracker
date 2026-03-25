@@ -4484,6 +4484,7 @@ function renderTrialBadge() {
 let _skipPageAnim = false;
 let _lastHash = '';
 let _timerAnimating = false; // true while card stop/discard animation is playing
+let _renderIsNav = false; // true when render() is triggered by actual navigation (not sync/refresh)
 function render(){
   if(_timerAnimating) return;
   if(!_currentUser || !_firmId) { showAuthScreen(); return; }
@@ -4500,6 +4501,7 @@ function render(){
     app.classList.add('page-enter');
   }
   const shouldAnimate = isNav;
+  _renderIsNav = isNav;
   _skipPageAnim = false;
   (ROUTES[hash]||renderDashboard)();
   setTimeout(labelTableCells, 0);
@@ -4577,7 +4579,7 @@ function renderMcTimerDashboard() {
       '<div class="page-head"><div><h1>Active Timer</h1><div class="sub">Timer is running</div></div>'+
       '<button class="btn btn-gold" onclick="openTimerModal()" style="white-space:nowrap;font-size:13px;padding:8px 14px">+ Start Timer</button></div>'+
       '<div class="mc-timers-grid">'+
-      '<div class="mc-timer-card mc-card-enter" id="mc-card-single" style="animation-delay:0s">'+
+      '<div class="mc-timer-card'+(_renderIsNav?' mc-card-enter':'')+'" id="mc-card-single" style="animation-delay:0s">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
       (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
       (t.description?'<div class="mc-timer-card-desc">'+esc(t.description)+'</div>':'')+
@@ -4598,7 +4600,7 @@ function renderMcTimerDashboard() {
     const stopOrSaved=isStopped
       ?'<div class="mc-timer-saved-badge">\u2713 Saved \u2014 '+msToHours(ms)+'h</div>'
       :'<button class="mc-timer-card-stop" onclick="stopOneClientTimer('+i+')">\u25a0 Stop &amp; Save</button>';
-    return '<div class="mc-timer-card mc-card-enter'+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'" style="animation-delay:'+(i*0.07)+'s">'+
+    return '<div class="mc-timer-card'+(_renderIsNav?' mc-card-enter':'')+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'" style="animation-delay:'+(i*0.07)+'s">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
       (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
       (c.description?'<div class="mc-timer-card-desc">'+esc(c.description)+'</div>':'')+
@@ -4647,7 +4649,9 @@ function startTimerDisplay() {
       if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(now-new Date(td.startedAt).getTime());
     },1000);
     window.location.hash='#timers';
+    _renderIsNav = true;
     renderMcTimerDashboard();
+    _renderIsNav = false;
   } else {
     sbTimer.innerHTML=
       '<div class="timer-live">'+
@@ -4659,7 +4663,9 @@ function startTimerDisplay() {
     document.getElementById('sb-timer-info').textContent=[c?.name,p?.name||t.projectText].filter(Boolean).join(' \xb7 ')||'Timer running\u2026';
     updateFAB(true);
     window.location.hash='#timers';
+    _renderIsNav = true;
     renderMcTimerDashboard();
+    _renderIsNav = false;
     _timerInterval=setInterval(()=>{
       const elapsed=Date.now()-new Date(t.startedAt).getTime();
       const s=document.getElementById('sb-elapsed'); if(s) s.textContent=fmtElapsed(elapsed);

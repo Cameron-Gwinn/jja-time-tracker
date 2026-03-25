@@ -144,15 +144,15 @@
       40%  { background:rgba(61,107,79,0.28); border-color:rgba(93,168,122,0.5); }
       100% { background:rgba(61,107,79,0.12); border-color:rgba(93,168,122,0.3); }
     }
-    .mc-timer-card.card-saving { animation: mc-card-saved-flash 0.5s ease forwards; }
+    .mc-timer-card.card-saving { animation: mc-card-saved-flash 0.6s ease forwards; }
     /* Phase 2: fade to transparent */
-    .mc-timer-card.card-fading { opacity:0; transition:opacity 0.5s ease; }
+    .mc-timer-card.card-fading { opacity:0; transition:opacity 0.8s ease-in-out; }
     /* Phase 3: collapse height so cards below slide up smoothly */
     .mc-timer-card.card-collapsing {
       max-height:0 !important; padding-top:0 !important; padding-bottom:0 !important;
       margin-top:0 !important; margin-bottom:0 !important;
       border-width:0 !important; opacity:0 !important;
-      transition:max-height .6s cubic-bezier(0.4,0,0.2,1), padding .6s cubic-bezier(0.4,0,0.2,1), margin .6s cubic-bezier(0.4,0,0.2,1), border-width .6s cubic-bezier(0.4,0,0.2,1);
+      transition:max-height .9s cubic-bezier(0.25,0.1,0.25,1), padding .9s cubic-bezier(0.25,0.1,0.25,1), margin .9s cubic-bezier(0.25,0.1,0.25,1), border-width .9s cubic-bezier(0.25,0.1,0.25,1);
     }
     .mc-timer-card-name { font-size:19px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
     .mc-timer-card-proj { font-size:12px; color:var(--text2); }
@@ -4976,9 +4976,9 @@ window.confirmOneTimerStop = idx => {
         setTimeout(()=>{
           card.remove();
           _updateTimerHeader();
-        }, 620);
-      }, 500);
-    }, 800);
+        }, 920);
+      }, 800);
+    }, 1200);
   }, 220);
 };
 
@@ -5009,8 +5009,8 @@ function _animateCardOut(cardId, onDone) {
     setTimeout(()=>{
       card.remove();
       if(onDone) onDone();
-    }, 620);
-  }, 500);
+    }, 920);
+  }, 800);
 }
 
 function showTimerReview(t, hours, elapsedStr) {

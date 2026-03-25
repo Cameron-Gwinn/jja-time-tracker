@@ -4773,11 +4773,43 @@ window.addMcClientRow = () => {
   const nextIdx=maxIdx+1;
   const div=document.createElement('div');
   div.innerHTML=buildMcClientRow(loadClients(), nextIdx);
-  document.getElementById('mc-client-rows').appendChild(div.firstElementChild);
+  const newRow=div.firstElementChild;
+  // Prepare for slide-in: start collapsed and invisible
+  newRow.style.overflow='hidden';
+  newRow.style.maxHeight='0';
+  newRow.style.opacity='0';
+  newRow.style.marginTop='-10px';
+  newRow.style.transition='none';
+  document.getElementById('mc-client-rows').appendChild(newRow);
+  // Animate open
+  requestAnimationFrame(()=>{
+    newRow.style.transition='max-height 0.35s cubic-bezier(0.22,0.61,0.36,1), opacity 0.3s ease, margin-top 0.3s ease';
+    requestAnimationFrame(()=>{
+      newRow.style.maxHeight=newRow.scrollHeight+40+'px';
+      newRow.style.opacity='1';
+      newRow.style.marginTop='0';
+      // Clean up after animation
+      setTimeout(()=>{ newRow.style.transition=''; newRow.style.maxHeight=''; newRow.style.overflow=''; }, 380);
+    });
+  });
 };
 window.removeMcClientRow = idx => {
   const row=document.getElementById('mc-row-'+idx);
-  if(row) row.remove();
+  if(!row) return;
+  const h=row.scrollHeight;
+  row.style.overflow='hidden';
+  row.style.maxHeight=h+'px';
+  row.style.transition='none';
+  requestAnimationFrame(()=>{
+    row.style.transition='max-height 0.3s cubic-bezier(0.22,0.61,0.36,1), opacity 0.25s ease, padding 0.3s ease';
+    requestAnimationFrame(()=>{
+      row.style.maxHeight='0';
+      row.style.opacity='0';
+      row.style.paddingTop='0';
+      row.style.paddingBottom='0';
+      setTimeout(()=>row.remove(), 320);
+    });
+  });
 };
 
 function startMultiTimer() {

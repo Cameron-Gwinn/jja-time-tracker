@@ -4504,7 +4504,7 @@ let _skipPageAnim = false;
 let _lastHash = '';
 let _timerAnimating = false; // true while card stop/discard animation is playing
 function render(){
-  if(_timerAnimating) return; // Don't re-render while card animation is playing
+  if(_timerAnimating) { console.log('[DEBUG] render() BLOCKED by _timerAnimating'); return; }
   if(!_currentUser || !_firmId) { showAuthScreen(); return; }
   destroyCharts();
   const hash=window.location.hash||'#dashboard';
@@ -4571,6 +4571,8 @@ function mobileFabClick() {
 }
 
 function renderMcTimerDashboard() {
+  if(_timerAnimating) { console.log('[DEBUG] renderMcTimerDashboard BLOCKED by _timerAnimating'); return; }
+  console.log('[DEBUG] renderMcTimerDashboard called', new Error().stack?.split('\n')[2]?.trim());
   const t=loadTimer();
   const el=document.getElementById('app');
   highlightNav();
@@ -4937,8 +4939,10 @@ window.discardOneTimerReview = idx => {
 };
 
 window.confirmOneTimerStop = idx => {
+  console.log('[DEBUG] confirmOneTimerStop called, idx=', idx);
   const t=loadTimer();
-  if(!t||!t.running||t.mode!=='multi') return;
+  console.log('[DEBUG] timer loaded:', JSON.stringify(t?.mode), 'clients:', t?.clients?.length, 'running:', t?.running);
+  if(!t||!t.running||t.mode!=='multi') { console.log('[DEBUG] BAILED — t.mode is', t?.mode); return; }
   const date=document.getElementById('otr-date').value;
   const hours=parseFloat(document.getElementById('otr-hrs').value);
   const clientId=document.getElementById('otr-cli').value;
@@ -4968,7 +4972,9 @@ window.confirmOneTimerStop = idx => {
   // This prevents any re-render from destroying the card mid-animation
   setTimeout(()=>{
     const card=document.getElementById('mc-card-'+idx);
-    if(!card){ _finishTimerStop(t, idx); return; }
+    console.log('[DEBUG] 220ms later — card found?', !!card, 'id=mc-card-'+idx);
+    if(!card){ console.log('[DEBUG] CARD NOT FOUND — skipping animation'); _finishTimerStop(t, idx); return; }
+    console.log('[DEBUG] Adding card-saving class — green should show now');
     card.classList.add('card-saving');
     const elEl=document.getElementById('mc-card-elapsed-'+idx);
     if(elEl) elEl.textContent=fmtElapsed(hours*3600000);

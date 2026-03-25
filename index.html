@@ -135,8 +135,9 @@
     .mc-sb-stop { background:transparent; border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.45); border-radius:5px; padding:4px 9px; font-size:11px; cursor:pointer; flex-shrink:0; line-height:1.4; transition:all .12s; -webkit-tap-highlight-color:transparent; }
     .mc-sb-stop:hover, .mc-sb-stop:active { border-color:rgba(224,92,92,0.7); color:#E05C5C; }
     /* Multi-client live timer cards */
-    .mc-timers-grid { display:flex; flex-direction:column; gap:14px; }
-    .mc-timer-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px; overflow:hidden; }
+    .mc-timers-grid { display:flex; flex-direction:column; gap:0; }
+    .mc-timer-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px; margin-bottom:14px; overflow:hidden; }
+    .mc-timer-card:last-child { margin-bottom:0; }
     .mc-timer-card.card-stopped { opacity:.42; }
     /* Phase 1: green confirmation — flashes in then holds */
     @keyframes mc-card-saved-flash {
@@ -150,11 +151,11 @@
     /* Phase 3: collapse — JS sets exact height then transitions to 0 for pixel-perfect smoothness */
     .mc-timer-card.card-collapse-ready {
       overflow:hidden;
-      transition:height 1.2s cubic-bezier(0.22,0.61,0.36,1), padding 1.2s cubic-bezier(0.22,0.61,0.36,1), margin 1.2s cubic-bezier(0.22,0.61,0.36,1), border-width 1.2s cubic-bezier(0.22,0.61,0.36,1), opacity 0.4s ease;
+      transition:height 1.2s cubic-bezier(0.22,0.61,0.36,1), padding 1.2s cubic-bezier(0.22,0.61,0.36,1), margin-bottom 1.2s cubic-bezier(0.22,0.61,0.36,1), border-width 1.2s cubic-bezier(0.22,0.61,0.36,1);
     }
     .mc-timer-card.card-collapsing {
       height:0 !important; padding-top:0 !important; padding-bottom:0 !important;
-      margin-top:0 !important; margin-bottom:0 !important;
+      margin-bottom:0 !important;
       border-width:0 !important; opacity:0 !important;
     }
     .mc-timer-card-name { font-size:19px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
@@ -4970,8 +4971,6 @@ window.confirmOneTimerStop = idx => {
   setTimeout(()=>{
     const card=document.getElementById('mc-card-'+idx);
     if(!card){ _timerAnimating=false; return; }
-    const h=card.offsetHeight;
-    card.style.maxHeight=h+'px';
     card.classList.add('card-saving');
     const elEl=document.getElementById('mc-card-elapsed-'+idx);
     if(elEl) elEl.textContent=fmtElapsed(hours*3600000);

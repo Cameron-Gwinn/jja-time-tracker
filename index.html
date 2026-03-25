@@ -4496,16 +4496,23 @@ function renderTrialBadge() {
   el.onclick = () => window.open(stripeUrl, '_blank');
 }
 
+let _skipPageAnim = false;
+let _lastHash = '';
 function render(){
   if(!_currentUser || !_firmId) { showAuthScreen(); return; }
   destroyCharts();
   const hash=window.location.hash||'#dashboard';
   highlightNav();
   const app=document.getElementById('app');
-  // Trigger page fade-in
-  app.classList.remove('page-enter');
-  void app.offsetWidth; // force reflow
-  app.classList.add('page-enter');
+  // Only play page-enter animation on actual navigation (new hash), not refreshes
+  const isNav = hash !== _lastHash && !_skipPageAnim;
+  _lastHash = hash;
+  if(isNav) {
+    app.classList.remove('page-enter');
+    void app.offsetWidth;
+    app.classList.add('page-enter');
+  }
+  _skipPageAnim = false;
   (ROUTES[hash]||renderDashboard)();
   setTimeout(labelTableCells, 0);
   renderTrialBadge();
@@ -4902,7 +4909,7 @@ window.discardOneTimerReview = idx => {
   if(!t||!t.running||t.mode!=='multi') { closeModal(); return; }
   t.clients.splice(idx,1);
   closeModal();
-  if(t.clients.length===0){ stopTimerDisplay(); clearTimerData(); navigate('#dashboard'); return; }
+  if(t.clients.length===0){ stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
   if(t.clients.length===1 && !t.clients[0].stoppedAt) {
     const last=t.clients[0];
     saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
@@ -4934,7 +4941,7 @@ window.confirmOneTimerStop = idx => {
   // Remove this client from timer data
   t.clients.splice(idx,1);
   const allDone=t.clients.length===0 || t.clients.every(c=>c.stoppedAt);
-  if(allDone){ stopTimerDisplay(); clearTimerData(); navigate('#dashboard'); return; }
+  if(allDone){ stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
   if(t.clients.length===1 && !t.clients[0].stoppedAt) {
     const last=t.clients[0];
     saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
@@ -5042,6 +5049,7 @@ function saveTimerEntry() {
   addEntry({date,hours,clientId,designerId,projectId,projectText,description});
   toast('Entry saved ✓');
   closeModal();
+  _skipPageAnim = true;
   render();
 }
 
@@ -5110,6 +5118,7 @@ function saveMultiTimerEntries() {
   }
   toast(saved+' entr'+(saved===1?'y':'ies')+' saved \u2713');
   closeModal();
+  _skipPageAnim = true;
   render();
 }
 

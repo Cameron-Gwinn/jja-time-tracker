@@ -4504,6 +4504,7 @@ let _skipPageAnim = false;
 let _lastHash = '';
 let _timerAnimating = false; // true while card stop/discard animation is playing
 function render(){
+  if(_timerAnimating) return; // Don't re-render while card animation is playing
   if(!_currentUser || !_firmId) { showAuthScreen(); return; }
   destroyCharts();
   const hash=window.location.hash||'#dashboard';
@@ -4662,10 +4663,13 @@ function startTimerDisplay() {
       '</div>';
     updateFAB(true);
     _timerInterval=setInterval(()=>{
+      if(_timerAnimating) return; // Don't touch DOM during card animations
       const td=loadTimer();
       if(!td||!td.running) return;
       const now=Date.now();
-      td.clients.forEach((c,i)=>{ if(c.stoppedAt) return; const el=document.getElementById('mc-card-elapsed-'+i); if(el) el.textContent=fmtElapsed(now-new Date(c.startedAt||td.startedAt).getTime()); });
+      if(td.mode==='multi' && td.clients) {
+        td.clients.forEach((c,i)=>{ if(c.stoppedAt) return; const el=document.getElementById('mc-card-elapsed-'+i); if(el) el.textContent=fmtElapsed(now-new Date(c.startedAt||td.startedAt).getTime()); });
+      }
       const pill=document.getElementById('fab-elapsed-pill');
       if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(now-new Date(td.startedAt).getTime());
     },1000);
@@ -4923,19 +4927,12 @@ window.discardOneTimerReview = idx => {
   if(!confirm('Discard this time entry? The timer will be removed.')) return;
   const t=loadTimer();
   if(!t||!t.running||t.mode!=='multi') { closeModal(); return; }
-  // Block realtime re-renders BEFORE any data saves
+  // Block all re-renders during animation
   _timerAnimating = true;
-  t.clients.splice(idx,1);
   closeModal();
-  if(t.clients.length===0){ _timerAnimating=false; stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
-  if(t.clients.length===1 && !t.clients[0].stoppedAt) {
-    const last=t.clients[0];
-    saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
-      designerId:t.designerId,projectId:last.projectId,projectText:last.projectText,description:last.description});
-  } else { saveTimerData(t); }
-  // Animate the card out after modal closes, then update header
+  // Animate the card out FIRST, then update timer data after animation completes
   setTimeout(()=>{
-    _animateCardOut('mc-card-'+idx, ()=>{ _timerAnimating=false; _updateTimerHeader(); });
+    _animateCardOut('mc-card-'+idx, ()=>{ _finishTimerStop(t, idx); });
   }, 220);
 };
 
@@ -4962,25 +4959,16 @@ window.confirmOneTimerStop = idx => {
   toast((cl?.name||'Client')+' — '+hours+'h saved ✓');
   closeModal();
 
-  // Remove this client from timer data
-  t.clients.splice(idx,1);
-  const allDone=t.clients.length===0 || t.clients.every(c=>c.stoppedAt);
-  if(allDone){ _timerAnimating=false; stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
-  if(t.clients.length===1 && !t.clients[0].stoppedAt) {
-    const last=t.clients[0];
-    saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
-      designerId:t.designerId,projectId:last.projectId,projectText:last.projectText,description:last.description});
-  } else { saveTimerData(t); }
-
-  // Update sidebar + header counts immediately
-  const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
+  // Update sidebar + header counts immediately (don't modify timer data yet — wait for animation)
+  const activeCount=t.clients.filter(c=>!c.stoppedAt).length - 1;
   const countEl=document.querySelector('#sb-timer .mc-active-count');
   if(countEl) countEl.textContent=activeCount+' timer'+(activeCount===1?'':'s')+' running';
 
-  // Play the card animation after modal closes
+  // Play the card animation FIRST, then update timer data AFTER animation completes
+  // This prevents any re-render from destroying the card mid-animation
   setTimeout(()=>{
     const card=document.getElementById('mc-card-'+idx);
-    if(!card){ _timerAnimating=false; return; }
+    if(!card){ _finishTimerStop(t, idx); return; }
     card.classList.add('card-saving');
     const elEl=document.getElementById('mc-card-elapsed-'+idx);
     if(elEl) elEl.textContent=fmtElapsed(hours*3600000);
@@ -4990,7 +4978,6 @@ window.confirmOneTimerStop = idx => {
     setTimeout(()=>{
       card.classList.add('card-fading');
       setTimeout(()=>{
-        /* Lock to exact pixel height, then collapse to 0 — no max-height guessing */
         const h = card.offsetHeight;
         card.style.height = h + 'px';
         card.classList.add('card-collapse-ready');
@@ -4999,13 +4986,32 @@ window.confirmOneTimerStop = idx => {
         });});
         setTimeout(()=>{
           card.remove();
-          _timerAnimating = false;
-          _updateTimerHeader();
+          _finishTimerStop(t, idx);
         }, 1250);
       }, 1000);
     }, 1200);
   }, 220);
 };
+
+// Finish timer stop: splice client, save data, unblock animations
+function _finishTimerStop(t, idx) {
+  t.clients.splice(idx, 1);
+  const allDone = t.clients.length === 0 || t.clients.every(c => c.stoppedAt);
+  if (allDone) {
+    _timerAnimating = false;
+    stopTimerDisplay(); clearTimerData(); _skipPageAnim = true; navigate('#dashboard');
+    return;
+  }
+  if (t.clients.length === 1 && !t.clients[0].stoppedAt) {
+    const last = t.clients[0];
+    saveTimerData({running:true, startedAt:last.startedAt||t.startedAt, clientId:last.clientId,
+      designerId:t.designerId, projectId:last.projectId, projectText:last.projectText, description:last.description});
+  } else {
+    saveTimerData(t);
+  }
+  _timerAnimating = false;
+  _updateTimerHeader();
+}
 
 // Update the timer page header counts without full re-render
 function _updateTimerHeader() {

@@ -4483,11 +4483,11 @@ function renderTrialBadge() {
 
 let _skipPageAnim = false;
 let _lastHash = '';
-let _timerAnimating = false; // true while card stop/discard animation is playing
+const _animatingCards = new Set(); // card indices currently animating
 let _renderIsNav = false; // true when render() is triggered by actual navigation (not sync/refresh)
 let _animateCardsFrom = -1; // -1 = no card animation, 0+ = animate cards from this index onward
 function render(){
-  if(_timerAnimating) return;
+  if(_animatingCards.size > 0) return;
   if(!_currentUser || !_firmId) { showAuthScreen(); return; }
   destroyCharts();
   const hash=window.location.hash||'#dashboard';
@@ -4557,7 +4557,7 @@ function mobileFabClick() {
 }
 
 function renderMcTimerDashboard() {
-  if(_timerAnimating) return;
+  if(_animatingCards.size > 0) return;
   const t=loadTimer();
   const el=document.getElementById('app');
   highlightNav();
@@ -4644,11 +4644,10 @@ function startTimerDisplay() {
       '</div>';
     updateFAB(true);
     _timerInterval=setInterval(()=>{
-      if(_timerAnimating) return;
       const td=loadTimer();
       if(!td||!td.running) return;
       const now=Date.now();
-      if(td.mode==='multi'&&td.clients) td.clients.forEach((c,i)=>{ if(c.stoppedAt) return; const el=document.getElementById('mc-card-elapsed-'+i); if(el) el.textContent=fmtElapsed(now-new Date(c.startedAt||td.startedAt).getTime()); });
+      if(td.mode==='multi'&&td.clients) td.clients.forEach((c,i)=>{ if(c.stoppedAt||_animatingCards.has(i)) return; const el=document.getElementById('mc-card-elapsed-'+i); if(el) el.textContent=fmtElapsed(now-new Date(c.startedAt||td.startedAt).getTime()); });
       const pill=document.getElementById('fab-elapsed-pill');
       if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(now-new Date(td.startedAt).getTime());
     },1000);
@@ -4870,7 +4869,7 @@ window.stopOneClientTimer = idx => {
   showModal(`
     <div class="modal-hd">
       <h2>Is this correct?</h2>
-      <button class="modal-x" onclick="discardOneTimerReview(${idx})">×</button>
+      <button class="modal-x" onclick="closeModal()">×</button>
     </div>
     <div class="timer-banner">
       <div class="tb-time">${elapsedStr}</div>
@@ -4911,23 +4910,22 @@ window.discardOneTimerReview = idx => {
   const t=loadTimer();
   if(!t||!t.running||t.mode!=='multi') { closeModal(); return; }
 
-  // BLOCK all re-renders immediately
-  _timerAnimating = true;
+  // Capture unique identity for this client (survives index shifts from other splices)
+  const clientKey = t.clients[idx].clientId + '|' + (t.clients[idx].startedAt || t.startedAt);
+
+  _animatingCards.add(idx);
   closeModal();
 
-  // Animate card out FIRST, then save data after
   setTimeout(()=>{
     const card=document.getElementById('mc-card-'+idx);
     if(!card){
-      _spliceAndSaveTimer(t, idx);
-      _timerAnimating = false;
+      _animatingCards.delete(idx);
+      _spliceByKey(clientKey, null);
       return;
     }
-    // Nuke ALL existing styles and classes — clean slate
     card.setAttribute('style', '');
     card.className = 'mc-timer-card';
 
-    // Fade out
     requestAnimationFrame(()=>{
       card.style.transition = 'opacity 0.9s ease';
       requestAnimationFrame(()=>{
@@ -4935,7 +4933,6 @@ window.discardOneTimerReview = idx => {
       });
 
       setTimeout(()=>{
-        // Collapse
         const h = card.offsetHeight;
         card.style.transition = 'none';
         card.style.height = h + 'px';
@@ -4953,8 +4950,8 @@ window.discardOneTimerReview = idx => {
 
         setTimeout(()=>{
           card.remove();
-          _spliceAndSaveTimer(t, idx);
-          _timerAnimating = false;
+          _animatingCards.delete(idx);
+          _spliceByKey(clientKey, null);
           _updateTimerHeader();
         }, 1150);
       }, 950);
@@ -4976,37 +4973,34 @@ window.confirmOneTimerStop = idx => {
   const description=document.getElementById('otr-desc').value.trim();
   if(!date||!clientId||isNaN(hours)||hours<=0||!description){toast('Please fill in all fields');return;}
 
-  // BLOCK all re-renders immediately — before anything else
-  _timerAnimating = true;
+  // Capture unique identity for this client (survives index shifts from other splices)
+  const clientKey = t.clients[idx].clientId + '|' + (t.clients[idx].startedAt || t.startedAt);
+
+  _animatingCards.add(idx);
 
   const cl=getClientById(clientId);
   toast((cl?.name||'Client')+' — '+hours+'h saved ✓');
   closeModal();
 
-  // Stash entry data — we'll save AFTER animation to prevent sync from wiping DOM
   const entryData = {date,hours,clientId,designerId,projectId,projectText,description};
 
-  // Play animation after modal close, THEN save data
   setTimeout(()=>{
     const card=document.getElementById('mc-card-'+idx);
     if(!card){
-      // Card gone — just save and bail
       addEntry(entryData);
-      _spliceAndSaveTimer(t, idx);
-      _timerAnimating = false;
+      _animatingCards.delete(idx);
+      _spliceByKey(clientKey, null);
       return;
     }
-    // Nuke ALL existing styles and animation classes — total clean slate
     card.setAttribute('style', '');
     card.className = 'mc-timer-card';
 
-    // Update card UI to show saved state
     const elEl=document.getElementById('mc-card-elapsed-'+idx);
     if(elEl) elEl.textContent=fmtElapsed(hours*3600000);
     const stopEl=document.getElementById('mc-card-stop-'+idx);
     if(stopEl) stopEl.innerHTML='<div class="mc-timer-saved-badge">✓ Saved — '+hours+'h</div>';
 
-    // Phase 1: Green flash — use requestAnimationFrame to ensure clean frame
+    // Phase 1: Green flash
     requestAnimationFrame(()=>{
       card.style.transition = 'background-color 0.3s ease, border-color 0.3s ease';
       card.style.backgroundColor = 'rgba(50,120,70,0.40)';
@@ -5014,14 +5008,12 @@ window.confirmOneTimerStop = idx => {
 
       // Hold green 720ms → fade 0.9s → collapse 1.1s
       setTimeout(()=>{
-        // Phase 2: Fade out
         card.style.transition = 'opacity 0.9s ease';
         requestAnimationFrame(()=>{
           card.style.opacity = '0';
         });
 
         setTimeout(()=>{
-          // Phase 3: Collapse height
           const h = card.offsetHeight;
           card.style.transition = 'none';
           card.style.height = h + 'px';
@@ -5039,10 +5031,9 @@ window.confirmOneTimerStop = idx => {
 
           setTimeout(()=>{
             card.remove();
-            // NOW save everything after animation is done
             addEntry(entryData);
-            _spliceAndSaveTimer(t, idx);
-            _timerAnimating = false;
+            _animatingCards.delete(idx);
+            _spliceByKey(clientKey, null);
             _updateTimerHeader();
           }, 1150);
         }, 950);
@@ -5076,12 +5067,26 @@ function _updateTimerHeader() {
   }
 }
 
-// Splice client from timer and save — used after animation completes
-function _spliceAndSaveTimer(t, idx) {
-  t.clients.splice(idx, 1);
+// Splice client from timer by unique key (clientId|startedAt) — safe for concurrent animations
+function _spliceByKey(clientKey, entryData) {
+  const t = loadTimer(); // always reload fresh — other animations may have spliced already
+  if(!t || !t.running || t.mode !== 'multi') {
+    // Timer already cleared by another animation finishing — if still animating, wait
+    if(_animatingCards.size === 0) {
+      stopTimerDisplay(); clearTimerData(); _skipPageAnim = true; navigate('#dashboard');
+    }
+    return;
+  }
+  const spliceIdx = t.clients.findIndex(c => (c.clientId + '|' + (c.startedAt || t.startedAt)) === clientKey);
+  if(spliceIdx >= 0) t.clients.splice(spliceIdx, 1);
+
   const allDone = t.clients.length === 0 || t.clients.every(c => c.stoppedAt);
   if (allDone) {
-    _timerAnimating = false; // must unblock before navigate so render() works
+    if(_animatingCards.size > 0) {
+      // Other animations still running — save state but don't navigate yet
+      saveTimerData(t);
+      return;
+    }
     stopTimerDisplay(); clearTimerData(); _skipPageAnim = true; navigate('#dashboard');
     return;
   }
@@ -5091,6 +5096,13 @@ function _spliceAndSaveTimer(t, idx) {
       designerId:t.designerId, projectId:last.projectId, projectText:last.projectText, description:last.description});
   } else {
     saveTimerData(t);
+  }
+  // If all animations done and all clients are done, navigate away
+  if(_animatingCards.size === 0) {
+    const t2 = loadTimer();
+    if(!t2 || !t2.running || (t2.mode==='multi' && t2.clients.every(c=>c.stoppedAt))) {
+      stopTimerDisplay(); clearTimerData(); _skipPageAnim = true; navigate('#dashboard');
+    }
   }
 }
 
@@ -5268,7 +5280,7 @@ function initRealtime() {
       if(!SYNC_KEYS.has(key)) return;
       _cache[key] = value;
       localStorage.setItem(key, JSON.stringify(value));
-      if(!_timerAnimating){ render(); toast('↻ Synced'); }
+      if(_animatingCards.size === 0){ render(); toast('↻ Synced'); }
     })
     .subscribe();
 

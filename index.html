@@ -214,6 +214,28 @@
     body.dark-mode tbody tr:hover td { background: #2F2C27; }
     .tbl-footer td { background: var(--bg2) !important; font-weight: 600; font-size: 13px; border-top: 1px solid var(--border) !important; }
 
+    /* ── Select / Bulk-delete mode ────────────────────── */
+    .btn-select { background:var(--bg2); color:var(--text2); border:1px solid var(--border); font-size:12px; padding:6px 12px; border-radius:var(--radius); cursor:pointer; transition:all .15s; }
+    .btn-select:hover { background:var(--border); color:var(--text); }
+    .btn-select.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .sel-chk { width:18px; height:18px; min-width:18px; accent-color:var(--accent); cursor:pointer; margin:0; vertical-align:middle; }
+    .sel-chk-cell { width:30px; text-align:center; }
+    .bulk-bar { position:fixed; bottom:0; left:0; right:0; z-index:9999; background:var(--card); border-top:1px solid var(--border); box-shadow:0 -4px 20px rgba(0,0,0,0.12); padding:12px 20px; display:flex; align-items:center; justify-content:space-between; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.22,0.61,0.36,1); }
+    .bulk-bar.show { transform:translateY(0); }
+    .bulk-bar-left { display:flex; align-items:center; gap:12px; font-size:14px; font-weight:600; }
+    .bulk-bar-left .count { color:var(--accent-dk); }
+    .bulk-bar-actions { display:flex; gap:8px; }
+    .bulk-bar .btn-select-all { background:var(--bg2); color:var(--text); border:1px solid var(--border); font-size:12px; padding:6px 12px; border-radius:var(--radius); cursor:pointer; }
+    .bulk-bar .btn-bulk-del { background:var(--danger); color:#fff; border:none; font-size:13px; font-weight:600; padding:8px 18px; border-radius:var(--radius); cursor:pointer; transition:opacity .15s; }
+    .bulk-bar .btn-bulk-del:hover { opacity:.85; }
+    .bulk-bar .btn-bulk-cancel { background:var(--bg2); color:var(--text2); border:1px solid var(--border); font-size:12px; padding:6px 12px; border-radius:var(--radius); cursor:pointer; }
+    /* Highlight selected rows/cards */
+    tr.sel-active td { background:rgba(196,168,122,0.10) !important; }
+    .card.sel-active, .designer-card.sel-active, .proj-card.sel-active, .inv-card.sel-active, .exp-item-card.sel-active, .exp-inv-card.sel-active { outline:2px solid var(--accent); outline-offset:-2px; }
+    /* Transition for checkbox column appearance */
+    .sel-chk { opacity:0; transform:scale(0.5); transition:opacity 0.2s ease, transform 0.2s ease; }
+    .select-mode .sel-chk { opacity:1; transform:scale(1); }
+
     /* ── Global page transition ──────────────────────── */
     @keyframes page-fade-in {
       from { opacity: 0; }
@@ -1281,6 +1303,119 @@ const updateEntry = (id,c) => saveEntries(loadEntries().map(e=>e.id===id?{...e,.
 const deleteEntry = id => saveEntries(loadEntries().filter(e=>e.id!==id));
 
 /* ══════════════════════════════════════════════════════
+   SELECT / BULK-DELETE MODE
+══════════════════════════════════════════════════════ */
+let _selectMode = false;
+let _selectedIds = new Set();
+let _selectType = ''; // 'entry','client','designer','project','invoice','expItem','expInvoice'
+
+function toggleSelectMode(type) {
+  _selectMode = !_selectMode;
+  _selectType = _selectMode ? type : '';
+  _selectedIds.clear();
+  _updateBulkBar();
+  // Re-render current view so checkboxes/actions update
+  const hash = window.location.hash || '#dashboard';
+  const routeFn = ROUTES[hash];
+  if(routeFn) routeFn();
+  // Re-apply select-mode class and button state after re-render
+  document.getElementById('app').classList.toggle('select-mode', _selectMode);
+  const btn = document.getElementById('btn-sel-toggle');
+  if(btn) btn.classList.toggle('active', _selectMode);
+}
+
+function toggleSelectItem(id, el) {
+  if(!_selectMode) return;
+  if(_selectedIds.has(id)) _selectedIds.delete(id); else _selectedIds.add(id);
+  // Update checkbox
+  const chk = document.getElementById('sel-'+id);
+  if(chk) chk.checked = _selectedIds.has(id);
+  // Highlight row/card
+  if(el) el.classList.toggle('sel-active', _selectedIds.has(id));
+  _updateBulkBar();
+}
+
+function selectAll() {
+  document.querySelectorAll('.sel-chk').forEach(cb => {
+    const id = cb.dataset.id;
+    if(id) { _selectedIds.add(id); cb.checked = true; }
+    const row = cb.closest('tr') || cb.closest('.card, .designer-card, .proj-card, .inv-card, .exp-item-card, .exp-inv-card');
+    if(row) row.classList.add('sel-active');
+  });
+  _updateBulkBar();
+}
+
+function deselectAll() {
+  _selectedIds.clear();
+  document.querySelectorAll('.sel-chk').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('.sel-active').forEach(el => el.classList.remove('sel-active'));
+  _updateBulkBar();
+}
+
+function _updateBulkBar() {
+  let bar = document.getElementById('bulk-bar');
+  if(!_selectMode) {
+    if(bar) bar.classList.remove('show');
+    return;
+  }
+  if(!bar) {
+    bar = document.createElement('div');
+    bar.id = 'bulk-bar';
+    bar.className = 'bulk-bar';
+    bar.innerHTML = `
+      <div class="bulk-bar-left"><span class="count" id="bulk-count">0</span> selected</div>
+      <div class="bulk-bar-actions">
+        <button class="btn-select-all" onclick="selectAll()">Select All</button>
+        <button class="btn-bulk-cancel" onclick="toggleSelectMode(_selectType)">Cancel</button>
+        <button class="btn-bulk-del" id="bulk-del-btn" onclick="bulkDelete()">Delete Selected</button>
+      </div>`;
+    document.body.appendChild(bar);
+  }
+  document.getElementById('bulk-count').textContent = _selectedIds.size;
+  const delBtn = document.getElementById('bulk-del-btn');
+  if(delBtn) { delBtn.disabled = _selectedIds.size===0; delBtn.style.opacity = _selectedIds.size===0?'0.4':'1'; }
+  requestAnimationFrame(()=> bar.classList.add('show'));
+}
+
+function bulkDelete() {
+  const n = _selectedIds.size;
+  if(!n) return;
+  const label = {entry:'entries',client:'clients',designer:'designers',project:'projects',invoice:'invoices',expItem:'expense items',expInvoice:'expense invoices'}[_selectType]||'items';
+  if(!confirm(`Delete ${n} ${label}? This cannot be undone.`)) return;
+  const ids = [..._selectedIds];
+  if(_selectType==='entry') {
+    saveEntries(loadEntries().filter(e=>!ids.includes(e.id)));
+  } else if(_selectType==='client') {
+    ids.forEach(id=>deleteClient(id));
+  } else if(_selectType==='designer') {
+    ids.forEach(id=>{loadEntries().filter(e=>e.designerId===id).forEach(e=>updateEntry(e.id,{designerId:''}));deleteDesigner(id);});
+  } else if(_selectType==='project') {
+    ids.forEach(id=>deleteProject(id));
+  } else if(_selectType==='invoice') {
+    saveInvoices(loadInvoices().filter(i=>!ids.includes(i.id)));
+  } else if(_selectType==='expItem') {
+    ids.forEach(id=>{const item=getExpItemById(id);if(item?.filePath)deleteSupabaseFile(item.filePath);deleteExpItem(id);});
+  } else if(_selectType==='expInvoice') {
+    saveExpInvoices(loadExpInvoices().filter(i=>!ids.includes(i.id)));
+  }
+  toast(`${n} ${label} deleted`);
+  _selectMode = false; _selectedIds.clear(); _selectType = '';
+  const bar = document.getElementById('bulk-bar');
+  if(bar) bar.classList.remove('show');
+  render();
+}
+
+// Helper: generates select-mode toggle button HTML for page headers
+function selBtnHtml(type) {
+  return `<button class="btn-select" id="btn-sel-toggle" onclick="toggleSelectMode('${type}')">Select</button>`;
+}
+
+// Helper: generates checkbox HTML for a row/card
+function selChkHtml(id) {
+  return `<input type="checkbox" class="sel-chk" id="sel-${id}" data-id="${id}" onclick="event.stopPropagation();toggleSelectItem('${id}', this.closest('tr') || this.closest('.card, .designer-card, .proj-card, .inv-card, .exp-item-card, .exp-inv-card'))">`;
+}
+
+/* ══════════════════════════════════════════════════════
    CALCULATIONS
 ══════════════════════════════════════════════════════ */
 function entryRate(e) {
@@ -1615,36 +1750,43 @@ function saveClientForm(editId){
 ══════════════════════════════════════════════════════ */
 function entriesTableHtml(entries,{showDesigner=true,showClient=false,showProject=true,showActions=true}={}) {
   if(!entries.length) return `<div class="empty" style="padding:24px"><p class="col2">No entries found.</p></div>`;
-  const cols=['Date'];
+  const sm = _selectMode && _selectType==='entry';
+  const cols=[];
+  if(sm) cols.push('');
+  cols.push('Date');
   if(showDesigner) cols.push('Designer');
   if(showClient)   cols.push('Client');
   if(showProject)  cols.push('Project');
   cols.push('Description','Hours','Amount','Status');
-  if(showActions)  cols.push('');
+  if(showActions && !sm)  cols.push('');
 
   const rows=entries.map(e=>{
     const c=getClientById(e.clientId), d=e.designerId?getDesignerById(e.designerId):null;
     const inv=isInvoiced(e);
     const badge=inv?'<span class="badge badge-invoiced">Invoiced</span>':'<span class="badge badge-unbilled">Unbilled</span>';
     const recurBadge=e.recurring?`<span class="badge-recurring">↻ ${e.recurring}</span> `:'';
-    const actions=showActions?`<td class="td-actions">
+    const actions=(showActions && !sm)?`<td class="td-actions">
       <button class="btn btn-ghost btn-sm" onclick="openEntryModal('${e.id}')">Edit</button>
       ${e.recurring?`<button class="btn btn-ghost btn-sm" onclick="logAgain('${e.id}')" title="Log again today">↻</button>`:''}
       <button class="btn btn-danger btn-sm" onclick="confirmDelEntry('${e.id}')">Del</button></td>`:'';
-    const tds=[`<td>${fmtDate(e.date)}</td>`];
+    const tds=[];
+    if(sm) tds.push(`<td class="sel-chk-cell">${selChkHtml(e.id)}</td>`);
+    tds.push(`<td>${fmtDate(e.date)}</td>`);
     if(showDesigner) tds.push(`<td>${d?esc(d.name):'<span class="col2">—</span>'}</td>`);
     if(showClient)   tds.push(`<td>${c?esc(c.name):'<span class="col2">—</span>'}</td>`);
     if(showProject)  tds.push(`<td>${esc(entryProjectName(e))}</td>`);
     tds.push(`<td class="col2" style="max-width:220px">${recurBadge}${esc(e.description)}</td>`,`<td>${e.hours}h</td>`,`<td class="gold-txt">${cur(entryAmount(e))}</td>`,`<td>${badge}</td>`);
-    if(showActions) tds.push(actions);
-    return `<tr>${tds.join('')}</tr>`;
+    if(showActions && !sm) tds.push(actions);
+    const sel = sm && _selectedIds.has(e.id) ? ' sel-active' : '';
+    return `<tr class="${sel}" onclick="${sm?`toggleSelectItem('${e.id}',this)`:''}" style="${sm?'cursor:pointer':''}">
+      ${tds.join('')}</tr>`;
   }).join('');
 
   const totH=entries.reduce((s,e)=>s+e.hours,0);
   const totA=entries.reduce((s,e)=>s+entryAmount(e),0);
-  const skipCols=cols.length-(showActions?3:2);
+  const skipCols=cols.length-((showActions&&!sm)?3:2);
   const footTds=[`<td colspan="${skipCols}"></td>`,`<td><strong>${totH.toFixed(1)}h</strong></td>`,`<td class="gold-txt"><strong>${cur(totA)}</strong></td>`,`<td></td>`];
-  if(showActions) footTds.push(`<td></td>`);
+  if(showActions && !sm) footTds.push(`<td></td>`);
 
   return `<div class="tbl-wrap"><table>
     <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
@@ -1903,7 +2045,7 @@ function confirmDelProject(id){const p=getProjectById(id);const n=loadEntries().
 ══════════════════════════════════════════════════════ */
 function renderHours(){
   document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>All Hours</h1><div class="sub">Total billable hours across all designers and projects</div></div><button class="btn btn-gold" onclick="openEntryModal()">+ Log Time</button></div>
+    <div class="page-head"><div><h1>All Hours</h1><div class="sub">Total billable hours across all designers and projects</div></div><div style="display:flex;gap:8px;align-items:center">${selBtnHtml('entry')}<button class="btn btn-gold" onclick="openEntryModal()">+ Log Time</button></div></div>
     <div class="filters">
       <label class="field-label">Designer</label>
       <select id="h-des" onchange="rebuildHours()">${designerOpts('','All Designers')}</select>
@@ -1984,8 +2126,12 @@ function renderClients(){
     const ce=entries.filter(e=>e.clientId===c.id);
     const totH=ce.reduce((s,e)=>s+e.hours,0), totA=ce.reduce((s,e)=>s+entryAmount(e),0);
     const projCount=loadProjects().filter(p=>p.clientId===c.id).length;
-    return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div>
+    const sm = _selectMode && _selectType==='client';
+    const sel = sm && _selectedIds.has(c.id) ? ' sel-active' : '';
+    return `<div class="card${sel}" ${sm?`onclick="toggleSelectItem('${c.id}',this)" style="cursor:pointer"`:''}>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      ${sm?`<div style="margin-right:12px;padding-top:2px">${selChkHtml(c.id)}</div>`:''}
+      <div style="flex:1">
         <div style="font-family:Georgia,serif;font-size:17px;margin-bottom:3px">${esc(c.name)}</div>
         <div class="col2 fs12">${[c.contactName,c.email].filter(Boolean).map(esc).join(' · ')}</div>
         <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1994,15 +2140,15 @@ function renderClients(){
           <span class="col2 fs12">${totH.toFixed(1)} hrs · ${cur(totA)} total</span>
         </div>
       </div>
-      <div class="flex-gap card-actions">
+      ${sm?'':`<div class="flex-gap card-actions">
         <button class="btn btn-ghost btn-sm" onclick="openClientModal('${c.id}')">Edit</button>
         <button class="btn btn-danger btn-sm" onclick="confirmDelClient('${c.id}')">Delete</button>
-      </div>
+      </div>`}
     </div></div>`;
   }).join(''):`<div class="empty"><div class="e-icon">◎</div><p>No clients yet.</p><button class="btn btn-gold" onclick="openClientModal()">+ Add Client</button></div>`;
 
   document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Clients</h1></div><button class="btn btn-gold" onclick="openClientModal()">+ Add Client</button></div>
+    <div class="page-head"><div><h1>Clients</h1></div><div style="display:flex;gap:8px;align-items:center">${selBtnHtml('client')}<button class="btn btn-gold" onclick="openClientModal()">+ Add Client</button></div></div>
     ${cards}`;
 }
 function confirmDelClient(id){const c=getClientById(id);const n=loadEntries().filter(e=>e.clientId===id).length;if(confirm(`Delete "${c.name}"?${n?` This will also remove ${n} time entr${n===1?'y':'ies'}.`:''}`)){deleteClient(id);toast('Client deleted');render();}}
@@ -2013,7 +2159,7 @@ function confirmDelClient(id){const c=getClientById(id);const n=loadEntries().fi
 function renderInvoices(){
   const invoices=[...loadInvoices()].sort((a,b)=>b.generatedAt.localeCompare(a.generatedAt));
   document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Invoices</h1><div class="sub">All generated invoices and billing history</div></div></div>
+    <div class="page-head"><div><h1>Invoices</h1><div class="sub">All generated invoices and billing history</div></div>${selBtnHtml('invoice')}</div>
     <div class="filters"><label class="field-label">Client</label><select id="inv-f-cli" onchange="rebuildInvList()">${clientOpts('','All Clients')}</select></div>
     <div id="inv-list"></div>`;
 
@@ -2026,8 +2172,11 @@ function renderInvoices(){
       const c=getClientById(inv.clientId), d=inv.designerId?getDesignerById(inv.designerId):null;
       const covered=filterEntries({clientId:inv.clientId,designerId:inv.designerId||'',start:inv.startDate,end:inv.endDate});
       const isPaid=inv.paid;
-      return `<div class="inv-card">
-        <div class="inv-card-hd" onclick="toggleInvDetail('${inv.id}',this)">
+      const sm = _selectMode && _selectType==='invoice';
+      const sel = sm && _selectedIds.has(inv.id) ? ' sel-active' : '';
+      return `<div class="inv-card${sel}">
+        <div class="inv-card-hd" onclick="${sm?`event.stopPropagation();toggleSelectItem('${inv.id}',this.parentElement)`:`toggleInvDetail('${inv.id}',this)`}" ${sm?'style="cursor:pointer"':''}>
+          ${sm?`<div style="margin-right:12px;display:flex;align-items:center">${selChkHtml(inv.id)}</div>`:''}
           <div><div class="inv-num">${esc(inv.invoiceNumber)}</div>
             <div class="inv-client">${esc(c?.name||'?')}${d?` · ${esc(d.name)}`:''}</div>
             <div class="inv-client col2 fs12">${fmtDate(inv.startDate)} – ${fmtDate(inv.endDate)}</div></div>
@@ -2038,7 +2187,7 @@ function renderInvoices(){
               <span class="badge badge-invoiced" style="font-size:10px">Invoiced</span>
               ${isPaid?`<span class="badge-paid">✓ Paid ${inv.paidAt?fmtDate(inv.paidAt.split('T')[0]):''}</span>`:`<span class="badge-unpaid">Unpaid</span>`}
             </div>
-            <div class="inv-actions">
+            ${sm?'':`<div class="inv-actions">
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();${isPaid?`markInvoicePaid('${inv.id}',false)`:`markInvoicePaid('${inv.id}',true)`}">${isPaid?'↩ Unpaid':'💵 Mark Paid'}</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();emailInvoice('${inv.id}')">✉ Email</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewTimePDF('${inv.id}')">👁 Preview</button>
@@ -2046,12 +2195,12 @@ function renderInvoices(){
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();exportTimeInvQBO('${inv.id}')">QB</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editInvoice('${inv.id}')">Edit</button>
               <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteInvoice('${inv.id}')">Delete</button>
-            </div>
+            </div>`}
           </div>
         </div>
-        <div class="inv-detail" id="invd-${inv.id}" style="display:none">
+        ${sm?'':`<div class="inv-detail" id="invd-${inv.id}" style="display:none">
           ${entriesTableHtml(covered,{showDesigner:!inv.designerId,showActions:false})}
-        </div>
+        </div>`}
       </div>`;
     }).join('');
   };
@@ -3689,7 +3838,7 @@ function saveExpItemForm(editId) {
 function renderExpItems() {
   const clients=loadClients();
   document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Expense Items</h1><div class="sub">Track purchases, materials, and services by client &amp; project</div></div><button class="btn btn-gold" onclick="openExpItemModal('')">+ Add Item</button></div>
+    <div class="page-head"><div><h1>Expense Items</h1><div class="sub">Track purchases, materials, and services by client &amp; project</div></div><div style="display:flex;gap:8px;align-items:center">${selBtnHtml('expItem')}<button class="btn btn-gold" onclick="openExpItemModal('')">+ Add Item</button></div></div>
     <div class="filters">
       <label class="field-label">Client</label>
       <select id="exp-f-cli" onchange="rebuildExpItems();refreshExpFilterProj(this.value)">${clientOpts('','All Clients')}</select>
@@ -3745,8 +3894,11 @@ function renderExpItems() {
       const catCls=CAT_COLORS[item.category]||'badge-category-other';
       const catLbl=CAT_LABELS[item.category]||'Other';
       const client=getClientById(item.clientId), proj=item.projectId?getProjectById(item.projectId):null;
-      return `<div class="exp-item-card${item.status==='billed'?' billed':''}">
-        <div class="exp-item-left">
+      const sm = _selectMode && _selectType==='expItem';
+      const sel = sm && _selectedIds.has(item.id) ? ' sel-active' : '';
+      return `<div class="exp-item-card${item.status==='billed'?' billed':''}${sel}" ${sm?`onclick="toggleSelectItem('${item.id}',this)" style="cursor:pointer"`:''}>
+        ${sm?`<div style="margin-right:12px;display:flex;align-items:flex-start;padding-top:6px">${selChkHtml(item.id)}</div>`:''}
+        <div class="exp-item-left" style="${sm?'flex:1':''}">
           <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
             <span class="badge ${catCls}">${catLbl}</span>
             <span class="badge ${item.status==='billed'?'badge-billed':'badge-filed'}">${item.status==='billed'?'Billed':'Filed'}</span>
@@ -3757,7 +3909,7 @@ function renderExpItems() {
           <div style="font-size:12px;color:var(--text2);margin-top:4px">${esc(client?.name||'?')}${proj?` · ${esc(proj.name)}`:''}</div>
           ${item.markupPct>0||item.adminFeePct>0?`<div class="exp-markup-info">Markup ${item.markupPct}%${item.adminFeePct>0?` · Admin ${item.adminFeePct}%`:''}</div>`:''}
         </div>
-        <div class="exp-item-right">
+        ${sm?'':`<div class="exp-item-right">
           <div class="exp-client-total">${cur(c.clientTotal)}</div>
           <div class="exp-vendor-price">Vendor: ${cur(item.vendorAmount)}</div>
           <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px;align-items:flex-end">
@@ -3765,7 +3917,7 @@ function renderExpItems() {
             ${(item.hasPdf||item.hasFile)?fileBadgeHtml(item):''}
             <button class="btn btn-danger btn-sm" onclick="confirmDelExpItem('${item.id}')">Delete</button>
           </div>
-        </div>
+        </div>`}
       </div>`;
     }).join('')+`<div class="card" style="text-align:right;padding:12px 20px"><span class="col2 fs12">Vendor Total &nbsp;</span><strong>${cur(totalVendor)}</strong>&nbsp;&nbsp;<span class="col2 fs12">Client Total &nbsp;</span><span class="gold-txt" style="font-size:17px"><strong>${cur(totalClient)}</strong></span></div>`;
   };
@@ -3943,7 +4095,7 @@ function buildInternalExpPDFDoc(inv) {
 function renderExpInvoices() {
   const invoices=[...loadExpInvoices()].sort((a,b)=>b.generatedAt.localeCompare(a.generatedAt));
   document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Expense Invoices</h1><div class="sub">All generated expense invoices</div></div></div>
+    <div class="page-head"><div><h1>Expense Invoices</h1><div class="sub">All generated expense invoices</div></div>${selBtnHtml('expInvoice')}</div>
     <div class="filters">
       <label class="field-label">Client</label>
       <select id="exinv-f-cli" onchange="rebuildExpInvList()">${clientOpts('','All Clients')}</select>
@@ -3978,8 +4130,11 @@ function renderExpInvoices() {
         </div>`;
       }).join('');
 
-      return `<div class="exp-inv-card">
-        <div class="exp-inv-card-hd" onclick="toggleExpInvDetail('${inv.id}',this)">
+      const sm = _selectMode && _selectType==='expInvoice';
+      const sel = sm && _selectedIds.has(inv.id) ? ' sel-active' : '';
+      return `<div class="exp-inv-card${sel}">
+        <div class="exp-inv-card-hd" onclick="${sm?`event.stopPropagation();toggleSelectItem('${inv.id}',this.parentElement)`:`toggleExpInvDetail('${inv.id}',this)`}" ${sm?'style="cursor:pointer"':''}>
+          ${sm?`<div style="margin-right:12px;display:flex;align-items:center">${selChkHtml(inv.id)}</div>`:''}
           <div class="exp-inv-card-info">
             <div class="inv-num">${esc(inv.invoiceNumber)}</div>
             <div class="inv-client">${esc(c?.name||'?')}${proj?` · <span style="color:var(--text2)">${esc(proj.name)}</span>`:''}</div>
@@ -3992,7 +4147,7 @@ function renderExpInvoices() {
                 ?`<span class="badge-paid">✓ Paid${inv.paidAt?` ${fmtDate(inv.paidAt.split('T')[0])}`:''}</span>`
                 :`<span class="badge-unpaid">Unpaid</span>`}
             </div>
-            <div class="inv-actions">
+            ${sm?'':`<div class="inv-actions">
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();${inv.paid?`markExpInvoicePaid('${inv.id}',false)`:`markExpInvoicePaid('${inv.id}',true)`}">${inv.paid?'↩ Unpaid':'💵 Mark Paid'}</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();emailExpInvoice('${inv.id}')">✉ Email</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();previewInternalExpInv('${inv.id}')">👁 Preview</button>
@@ -4000,13 +4155,13 @@ function renderExpInvoices() {
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();exportExpInvQBO('${inv.id}')">QB</button>
               <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editExpInvoice('${inv.id}')">Edit</button>
               <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteExpInvoice('${inv.id}')">Delete</button>
-            </div>
+            </div>`}
           </div>
         </div>
-        <div id="expinvd-${inv.id}" class="exp-inv-detail-body" style="display:none">
+        ${sm?'':`<div id="expinvd-${inv.id}" class="exp-inv-detail-body" style="display:none">
           ${detailRows}
           <div class="inv-total-row"><span>Total</span><span class="gold-txt">${cur(inv.clientTotal)}</span></div>
-        </div>
+        </div>`}
       </div>`;
     }).join('');
   };
@@ -4493,6 +4648,12 @@ function render(){
   const hash=window.location.hash||'#dashboard';
   highlightNav();
   const app=document.getElementById('app');
+  // Exit select mode on navigation
+  if(_selectMode && hash !== _lastHash) {
+    _selectMode = false; _selectedIds.clear(); _selectType = '';
+    const bar = document.getElementById('bulk-bar');
+    if(bar) bar.classList.remove('show');
+  }
   // Only play entrance animations on actual navigation (new hash), not refreshes
   const isNav = hash !== _lastHash && !_skipPageAnim;
   _lastHash = hash;

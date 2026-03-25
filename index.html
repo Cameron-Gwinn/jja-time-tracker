@@ -5046,6 +5046,7 @@ function _spliceAndSaveTimer(t, idx) {
   t.clients.splice(idx, 1);
   const allDone = t.clients.length === 0 || t.clients.every(c => c.stoppedAt);
   if (allDone) {
+    _timerAnimating = false; // must unblock before navigate so render() works
     stopTimerDisplay(); clearTimerData(); _skipPageAnim = true; navigate('#dashboard');
     return;
   }

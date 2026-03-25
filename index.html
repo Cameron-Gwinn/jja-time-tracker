@@ -4923,16 +4923,16 @@ window.discardOneTimerReview = idx => {
   if(!confirm('Discard this time entry? The timer will be removed.')) return;
   const t=loadTimer();
   if(!t||!t.running||t.mode!=='multi') { closeModal(); return; }
+  // Block realtime re-renders BEFORE any data saves
+  _timerAnimating = true;
   t.clients.splice(idx,1);
   closeModal();
-  if(t.clients.length===0){ stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
+  if(t.clients.length===0){ _timerAnimating=false; stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
   if(t.clients.length===1 && !t.clients[0].stoppedAt) {
     const last=t.clients[0];
     saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
       designerId:t.designerId,projectId:last.projectId,projectText:last.projectText,description:last.description});
   } else { saveTimerData(t); }
-  // Block realtime re-renders while animation plays
-  _timerAnimating = true;
   // Animate the card out after modal closes, then update header
   setTimeout(()=>{
     _animateCardOut('mc-card-'+idx, ()=>{ _timerAnimating=false; _updateTimerHeader(); });
@@ -4953,6 +4953,9 @@ window.confirmOneTimerStop = idx => {
   const description=document.getElementById('otr-desc').value.trim();
   if(!date||!clientId||isNaN(hours)||hours<=0||!description){toast('Please fill in all fields');return;}
 
+  // Block realtime re-renders BEFORE any data saves so the animation can't be interrupted
+  _timerAnimating = true;
+
   // Save the entry
   addEntry({date,hours,clientId,designerId,projectId,projectText,description});
   const cl=getClientById(clientId);
@@ -4962,7 +4965,7 @@ window.confirmOneTimerStop = idx => {
   // Remove this client from timer data
   t.clients.splice(idx,1);
   const allDone=t.clients.length===0 || t.clients.every(c=>c.stoppedAt);
-  if(allDone){ stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
+  if(allDone){ _timerAnimating=false; stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
   if(t.clients.length===1 && !t.clients[0].stoppedAt) {
     const last=t.clients[0];
     saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
@@ -4973,9 +4976,6 @@ window.confirmOneTimerStop = idx => {
   const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
   const countEl=document.querySelector('#sb-timer .mc-active-count');
   if(countEl) countEl.textContent=activeCount+' timer'+(activeCount===1?'':'s')+' running';
-
-  // Block realtime re-renders while animation plays
-  _timerAnimating = true;
 
   // Play the card animation after modal closes
   setTimeout(()=>{

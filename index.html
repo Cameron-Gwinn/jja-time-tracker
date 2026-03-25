@@ -4916,7 +4916,10 @@ window.discardOneTimerReview = idx => {
     saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
       designerId:t.designerId,projectId:last.projectId,projectText:last.projectText,description:last.description});
   } else { saveTimerData(t); }
-  renderMcTimerDashboard();
+  // Animate the card out after modal closes, then update header
+  setTimeout(()=>{
+    _animateCardOut('mc-card-'+idx, _updateTimerHeader);
+  }, 220);
 };
 
 window.confirmOneTimerStop = idx => {
@@ -4949,33 +4952,67 @@ window.confirmOneTimerStop = idx => {
       designerId:t.designerId,projectId:last.projectId,projectText:last.projectText,description:last.description});
   } else { saveTimerData(t); }
 
-  // Play the card animation after modal closes
-  setTimeout(()=>{
-    const card=document.getElementById('mc-card-'+idx);
-    if(card){
-      const h=card.offsetHeight;
-      card.style.maxHeight=h+'px';
-      card.classList.add('card-saving');
-      const elEl=document.getElementById('mc-card-elapsed-'+idx);
-      if(elEl) elEl.textContent=fmtElapsed(hours*3600000);
-      const stopEl=document.getElementById('mc-card-stop-'+idx);
-      if(stopEl) stopEl.innerHTML='<div class="mc-timer-saved-badge">✓ Saved — '+hours+'h</div>';
-
-      setTimeout(()=>{
-        card.classList.add('card-fading');
-        setTimeout(()=>{
-          card.classList.add('card-collapsing');
-          setTimeout(()=>{ renderMcTimerDashboard(); }, 420);
-        }, 320);
-      }, 1000);
-    } else { renderMcTimerDashboard(); }
-  }, 220); // wait for modal close animation
-
-  // Update sidebar count
+  // Update sidebar + header counts immediately
   const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
   const countEl=document.querySelector('#sb-timer .mc-active-count');
   if(countEl) countEl.textContent=activeCount+' timer'+(activeCount===1?'':'s')+' running';
+
+  // Play the card animation after modal closes
+  setTimeout(()=>{
+    const card=document.getElementById('mc-card-'+idx);
+    if(!card) return;
+    const h=card.offsetHeight;
+    card.style.maxHeight=h+'px';
+    card.classList.add('card-saving');
+    const elEl=document.getElementById('mc-card-elapsed-'+idx);
+    if(elEl) elEl.textContent=fmtElapsed(hours*3600000);
+    const stopEl=document.getElementById('mc-card-stop-'+idx);
+    if(stopEl) stopEl.innerHTML='<div class="mc-timer-saved-badge">✓ Saved — '+hours+'h</div>';
+
+    setTimeout(()=>{
+      card.classList.add('card-fading');
+      setTimeout(()=>{
+        card.classList.add('card-collapsing');
+        setTimeout(()=>{
+          card.remove();
+          // Update header text without full re-render
+          _updateTimerHeader();
+        }, 420);
+      }, 300);
+    }, 800);
+  }, 220);
 };
+
+// Update the timer page header counts without full re-render
+function _updateTimerHeader() {
+  const t=loadTimer();
+  const sub=document.querySelector('.page-head .sub');
+  if(!t||!t.running) {
+    if(sub) sub.textContent='No timers running';
+    return;
+  }
+  const total=t.mode==='multi'?t.clients.length:1;
+  const active=t.mode==='multi'?t.clients.filter(c=>!c.stoppedAt).length:1;
+  if(sub) sub.textContent=active+' of '+total+' still running';
+  // Hide "Stop All" if 1 or fewer active
+  if(active<=1){ const sa=document.getElementById('mc-stop-all'); if(sa) sa.remove(); }
+}
+
+// Animate a timer card out (fade then collapse), then remove it
+function _animateCardOut(cardId, onDone) {
+  const card=document.getElementById(cardId);
+  if(!card){ if(onDone) onDone(); return; }
+  const h=card.offsetHeight;
+  card.style.maxHeight=h+'px';
+  card.classList.add('card-fading');
+  setTimeout(()=>{
+    card.classList.add('card-collapsing');
+    setTimeout(()=>{
+      card.remove();
+      if(onDone) onDone();
+    }, 400);
+  }, 300);
+}
 
 function showTimerReview(t, hours, elapsedStr) {
   const clients=loadClients(), designers=loadDesigners();

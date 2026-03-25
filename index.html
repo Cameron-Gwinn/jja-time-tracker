@@ -921,7 +921,7 @@
     @keyframes modal-out { from { opacity:1; transform:translateY(0) scale(1); } to { opacity:0; transform:translateY(22px) scale(0.97); } }
     .modal-launching { animation: modal-out 0.22s ease forwards; pointer-events:none; }
     @keyframes mc-card-in { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
-    .mc-timer-card { animation: mc-card-in 0.38s cubic-bezier(0.22,1,0.36,1) both; }
+    .mc-timer-card.mc-card-entering { animation: mc-card-in 0.38s cubic-bezier(0.22,1,0.36,1) both; }
     .auth-card {
       background: var(--card); border: 1px solid var(--border);
       border-radius: 12px; padding: 40px 36px;
@@ -4594,13 +4594,16 @@ function renderMcTimerDashboard() {
       '<div class="page-head"><div><h1>Active Timer</h1><div class="sub">Timer is running</div></div>'+
       '<button class="btn btn-gold" onclick="openTimerModal()" style="white-space:nowrap;font-size:13px;padding:8px 14px">+ Start Timer</button></div>'+
       '<div class="mc-timers-grid">'+
-      '<div class="mc-timer-card" id="mc-card-single" style="animation-delay:0s">'+
+      '<div class="mc-timer-card mc-card-entering" id="mc-card-single" style="animation-delay:0s">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
       (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
       (t.description?'<div class="mc-timer-card-desc">'+esc(t.description)+'</div>':'')+
       '<div class="mc-timer-card-elapsed" id="mc-card-elapsed-single">'+fmtElapsed(elapsed)+'</div>'+
       '<button class="mc-timer-card-stop" onclick="stopTimer()">\u25a0 Stop &amp; Save</button>'+
       '</div></div>';
+    document.querySelectorAll('.mc-card-entering').forEach(c=>{
+      c.addEventListener('animationend',()=>c.classList.remove('mc-card-entering'),{once:true});
+    });
     renderTrialBadge();
     return;
   }
@@ -4615,7 +4618,7 @@ function renderMcTimerDashboard() {
     const stopOrSaved=isStopped
       ?'<div class="mc-timer-saved-badge">\u2713 Saved \u2014 '+msToHours(ms)+'h</div>'
       :'<button class="mc-timer-card-stop" onclick="stopOneClientTimer('+i+')">\u25a0 Stop &amp; Save</button>';
-    return '<div class="mc-timer-card'+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'" style="animation-delay:'+(i*0.07)+'s">'+
+    return '<div class="mc-timer-card mc-card-entering'+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'" style="animation-delay:'+(i*0.07)+'s">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
       (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
       (c.description?'<div class="mc-timer-card-desc">'+esc(c.description)+'</div>':'')+
@@ -4632,6 +4635,10 @@ function renderMcTimerDashboard() {
     '<button class="btn btn-gold" onclick="openTimerModal()" style="white-space:nowrap;font-size:13px;padding:8px 14px">+ Start Timer</button></div>'+
     '<div class="mc-timers-grid">'+cards+'</div>'+
     stopAll;
+  // Remove entering class after animation so it won't conflict with card-saving later
+  document.querySelectorAll('.mc-card-entering').forEach(c=>{
+    c.addEventListener('animationend',()=>c.classList.remove('mc-card-entering'),{once:true});
+  });
   renderTrialBadge();
 }
 
@@ -4873,7 +4880,7 @@ window.stopOneClientTimer = idx => {
   showModal(`
     <div class="modal-hd">
       <h2>Is this correct?</h2>
-      <button class="modal-x" onclick="discardOneTimerReview(${idx})">×</button>
+      <button class="modal-x" id="otr-close">×</button>
     </div>
     <div class="timer-banner">
       <div class="tb-time">${elapsedStr}</div>
@@ -4897,9 +4904,12 @@ window.stopOneClientTimer = idx => {
     <div class="form-group"><label class="field-label">Description</label>
       <textarea id="otr-desc">${esc(client.description||'')}</textarea></div>
     <div class="form-actions">
-      <button class="btn btn-danger" onclick="discardOneTimerReview(${idx})">Discard</button>
-      <button class="btn btn-gold" onclick="confirmOneTimerStop(${idx})">Save Entry</button>
+      <button class="btn btn-danger" id="otr-discard">Discard</button>
+      <button class="btn btn-gold" id="otr-save">Save Entry</button>
     </div>`);
+  _tap('otr-close', closeModal);
+  _tap('otr-discard', ()=>discardOneTimerReview(idx));
+  _tap('otr-save', ()=>confirmOneTimerStop(idx));
 };
 
 window.refreshOneTimerProj = cliId => {
@@ -5045,7 +5055,7 @@ function showTimerReview(t, hours, elapsedStr) {
   showModal(`
     <div class="modal-hd">
       <h2>Is this correct?</h2>
-      <button class="modal-x" onclick="discardTimerEntry()">×</button>
+      <button class="modal-x" id="tr-close">×</button>
     </div>
     <div class="timer-banner">
       <div class="tb-time">${elapsedStr}</div>
@@ -5079,9 +5089,12 @@ function showTimerReview(t, hours, elapsedStr) {
       <textarea id="tr-desc">${esc(t.description)}</textarea>
     </div>
     <div class="form-actions">
-      <button class="btn btn-danger" onclick="discardTimerEntry()">Discard</button>
-      <button class="btn btn-gold" onclick="saveTimerEntry()">Save Entry</button>
+      <button class="btn btn-danger" id="tr-discard">Discard</button>
+      <button class="btn btn-gold" id="tr-save">Save Entry</button>
     </div>`);
+  _tap('tr-close', closeModal);
+  _tap('tr-discard', discardTimerEntry);
+  _tap('tr-save', saveTimerEntry);
 }
 
 window.refreshTimerReviewProj = cliId => {
@@ -5140,15 +5153,18 @@ function showMultiTimerReview(t, elapsed, unsaved) {
       '</div>';
   }).join('');
   showModal(
-    '<div class="modal-hd"><h2>Review Entries</h2><button class="modal-x" onclick="discardTimerEntry()">&#x00D7;</button></div>'+
+    '<div class="modal-hd"><h2>Review Entries</h2><button class="modal-x" id="mtr-close">&#x00D7;</button></div>'+
     '<div class="form-row"><div class="form-group"><label class="field-label">Date</label>'+
     '<input type="date" id="mtr-date" value="'+todayStr()+'"></div></div>'+
     designerRow+
     '<div class="mc-review-rows">'+clientRows+'</div>'+
     '<div class="form-actions" style="margin-top:16px">'+
-    '<button class="btn btn-danger" onclick="discardTimerEntry()">Discard All</button>'+
-    '<button class="btn btn-gold" onclick="saveMultiTimerEntries()">Save '+unsaved.length+' Entr'+(unsaved.length===1?'y':'ies')+'</button>'+
+    '<button class="btn btn-danger" id="mtr-discard">Discard All</button>'+
+    '<button class="btn btn-gold" id="mtr-save">Save '+unsaved.length+' Entr'+(unsaved.length===1?'y':'ies')+'</button>'+
     '</div>');
+  _tap('mtr-close', closeModal);
+  _tap('mtr-discard', discardTimerEntry);
+  _tap('mtr-save', saveMultiTimerEntries);
 }
 
 function saveMultiTimerEntries() {

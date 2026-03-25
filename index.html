@@ -141,8 +141,8 @@
     /* Phase 1: green confirmation — flashes in then holds */
     @keyframes mc-card-saved-flash {
       0%   { background:var(--card); border-color:var(--border); }
-      30%  { background:rgba(61,107,79,0.32); border-color:rgba(93,168,122,0.55); }
-      100% { background:rgba(61,107,79,0.28); border-color:rgba(93,168,122,0.5); }
+      35%  { background:rgba(50,120,70,0.45); border-color:rgba(80,180,110,0.7); }
+      100% { background:rgba(50,120,70,0.38); border-color:rgba(80,180,110,0.6); }
     }
     .mc-timer-card.card-saving { animation: mc-card-saved-flash 0.5s ease forwards; }
     /* Phase 2: fade to transparent */
@@ -4498,6 +4498,7 @@ function renderTrialBadge() {
 
 let _skipPageAnim = false;
 let _lastHash = '';
+let _timerAnimating = false; // true while card stop/discard animation is playing
 function render(){
   if(!_currentUser || !_firmId) { showAuthScreen(); return; }
   destroyCharts();
@@ -4916,9 +4917,11 @@ window.discardOneTimerReview = idx => {
     saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
       designerId:t.designerId,projectId:last.projectId,projectText:last.projectText,description:last.description});
   } else { saveTimerData(t); }
+  // Block realtime re-renders while animation plays
+  _timerAnimating = true;
   // Animate the card out after modal closes, then update header
   setTimeout(()=>{
-    _animateCardOut('mc-card-'+idx, _updateTimerHeader);
+    _animateCardOut('mc-card-'+idx, ()=>{ _timerAnimating=false; _updateTimerHeader(); });
   }, 220);
 };
 
@@ -4957,10 +4960,13 @@ window.confirmOneTimerStop = idx => {
   const countEl=document.querySelector('#sb-timer .mc-active-count');
   if(countEl) countEl.textContent=activeCount+' timer'+(activeCount===1?'':'s')+' running';
 
+  // Block realtime re-renders while animation plays
+  _timerAnimating = true;
+
   // Play the card animation after modal closes
   setTimeout(()=>{
     const card=document.getElementById('mc-card-'+idx);
-    if(!card) return;
+    if(!card){ _timerAnimating=false; return; }
     const h=card.offsetHeight;
     card.style.maxHeight=h+'px';
     card.classList.add('card-saving');
@@ -4975,6 +4981,7 @@ window.confirmOneTimerStop = idx => {
         card.classList.add('card-collapsing');
         setTimeout(()=>{
           card.remove();
+          _timerAnimating = false;
           _updateTimerHeader();
         }, 1850);
       }, 1450);
@@ -5187,8 +5194,7 @@ function initRealtime() {
       if(!SYNC_KEYS.has(key)) return;
       _cache[key] = value;
       localStorage.setItem(key, JSON.stringify(value));
-      render();
-      toast('↻ Synced');
+      if(!_timerAnimating){ render(); toast('↻ Synced'); }
     })
     .subscribe();
 

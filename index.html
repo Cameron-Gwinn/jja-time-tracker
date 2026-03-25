@@ -4485,6 +4485,7 @@ let _skipPageAnim = false;
 let _lastHash = '';
 let _timerAnimating = false; // true while card stop/discard animation is playing
 let _renderIsNav = false; // true when render() is triggered by actual navigation (not sync/refresh)
+let _animateCardsFrom = -1; // -1 = no card animation, 0+ = animate cards from this index onward
 function render(){
   if(_timerAnimating) return;
   if(!_currentUser || !_firmId) { showAuthScreen(); return; }
@@ -4502,8 +4503,10 @@ function render(){
   }
   const shouldAnimate = isNav;
   _renderIsNav = isNav;
+  if(isNav) _animateCardsFrom = 0; // navigation = animate all cards
   _skipPageAnim = false;
   (ROUTES[hash]||renderDashboard)();
+  _animateCardsFrom = -1; // reset after render
   setTimeout(labelTableCells, 0);
   renderTrialBadge();
   // Only stagger-animate cards on real page navigation, not refreshes
@@ -4579,7 +4582,7 @@ function renderMcTimerDashboard() {
       '<div class="page-head"><div><h1>Active Timer</h1><div class="sub">Timer is running</div></div>'+
       '<button class="btn btn-gold" onclick="openTimerModal()" style="white-space:nowrap;font-size:13px;padding:8px 14px">+ Start Timer</button></div>'+
       '<div class="mc-timers-grid">'+
-      '<div class="mc-timer-card'+(_renderIsNav?' mc-card-enter':'')+'" id="mc-card-single" style="animation-delay:0s">'+
+      '<div class="mc-timer-card'+(_animateCardsFrom>=0?' mc-card-enter':'')+'" id="mc-card-single" style="animation-delay:0s">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
       (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
       (t.description?'<div class="mc-timer-card-desc">'+esc(t.description)+'</div>':'')+
@@ -4600,7 +4603,8 @@ function renderMcTimerDashboard() {
     const stopOrSaved=isStopped
       ?'<div class="mc-timer-saved-badge">\u2713 Saved \u2014 '+msToHours(ms)+'h</div>'
       :'<button class="mc-timer-card-stop" onclick="stopOneClientTimer('+i+')">\u25a0 Stop &amp; Save</button>';
-    return '<div class="mc-timer-card'+(_renderIsNav?' mc-card-enter':'')+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'" style="animation-delay:'+(i*0.07)+'s">'+
+    const shouldAnimate = _animateCardsFrom >= 0 && i >= _animateCardsFrom;
+    return '<div class="mc-timer-card'+(shouldAnimate?' mc-card-enter':'')+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'" style="'+(shouldAnimate?'animation-delay:'+((i-Math.max(_animateCardsFrom,0))*0.07)+'s':'')+'">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
       (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
       (c.description?'<div class="mc-timer-card-desc">'+esc(c.description)+'</div>':'')+
@@ -4649,9 +4653,9 @@ function startTimerDisplay() {
       if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(now-new Date(td.startedAt).getTime());
     },1000);
     window.location.hash='#timers';
-    _renderIsNav = true;
+    // _animateCardsFrom is set by startMultiTimer before calling us
     renderMcTimerDashboard();
-    _renderIsNav = false;
+    _animateCardsFrom = -1;
   } else {
     sbTimer.innerHTML=
       '<div class="timer-live">'+
@@ -4663,9 +4667,9 @@ function startTimerDisplay() {
     document.getElementById('sb-timer-info').textContent=[c?.name,p?.name||t.projectText].filter(Boolean).join(' \xb7 ')||'Timer running\u2026';
     updateFAB(true);
     window.location.hash='#timers';
-    _renderIsNav = true;
+    // _animateCardsFrom is set by startMultiTimer before calling us
     renderMcTimerDashboard();
-    _renderIsNav = false;
+    _animateCardsFrom = -1;
     _timerInterval=setInterval(()=>{
       const elapsed=Date.now()-new Date(t.startedAt).getTime();
       const s=document.getElementById('sb-elapsed'); if(s) s.textContent=fmtElapsed(elapsed);
@@ -4802,14 +4806,17 @@ function startMultiTimer() {
     const existingClients=existing.mode==='multi'
       ?existing.clients
       :[{clientId:existing.clientId,designerId:existing.designerId,projectId:existing.projectId,projectText:existing.projectText,description:existing.description,startedAt:existing.startedAt}];
+    _animateCardsFrom = existingClients.length; // only animate newly added cards
     saveTimerData({...existing,mode:'multi',clients:[...existingClients,...clients]});
     toast(clients.length+' timer'+(clients.length===1?'':'s')+' added');
   } else if(clients.length===1) {
     // Single client, no existing timer — use simple format
     const c=clients[0];
+    _animateCardsFrom = 0; // animate all (fresh start)
     saveTimerData({running:true,startedAt:c.startedAt||now,clientId:c.clientId,designerId,projectId:c.projectId,projectText:c.projectText,description:c.description});
     toast('Timer started');
   } else {
+    _animateCardsFrom = 0; // animate all (fresh start)
     saveTimerData({running:true,mode:'multi',startedAt:now,designerId,clients});
     toast(clients.length+' timers started');
   }
@@ -5315,7 +5322,7 @@ async function runApp() {
   const _savedHash = window.location.hash;
   navigate(_savedHash && ROUTES[_savedHash] ? _savedHash : APP_DEFAULT[currentApp]);
   render();
-  if(loadTimer()?.running) startTimerDisplay();
+  if(loadTimer()?.running) { _animateCardsFrom = 0; startTimerDisplay(); }
   setTimeout(promptLinkDesigner, 1500);
 }
 

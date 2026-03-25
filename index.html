@@ -138,25 +138,6 @@
     .mc-timers-grid { display:flex; flex-direction:column; gap:14px; }
     .mc-timer-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px; overflow:hidden; }
     .mc-timer-card.card-stopped { opacity:.42; }
-    /* Phase 1: green confirmation — flashes in then holds */
-    @keyframes mc-card-saved-flash {
-      0%   { background:var(--card); border-color:var(--border); }
-      35%  { background:rgba(50,120,70,0.45); border-color:rgba(80,180,110,0.7); }
-      100% { background:rgba(50,120,70,0.38); border-color:rgba(80,180,110,0.6); }
-    }
-    .mc-timer-card.card-saving { animation: mc-card-saved-flash 0.5s ease forwards; }
-    /* Phase 2: fade to transparent */
-    .mc-timer-card.card-fading { opacity:0; transition:opacity 0.95s cubic-bezier(0.4,0,0.2,1); }
-    /* Phase 3: collapse — JS sets exact height then transitions to 0 for pixel-perfect smoothness */
-    .mc-timer-card.card-collapse-ready {
-      overflow:hidden;
-      transition:height 1.2s cubic-bezier(0.22,0.61,0.36,1), padding 1.2s cubic-bezier(0.22,0.61,0.36,1), margin 1.2s cubic-bezier(0.22,0.61,0.36,1), border-width 1.2s cubic-bezier(0.22,0.61,0.36,1), opacity 0.4s ease;
-    }
-    .mc-timer-card.card-collapsing {
-      height:0 !important; padding-top:0 !important; padding-bottom:0 !important;
-      margin-top:0 !important; margin-bottom:0 !important;
-      border-width:0 !important; opacity:0 !important;
-    }
     .mc-timer-card-name { font-size:19px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
     .mc-timer-card-proj { font-size:12px; color:var(--text2); }
     .mc-timer-card-desc { font-size:12px; color:var(--text2); font-style:italic; margin-top:3px; }
@@ -920,7 +901,7 @@
     @keyframes modal-out { from { opacity:1; transform:translateY(0) scale(1); } to { opacity:0; transform:translateY(22px) scale(0.97); } }
     .modal-launching { animation: modal-out 0.22s ease forwards; pointer-events:none; }
     @keyframes mc-card-in { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
-    .mc-timer-card { animation: mc-card-in 0.38s cubic-bezier(0.22,1,0.36,1) both; }
+    .mc-timer-card.mc-card-enter { animation: mc-card-in 0.38s cubic-bezier(0.22,1,0.36,1) both; }
     .auth-card {
       background: var(--card); border: 1px solid var(--border);
       border-radius: 12px; padding: 40px 36px;
@@ -961,9 +942,6 @@
   </style>
 </head>
 <body class="auth-only">
-
-<!-- CHEESE TEST -->
-<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;font-size:80px;font-weight:900;color:red;pointer-events:none;">CHEESE</div>
 
 <!-- ── iOS safe-area top cover (fixed; masks status bar + hamburger zone) ── -->
 <div id="ios-top-cover"></div>
@@ -4506,6 +4484,7 @@ let _skipPageAnim = false;
 let _lastHash = '';
 let _timerAnimating = false; // true while card stop/discard animation is playing
 function render(){
+  if(_timerAnimating) return;
   if(!_currentUser || !_firmId) { showAuthScreen(); return; }
   destroyCharts();
   const hash=window.location.hash||'#dashboard';
@@ -4572,6 +4551,7 @@ function mobileFabClick() {
 }
 
 function renderMcTimerDashboard() {
+  if(_timerAnimating) return;
   const t=loadTimer();
   const el=document.getElementById('app');
   highlightNav();
@@ -4596,7 +4576,7 @@ function renderMcTimerDashboard() {
       '<div class="page-head"><div><h1>Active Timer</h1><div class="sub">Timer is running</div></div>'+
       '<button class="btn btn-gold" onclick="openTimerModal()" style="white-space:nowrap;font-size:13px;padding:8px 14px">+ Start Timer</button></div>'+
       '<div class="mc-timers-grid">'+
-      '<div class="mc-timer-card" id="mc-card-single" style="animation-delay:0s">'+
+      '<div class="mc-timer-card mc-card-enter" id="mc-card-single" style="animation-delay:0s">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
       (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
       (t.description?'<div class="mc-timer-card-desc">'+esc(t.description)+'</div>':'')+
@@ -4617,7 +4597,7 @@ function renderMcTimerDashboard() {
     const stopOrSaved=isStopped
       ?'<div class="mc-timer-saved-badge">\u2713 Saved \u2014 '+msToHours(ms)+'h</div>'
       :'<button class="mc-timer-card-stop" onclick="stopOneClientTimer('+i+')">\u25a0 Stop &amp; Save</button>';
-    return '<div class="mc-timer-card'+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'" style="animation-delay:'+(i*0.07)+'s">'+
+    return '<div class="mc-timer-card mc-card-enter'+(isStopped?' card-stopped':'')+'" id="mc-card-'+i+'" style="animation-delay:'+(i*0.07)+'s">'+
       '<div class="mc-timer-card-name">'+esc(cl?.name||'Client')+'</div>'+
       (projName?'<div class="mc-timer-card-proj">'+esc(projName)+'</div>':'')+
       (c.description?'<div class="mc-timer-card-desc">'+esc(c.description)+'</div>':'')+
@@ -4657,10 +4637,11 @@ function startTimerDisplay() {
       '</div>';
     updateFAB(true);
     _timerInterval=setInterval(()=>{
+      if(_timerAnimating) return;
       const td=loadTimer();
       if(!td||!td.running) return;
       const now=Date.now();
-      td.clients.forEach((c,i)=>{ if(c.stoppedAt) return; const el=document.getElementById('mc-card-elapsed-'+i); if(el) el.textContent=fmtElapsed(now-new Date(c.startedAt||td.startedAt).getTime()); });
+      if(td.mode==='multi'&&td.clients) td.clients.forEach((c,i)=>{ if(c.stoppedAt) return; const el=document.getElementById('mc-card-elapsed-'+i); if(el) el.textContent=fmtElapsed(now-new Date(c.startedAt||td.startedAt).getTime()); });
       const pill=document.getElementById('fab-elapsed-pill');
       if(pill&&pill.classList.contains('show')) pill.textContent=fmtElapsed(now-new Date(td.startedAt).getTime());
     },1000);
@@ -4915,19 +4896,49 @@ window.discardOneTimerReview = idx => {
   if(!confirm('Discard this time entry? The timer will be removed.')) return;
   const t=loadTimer();
   if(!t||!t.running||t.mode!=='multi') { closeModal(); return; }
-  t.clients.splice(idx,1);
-  closeModal();
-  if(t.clients.length===0){ stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
-  if(t.clients.length===1 && !t.clients[0].stoppedAt) {
-    const last=t.clients[0];
-    saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
-      designerId:t.designerId,projectId:last.projectId,projectText:last.projectText,description:last.description});
-  } else { saveTimerData(t); }
-  // Block realtime re-renders while animation plays
+
+  // BLOCK all re-renders immediately
   _timerAnimating = true;
-  // Animate the card out after modal closes, then update header
+  closeModal();
+
+  // Animate card out FIRST, then save data after
   setTimeout(()=>{
-    _animateCardOut('mc-card-'+idx, ()=>{ _timerAnimating=false; _updateTimerHeader(); });
+    const card=document.getElementById('mc-card-'+idx);
+    if(!card){
+      _spliceAndSaveTimer(t, idx);
+      _timerAnimating = false;
+      return;
+    }
+    // Remove enter animation
+    card.classList.remove('mc-card-enter');
+    card.style.animation = 'none';
+
+    // Fade out
+    card.style.transition = 'opacity 0.9s ease';
+    void card.offsetHeight;
+    card.style.opacity = '0';
+
+    setTimeout(()=>{
+      // Collapse
+      const h = card.offsetHeight;
+      card.style.height = h + 'px';
+      card.style.transition = 'none';
+      void card.offsetHeight;
+      card.style.transition = 'height 1.1s cubic-bezier(0.22,0.61,0.36,1), padding 1.1s cubic-bezier(0.22,0.61,0.36,1), margin 1.1s cubic-bezier(0.22,0.61,0.36,1), border-width 1.1s cubic-bezier(0.22,0.61,0.36,1)';
+      void card.offsetHeight;
+      card.style.height = '0px';
+      card.style.paddingTop = '0px';
+      card.style.paddingBottom = '0px';
+      card.style.marginBottom = '0px';
+      card.style.borderWidth = '0px';
+
+      setTimeout(()=>{
+        card.remove();
+        _spliceAndSaveTimer(t, idx);
+        _timerAnimating = false;
+        _updateTimerHeader();
+      }, 1150);
+    }, 950);
   }, 220);
 };
 
@@ -4945,58 +4956,72 @@ window.confirmOneTimerStop = idx => {
   const description=document.getElementById('otr-desc').value.trim();
   if(!date||!clientId||isNaN(hours)||hours<=0||!description){toast('Please fill in all fields');return;}
 
-  // Save the entry
-  addEntry({date,hours,clientId,designerId,projectId,projectText,description});
+  // BLOCK all re-renders immediately — before anything else
+  _timerAnimating = true;
+
   const cl=getClientById(clientId);
   toast((cl?.name||'Client')+' — '+hours+'h saved ✓');
   closeModal();
 
-  // Remove this client from timer data
-  t.clients.splice(idx,1);
-  const allDone=t.clients.length===0 || t.clients.every(c=>c.stoppedAt);
-  if(allDone){ stopTimerDisplay(); clearTimerData(); _skipPageAnim=true; navigate('#dashboard'); return; }
-  if(t.clients.length===1 && !t.clients[0].stoppedAt) {
-    const last=t.clients[0];
-    saveTimerData({running:true,startedAt:last.startedAt||t.startedAt,clientId:last.clientId,
-      designerId:t.designerId,projectId:last.projectId,projectText:last.projectText,description:last.description});
-  } else { saveTimerData(t); }
+  // Stash entry data — we'll save AFTER animation to prevent sync from wiping DOM
+  const entryData = {date,hours,clientId,designerId,projectId,projectText,description};
 
-  // Update sidebar + header counts immediately
-  const activeCount=t.clients.filter(c=>!c.stoppedAt).length;
-  const countEl=document.querySelector('#sb-timer .mc-active-count');
-  if(countEl) countEl.textContent=activeCount+' timer'+(activeCount===1?'':'s')+' running';
-
-  // Block realtime re-renders while animation plays
-  _timerAnimating = true;
-
-  // Play the card animation after modal closes
+  // Play animation after modal close, THEN save data
   setTimeout(()=>{
     const card=document.getElementById('mc-card-'+idx);
-    if(!card){ _timerAnimating=false; return; }
-    const h=card.offsetHeight;
-    card.style.maxHeight=h+'px';
-    card.classList.add('card-saving');
+    if(!card){
+      // Card gone — just save and bail
+      addEntry(entryData);
+      _spliceAndSaveTimer(t, idx);
+      _timerAnimating = false;
+      return;
+    }
+    // Remove the enter animation so it can't interfere
+    card.classList.remove('mc-card-enter');
+    card.style.animation = 'none';
+
+    // Update card UI to show saved state
     const elEl=document.getElementById('mc-card-elapsed-'+idx);
     if(elEl) elEl.textContent=fmtElapsed(hours*3600000);
     const stopEl=document.getElementById('mc-card-stop-'+idx);
     if(stopEl) stopEl.innerHTML='<div class="mc-timer-saved-badge">✓ Saved — '+hours+'h</div>';
 
+    // Phase 1: Green flash via inline styles
+    card.style.transition = 'background 0.3s ease, border-color 0.3s ease';
+    void card.offsetHeight;
+    card.style.background = 'rgba(50,120,70,0.40)';
+    card.style.borderColor = 'rgba(80,180,110,0.65)';
+
+    // Hold green 1.2s → fade 0.9s → collapse 1.1s
     setTimeout(()=>{
-      card.classList.add('card-fading');
+      // Phase 2: Fade out
+      card.style.transition = 'opacity 0.9s ease';
+      void card.offsetHeight;
+      card.style.opacity = '0';
+
       setTimeout(()=>{
-        /* Lock to exact pixel height, then collapse to 0 — no max-height guessing */
+        // Phase 3: Collapse height
         const h = card.offsetHeight;
         card.style.height = h + 'px';
-        card.classList.add('card-collapse-ready');
-        requestAnimationFrame(()=>{requestAnimationFrame(()=>{
-          card.classList.add('card-collapsing');
-        });});
+        card.style.transition = 'none';
+        void card.offsetHeight;
+        card.style.transition = 'height 1.1s cubic-bezier(0.22,0.61,0.36,1), padding 1.1s cubic-bezier(0.22,0.61,0.36,1), margin 1.1s cubic-bezier(0.22,0.61,0.36,1), border-width 1.1s cubic-bezier(0.22,0.61,0.36,1)';
+        void card.offsetHeight;
+        card.style.height = '0px';
+        card.style.paddingTop = '0px';
+        card.style.paddingBottom = '0px';
+        card.style.marginBottom = '0px';
+        card.style.borderWidth = '0px';
+
         setTimeout(()=>{
           card.remove();
+          // NOW save everything after animation is done
+          addEntry(entryData);
+          _spliceAndSaveTimer(t, idx);
           _timerAnimating = false;
           _updateTimerHeader();
-        }, 1250);
-      }, 1000);
+        }, 1150);
+      }, 950);
     }, 1200);
   }, 220);
 };
@@ -5016,23 +5041,21 @@ function _updateTimerHeader() {
   if(active<=1){ const sa=document.getElementById('mc-stop-all'); if(sa) sa.remove(); }
 }
 
-// Animate a timer card out (fade then collapse), then remove it
-function _animateCardOut(cardId, onDone) {
-  const card=document.getElementById(cardId);
-  if(!card){ if(onDone) onDone(); return; }
-  const h=card.offsetHeight;
-  card.style.height=h+'px';
-  card.classList.add('card-collapse-ready');
-  card.classList.add('card-fading');
-  setTimeout(()=>{
-    requestAnimationFrame(()=>{requestAnimationFrame(()=>{
-      card.classList.add('card-collapsing');
-    });});
-    setTimeout(()=>{
-      card.remove();
-      if(onDone) onDone();
-    }, 1250);
-  }, 1000);
+// Splice client from timer and save — used after animation completes
+function _spliceAndSaveTimer(t, idx) {
+  t.clients.splice(idx, 1);
+  const allDone = t.clients.length === 0 || t.clients.every(c => c.stoppedAt);
+  if (allDone) {
+    stopTimerDisplay(); clearTimerData(); _skipPageAnim = true; navigate('#dashboard');
+    return;
+  }
+  if (t.clients.length === 1 && !t.clients[0].stoppedAt) {
+    const last = t.clients[0];
+    saveTimerData({running:true, startedAt:last.startedAt||t.startedAt, clientId:last.clientId,
+      designerId:t.designerId, projectId:last.projectId, projectText:last.projectText, description:last.description});
+  } else {
+    saveTimerData(t);
+  }
 }
 
 function showTimerReview(t, hours, elapsedStr) {

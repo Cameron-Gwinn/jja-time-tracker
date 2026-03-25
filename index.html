@@ -139,25 +139,8 @@
     .mc-timer-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px; margin-bottom:14px; overflow:hidden; }
     .mc-timer-card:last-child { margin-bottom:0; }
     .mc-timer-card.card-stopped { opacity:.42; }
-    /* Phase 1: green confirmation — flashes in then holds */
-    @keyframes mc-card-saved-flash {
-      0%   { background:var(--card); border-color:var(--border); }
-      35%  { background:rgba(50,120,70,0.45); border-color:rgba(80,180,110,0.7); }
-      100% { background:rgba(50,120,70,0.38); border-color:rgba(80,180,110,0.6); }
-    }
-    .mc-timer-card.card-saving { animation: mc-card-saved-flash 0.5s ease forwards; }
-    /* Phase 2: fade to transparent */
-    .mc-timer-card.card-fading { opacity:0; transition:opacity 0.95s cubic-bezier(0.4,0,0.2,1); }
-    /* Phase 3: collapse — JS sets exact height then transitions to 0 for pixel-perfect smoothness */
-    .mc-timer-card.card-collapse-ready {
-      overflow:hidden;
-      transition:height 1.2s cubic-bezier(0.22,0.61,0.36,1), padding 1.2s cubic-bezier(0.22,0.61,0.36,1), margin-bottom 1.2s cubic-bezier(0.22,0.61,0.36,1), border-width 1.2s cubic-bezier(0.22,0.61,0.36,1);
-    }
-    .mc-timer-card.card-collapsing {
-      height:0 !important; padding-top:0 !important; padding-bottom:0 !important;
-      margin-bottom:0 !important;
-      border-width:0 !important; opacity:0 !important;
-    }
+    /* Timer card stop animations are handled entirely via inline styles in JS
+       to avoid CSS specificity conflicts with mc-card-entering */
     .mc-timer-card-name { font-size:19px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
     .mc-timer-card-proj { font-size:12px; color:var(--text2); }
     .mc-timer-card-desc { font-size:12px; color:var(--text2); font-style:italic; margin-top:3px; }
@@ -4504,7 +4487,7 @@ let _skipPageAnim = false;
 let _lastHash = '';
 let _timerAnimating = false; // true while card stop/discard animation is playing
 function render(){
-  if(_timerAnimating) { console.log('[DEBUG] render() BLOCKED by _timerAnimating'); return; }
+  if(_timerAnimating) return;
   if(!_currentUser || !_firmId) { showAuthScreen(); return; }
   destroyCharts();
   const hash=window.location.hash||'#dashboard';
@@ -4571,8 +4554,7 @@ function mobileFabClick() {
 }
 
 function renderMcTimerDashboard() {
-  if(_timerAnimating) { console.log('[DEBUG] renderMcTimerDashboard BLOCKED by _timerAnimating'); return; }
-  console.log('[DEBUG] renderMcTimerDashboard called', new Error().stack?.split('\n')[2]?.trim());
+  if(_timerAnimating) return;
   const t=loadTimer();
   const el=document.getElementById('app');
   highlightNav();
@@ -4932,17 +4914,15 @@ window.discardOneTimerReview = idx => {
   // Block all re-renders during animation
   _timerAnimating = true;
   closeModal();
-  // Animate the card out FIRST, then update timer data after animation completes
+  // Animate: fade → collapse → remove (no green for discard)
   setTimeout(()=>{
-    _animateCardOut('mc-card-'+idx, ()=>{ _finishTimerStop(t, idx); });
+    _animateTimerCard('mc-card-'+idx, false, ()=>{ _finishTimerStop(t, idx); });
   }, 220);
 };
 
 window.confirmOneTimerStop = idx => {
-  console.log('[DEBUG] confirmOneTimerStop called, idx=', idx);
   const t=loadTimer();
-  console.log('[DEBUG] timer loaded:', JSON.stringify(t?.mode), 'clients:', t?.clients?.length, 'running:', t?.running);
-  if(!t||!t.running||t.mode!=='multi') { console.log('[DEBUG] BAILED — t.mode is', t?.mode); return; }
+  if(!t||!t.running||t.mode!=='multi') return;
   const date=document.getElementById('otr-date').value;
   const hours=parseFloat(document.getElementById('otr-hrs').value);
   const clientId=document.getElementById('otr-cli').value;
@@ -4969,33 +4949,15 @@ window.confirmOneTimerStop = idx => {
   if(countEl) countEl.textContent=activeCount+' timer'+(activeCount===1?'':'s')+' running';
 
   // Play the card animation FIRST, then update timer data AFTER animation completes
-  // This prevents any re-render from destroying the card mid-animation
   setTimeout(()=>{
-    const card=document.getElementById('mc-card-'+idx);
-    console.log('[DEBUG] 220ms later — card found?', !!card, 'id=mc-card-'+idx);
-    if(!card){ console.log('[DEBUG] CARD NOT FOUND — skipping animation'); _finishTimerStop(t, idx); return; }
-    console.log('[DEBUG] Adding card-saving class — green should show now');
-    card.classList.add('card-saving');
+    // Update the card UI to show "Saved" badge before animating out
     const elEl=document.getElementById('mc-card-elapsed-'+idx);
     if(elEl) elEl.textContent=fmtElapsed(hours*3600000);
     const stopEl=document.getElementById('mc-card-stop-'+idx);
     if(stopEl) stopEl.innerHTML='<div class="mc-timer-saved-badge">✓ Saved — '+hours+'h</div>';
 
-    setTimeout(()=>{
-      card.classList.add('card-fading');
-      setTimeout(()=>{
-        const h = card.offsetHeight;
-        card.style.height = h + 'px';
-        card.classList.add('card-collapse-ready');
-        requestAnimationFrame(()=>{requestAnimationFrame(()=>{
-          card.classList.add('card-collapsing');
-        });});
-        setTimeout(()=>{
-          card.remove();
-          _finishTimerStop(t, idx);
-        }, 1250);
-      }, 1000);
-    }, 1200);
+    // Animate: green flash → fade → collapse → remove
+    _animateTimerCard('mc-card-'+idx, true, ()=>{ _finishTimerStop(t, idx); });
   }, 220);
 };
 
@@ -5034,23 +4996,64 @@ function _updateTimerHeader() {
   if(active<=1){ const sa=document.getElementById('mc-stop-all'); if(sa) sa.remove(); }
 }
 
-// Animate a timer card out (fade then collapse), then remove it
-function _animateCardOut(cardId, onDone) {
-  const card=document.getElementById(cardId);
-  if(!card){ if(onDone) onDone(); return; }
-  const h=card.offsetHeight;
-  card.style.height=h+'px';
-  card.classList.add('card-collapse-ready');
-  card.classList.add('card-fading');
-  setTimeout(()=>{
-    requestAnimationFrame(()=>{requestAnimationFrame(()=>{
-      card.classList.add('card-collapsing');
-    });});
-    setTimeout(()=>{
+// Animate a timer card out using inline styles only (avoids CSS specificity conflicts)
+// showGreen: if true, flash green first and hold before fading
+function _animateTimerCard(cardId, showGreen, onDone) {
+  const card = document.getElementById(cardId);
+  if (!card) { if (onDone) onDone(); return; }
+
+  // Kill any existing CSS animations (mc-card-entering etc) that could override us
+  card.style.animation = 'none';
+  card.classList.remove('mc-card-entering');
+
+  // Lock the card's current height for smooth collapse later
+  const h = card.offsetHeight;
+  card.style.overflow = 'hidden';
+
+  if (showGreen) {
+    // Phase 1: Transition to green background, hold it
+    card.style.transition = 'background 0.35s ease, border-color 0.35s ease';
+    // Force reflow so transition applies from current state
+    void card.offsetHeight;
+    card.style.background = 'rgba(50, 120, 70, 0.40)';
+    card.style.borderColor = 'rgba(80, 180, 110, 0.65)';
+
+    // Hold green for 1.2s, then start fade
+    setTimeout(() => {
+      _fadeAndCollapse(card, h, onDone);
+    }, 1200);
+  } else {
+    // No green — go straight to fade
+    _fadeAndCollapse(card, h, onDone);
+  }
+}
+
+function _fadeAndCollapse(card, h, onDone) {
+  // Phase 2: Fade opacity to 0
+  card.style.transition = 'opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1)';
+  void card.offsetHeight;
+  card.style.opacity = '0';
+
+  // After fade completes, collapse height
+  setTimeout(() => {
+    // Phase 3: Set explicit height, then collapse to 0
+    card.style.height = h + 'px';
+    card.style.transition = 'none'; // reset so height snaps to current
+    void card.offsetHeight;
+    card.style.transition = 'height 1.1s cubic-bezier(0.22, 0.61, 0.36, 1), padding 1.1s cubic-bezier(0.22, 0.61, 0.36, 1), margin-bottom 1.1s cubic-bezier(0.22, 0.61, 0.36, 1), border-width 1.1s cubic-bezier(0.22, 0.61, 0.36, 1)';
+    void card.offsetHeight;
+    card.style.height = '0px';
+    card.style.paddingTop = '0px';
+    card.style.paddingBottom = '0px';
+    card.style.marginBottom = '0px';
+    card.style.borderWidth = '0px';
+
+    // After collapse, remove card and callback
+    setTimeout(() => {
       card.remove();
-      if(onDone) onDone();
-    }, 1250);
-  }, 1000);
+      if (onDone) onDone();
+    }, 1150);
+  }, 950);
 }
 
 function showTimerReview(t, hours, elapsedStr) {

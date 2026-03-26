@@ -10,8 +10,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JJ&A">
-  <link rel="apple-touch-icon" href="/icon.svg">
-  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icon-180x180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512x512.png">
   <!-- Security meta tags -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -896,6 +897,41 @@
     .cal-legend-swatch.billed   { background: #E8F4EC; border-color: #4D9966; }
     .cal-empty-msg { text-align: center; padding: 28px 16px; color: var(--text2); font-size: 14px; }
     .cal-empty-msg .cal-ei { font-size: 30px; margin-bottom: 8px; opacity: 0.4; }
+
+    /* ── Calendar Interaction — selection ─────────────── */
+    .cal-day:not(.other-month) { cursor: pointer; }
+    .cal-day.cal-selected { background: rgba(196,168,122,0.18) !important; border-color: var(--accent) !important; }
+    .cal-day.cal-selected .cal-day-num { color: var(--accent-dk); font-weight: 700; }
+    .cal-day.cal-range-start { border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
+    .cal-day.cal-range-end   { border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
+    .cal-day.cal-dragging { background: rgba(196,168,122,0.10) !important; }
+
+    /* ── Calendar Entry Panel ────────────────────────── */
+    .cal-entries-panel { margin-top: 18px; }
+    .cal-section-hdr { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; padding: 10px 0 8px; display: flex; align-items: center; gap: 8px; }
+    .cal-section-hdr.unbilled { color: var(--accent-dk); border-bottom: 2px solid var(--accent); }
+    .cal-section-hdr.billed   { color: #3D6B4F; border-bottom: 2px solid #4D9966; margin-top: 18px; }
+    .cal-section-count { font-weight: 400; font-size: 11px; color: var(--text2); }
+    .cal-entry-group { margin: 10px 0 6px; }
+    .cal-entry-group-hdr { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: var(--bg2); border-radius: 8px 8px 0 0; border-bottom: 1px solid var(--border); }
+    .cal-entry-group-hdr strong { font-size: 13px; }
+    .cal-entry-group-hdr .grp-totals { font-size: 12px; color: var(--text2); white-space: nowrap; }
+    .cal-entry-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: 13px; transition: background .12s; }
+    .cal-entry-row:last-child { border-bottom: none; }
+    .cal-entry-row:hover { background: rgba(196,168,122,0.05); }
+    .cal-entry-row.billed-row { opacity: 0.5; }
+    .cal-entry-row.billed-row:hover { opacity: 0.7; }
+    .cal-entry-chk { width: auto !important; flex-shrink: 0; cursor: pointer; accent-color: var(--accent); }
+    .cal-entry-info { flex: 1; min-width: 0; }
+    .cal-entry-info .entry-date { font-size: 11px; color: var(--text2); }
+    .cal-entry-info .entry-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cal-entry-amt { white-space: nowrap; font-weight: 600; font-size: 13px; text-align: right; min-width: 80px; }
+
+    /* ── Calendar Summary Bar ────────────────────────── */
+    .cal-summary-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; margin-top: 14px; background: var(--bg2); border: 1.5px solid var(--border); border-radius: var(--radius); font-size: 13px; }
+    .cal-summary-bar .summary-left { color: var(--text2); }
+    .cal-summary-bar .summary-right { font-weight: 700; color: var(--accent-dk); font-size: 15px; }
+    .cal-no-entries { text-align: center; padding: 20px; color: var(--text2); font-size: 13px; }
 
     /* ── Invoice Template Selector ───────────────────── */
     .tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
@@ -2217,22 +2253,17 @@ function renderGenerate(){
   const [ws,we]=weekRange(0);
   document.getElementById('app').innerHTML=`
     <div class="page-head"><div><h1>Generate Invoice</h1><div class="sub">Select a client and period to create a PDF invoice</div></div></div>
-    <div class="card" style="max-width:600px;margin-bottom:16px">
-      <div class="card-head" style="margin-bottom:14px"><h2>Billing Calendar</h2></div>
-      <div class="form-group" style="margin-bottom:14px">
-        <label class="field-label">Client</label>
-        <select id="cal-cli" onchange="refreshBillingCal('time')">
-          <option value="">— Select a client —</option>
-          ${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
-        </select>
+    <div class="card" style="max-width:660px;margin-bottom:16px">
+      <div class="form-row" style="margin-bottom:10px">
+        <div class="form-group"><label class="field-label">Client</label>
+          <select id="gi-cli" onchange="onGenClientChange()">
+            <option value="">— Select a client —</option>
+            ${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label class="field-label">Designer</label><select id="gi-des" onchange="onGenFilterChange()">${designerOpts('','All Designers')}</select></div>
+        <div class="form-group"><label class="field-label">Project</label><select id="gi-proj" onchange="onGenFilterChange()">${allProjectOpts('','All Projects')}</select></div>
       </div>
-      <div id="billing-cal-wrap"><div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div></div>
-    </div>
-    <div class="card" style="max-width:600px">
-      <div class="form-group"><label class="field-label" for="gi-cli">Client</label><select id="gi-cli" onchange="updateGenPreview()">${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
-      <div class="form-group"><label class="field-label" for="gi-des">Designer (optional)</label><select id="gi-des" onchange="updateGenPreview()">${designerOpts('','All Designers')}</select></div>
-      <div class="form-group"><label class="field-label" for="gi-proj">Project (optional)</label><select id="gi-proj" onchange="updateGenPreview()">${allProjectOpts('','All Projects')}</select></div>
-      <div class="form-group">
+      <div class="form-group" style="margin-bottom:12px">
         <label class="field-label">Billing Period</label>
         <div class="radio-group">
           <label class="radio-opt"><input type="radio" name="gi-r" value="week" checked onchange="onGenRange()"> This week</label>
@@ -2241,35 +2272,73 @@ function renderGenerate(){
           <label class="radio-opt"><input type="radio" name="gi-r" value="custom" onchange="onGenRange()"> Custom</label>
         </div>
       </div>
-      <div id="gi-custom" style="display:none"><div class="form-row">
-        <div class="form-group"><label class="field-label" for="gi-s">From</label><input type="date" id="gi-s" value="${ws}" onchange="updateGenPreview()"></div>
-        <div class="form-group"><label class="field-label" for="gi-e">To</label><input type="date" id="gi-e" value="${we}" onchange="updateGenPreview()"></div>
+      <div id="gi-custom" style="display:none;margin-bottom:12px"><div class="form-row">
+        <div class="form-group"><label class="field-label" for="gi-s">From</label><input type="date" id="gi-s" value="${ws}" onchange="onGenCustomDate()"></div>
+        <div class="form-group"><label class="field-label" for="gi-e">To</label><input type="date" id="gi-e" value="${we}" onchange="onGenCustomDate()"></div>
       </div></div>
-      <div id="gi-preview"></div>
-      <div style="display:flex;gap:10px">
-        <button class="btn btn-ghost" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="previewGeneratedPDF()">👁 Preview Invoice</button>
-        <button class="btn btn-dark" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="generatePDF()">✓ Save Invoice</button>
+      <div id="billing-cal-wrap"><div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div></div>
+      <div id="cal-entries-panel" class="cal-entries-panel"></div>
+      <div id="cal-summary-bar" class="cal-summary-bar" style="display:none">
+        <span class="summary-left" id="cal-summary-counts"></span>
+        <span class="summary-right" id="cal-summary-total"></span>
+      </div>
+      <div id="gen-actions" style="display:none;margin-top:14px">
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-ghost" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="previewGeneratedPDF()">👁 Preview Invoice</button>
+          <button class="btn btn-dark" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="generatePDF()">✓ Save Invoice</button>
+        </div>
       </div>
     </div>`;
 
   window._gen={rangeKey:'week',start:ws,end:we};
-  window._calStates={time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
-  window.onGenRange=()=>{const k=document.querySelector('input[name="gi-r"]:checked').value;window._gen.rangeKey=k;document.getElementById('gi-custom').style.display=k==='custom'?'block':'none';if(k!=='custom'){const[s,e]=rangeFromKey(k);window._gen.start=s;window._gen.end=e;}updateGenPreview();};
-  window.updateGenPreview=()=>{
-    const clientId=document.getElementById('gi-cli').value;
-    const designerId=document.getElementById('gi-des').value;
-    const projectId=document.getElementById('gi-proj').value;
-    let {rangeKey,start,end}=window._gen;
-    if(rangeKey==='custom'){start=document.getElementById('gi-s').value;end=document.getElementById('gi-e').value;}
-    const entries=filterEntries({clientId,designerId,projectId,start,end});
-    const el=document.getElementById('gi-preview');
-    if(!entries.length){el.innerHTML=`<div class="inv-preview-wrap"><p class="col2" style="text-align:center;padding:8px">No entries for this period.</p></div>`;return;}
-    const totH=entries.reduce((s,e)=>s+e.hours,0), totA=entries.reduce((s,e)=>s+entryAmount(e),0);
-    const invCount=entries.filter(e=>isInvoiced(e)).length;
-    const warn=invCount?`<div style="color:var(--unbilled);font-size:12px;margin-bottom:8px">⚠ ${invCount} entr${invCount===1?'y':'ies'} may already be invoiced.</div>`:'';
-    el.innerHTML=`<div class="inv-preview-wrap">${warn}${entries.map(e=>{const d=e.designerId?getDesignerById(e.designerId):null;return`<div class="inv-preview-row"><span>${fmtDate(e.date)} · <strong>${esc(entryProjectName(e))}</strong>${d?` · <span class="col2">${esc(d.name)}</span>`:''}<br><span class="desc">${esc(e.description)}</span></span><span style="white-space:nowrap">${e.hours}h · ${cur(entryAmount(e))}</span></div>`;}).join('')}<div class="inv-total-row"><span>${totH.toFixed(1)} hrs</span><span class="gold-txt">${cur(totA)}</span></div></div>`;
+  window._calCheckedIds=new Set();
+  window._calStates=window._calStates||{time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
+  window._calStates.time.selStart=ws;
+  window._calStates.time.selEnd=we;
+
+  /* ── Client change: refresh calendar + entries ── */
+  window.onGenClientChange=()=>{
+    refreshBillingCal('time');
+    renderCalEntries('time');
   };
-  updateGenPreview();
+
+  /* ── Designer/project filter change ── */
+  window.onGenFilterChange=()=>{ renderCalEntries('time'); };
+
+  /* ── Radio button range change ── */
+  window.onGenRange=()=>{
+    const k=document.querySelector('input[name="gi-r"]:checked').value;
+    window._gen.rangeKey=k;
+    document.getElementById('gi-custom').style.display=k==='custom'?'block':'none';
+    if(k!=='custom'){
+      const[s,e]=rangeFromKey(k);
+      window._gen.start=s; window._gen.end=e;
+      window._calStates.time.selStart=s;
+      window._calStates.time.selEnd=e;
+      // Navigate calendar to show the start date's month
+      const sd=new Date(s+'T12:00:00');
+      window._calStates.time.year=sd.getFullYear();
+      window._calStates.time.month=sd.getMonth();
+      refreshBillingCal('time');
+      renderCalEntries('time');
+    }
+  };
+
+  /* ── Custom date inputs ── */
+  window.onGenCustomDate=()=>{
+    const s=document.getElementById('gi-s').value;
+    const e=document.getElementById('gi-e').value;
+    if(s) window._gen.start=s;
+    if(e) window._gen.end=e;
+    window._calStates.time.selStart=s||'';
+    window._calStates.time.selEnd=e||'';
+    if(s){const sd=new Date(s+'T12:00:00'); window._calStates.time.year=sd.getFullYear(); window._calStates.time.month=sd.getMonth();}
+    refreshBillingCal('time');
+    renderCalEntries('time');
+  };
+
+  // Initial render with "This week" selected
+  onGenRange();
 }
 
 /* ══════════════════════════════════════════════════════
@@ -2408,7 +2477,11 @@ function _buildGeneratedPDFDoc() {
   let {rangeKey,start,end}=window._gen;
   if(rangeKey==='custom'){start=document.getElementById('gi-s').value;end=document.getElementById('gi-e').value;}
   const c=getClientById(clientId), designer=designerId?getDesignerById(designerId):null;
-  const entries=filterEntries({clientId,designerId,projectId,start,end});
+  let entries=filterEntries({clientId,designerId,projectId,start,end});
+  // Filter to only checked entries from calendar panel
+  if(window._calCheckedIds && window._calCheckedIds.size>0){
+    entries=entries.filter(e=>window._calCheckedIds.has(e.id));
+  }
   const settings=loadSettings();
   if(!entries.length){toast('No entries for this period');return null;}
   const invNum=`${settings.invoicePrefix}-${String(settings.invoiceNext).padStart(4,'0')}`;
@@ -4355,74 +4428,83 @@ function renderExpInvoices() {
 function renderExpGenerate() {
   const clients=loadClients();
   if(!clients.length){document.getElementById('app').innerHTML=`<div class="page-head"><div><h1>Generate Expense Invoice</h1></div></div><div class="empty"><div class="e-icon">↗</div><p>Add clients and expense items first.</p><button class="btn btn-gold" onclick="switchApp('time');navigate('#clients')">Go to Clients</button></div>`;return;}
+  const [ws,we]=weekRange(0);
 
   document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Generate Expense Invoice</h1><div class="sub">Select filed items to invoice a client</div></div></div>
-    <div class="card" style="max-width:640px;margin-bottom:16px">
-      <div class="card-head" style="margin-bottom:14px"><h2>Billing Calendar</h2></div>
-      <div class="form-group" style="margin-bottom:14px">
+    <div class="page-head"><div><h1>Generate Expense Invoice</h1><div class="sub">Select a client and period to invoice expense items</div></div></div>
+    <div class="card" style="max-width:660px;margin-bottom:16px">
+      <div class="form-group" style="margin-bottom:10px">
         <label class="field-label">Client</label>
-        <select id="exp-cal-cli" onchange="refreshBillingCal('exp')">
+        <select id="exp-cal-cli" onchange="onExpCalClientChange()">
           <option value="">— Select a client —</option>
           ${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
         </select>
       </div>
-      <div id="exp-billing-cal-wrap"><div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div></div>
-    </div>
-    <div class="card" style="max-width:640px">
-      <div class="form-row">
-        <div class="form-group"><label class="field-label" for="eg-cli">Client</label>
-          <select id="eg-cli" onchange="refreshExpGenProj();rebuildExpGenPreview()">${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
-        <div class="form-group"><label class="field-label" for="eg-proj">Project (optional)</label>
-          <select id="eg-proj" onchange="rebuildExpGenPreview()">${projectOptsForClient(clients[0]?.id||'','')}</select></div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="field-label">Billing Period</label>
+        <div class="radio-group">
+          <label class="radio-opt"><input type="radio" name="eg-r" value="week" checked onchange="onExpGenRange()"> This week</label>
+          <label class="radio-opt"><input type="radio" name="eg-r" value="lastweek" onchange="onExpGenRange()"> Last week</label>
+          <label class="radio-opt"><input type="radio" name="eg-r" value="month" onchange="onExpGenRange()"> This month</label>
+          <label class="radio-opt"><input type="radio" name="eg-r" value="custom" onchange="onExpGenRange()"> Custom</label>
+        </div>
       </div>
-      <div id="exp-gen-preview"></div>
-      <button class="btn btn-dark" style="width:100%;justify-content:center;padding:12px;font-size:15px;margin-top:8px" onclick="generateExpPDF()">✓ Save Expense Invoice</button>
+      <div id="eg-custom" style="display:none;margin-bottom:12px"><div class="form-row">
+        <div class="form-group"><label class="field-label" for="eg-s">From</label><input type="date" id="eg-s" value="${ws}" onchange="onExpGenCustomDate()"></div>
+        <div class="form-group"><label class="field-label" for="eg-e">To</label><input type="date" id="eg-e" value="${we}" onchange="onExpGenCustomDate()"></div>
+      </div></div>
+      <div id="exp-billing-cal-wrap"><div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div></div>
+      <div id="exp-cal-entries-panel" class="cal-entries-panel"></div>
+      <div id="exp-cal-summary-bar" class="cal-summary-bar" style="display:none">
+        <span class="summary-left" id="exp-cal-summary-counts"></span>
+        <span class="summary-right" id="exp-cal-summary-total"></span>
+      </div>
+      <div id="exp-gen-actions" style="display:none;margin-top:14px">
+        <button class="btn btn-dark" style="width:100%;justify-content:center;padding:12px;font-size:15px" onclick="generateExpPDF()">✓ Save Expense Invoice</button>
+      </div>
     </div>`;
 
   window._calStates = window._calStates || {time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
-  window.refreshExpGenProj = () => {
-    const cliId=document.getElementById('eg-cli').value;
-    const sel=document.getElementById('eg-proj');
-    sel.innerHTML=`<option value="">All Projects</option>`+getProjectsByClient(cliId).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  window._expCalCheckedIds=new Set();
+  window._expGen={rangeKey:'week',start:ws,end:we};
+  window._calStates.exp.selStart=ws;
+  window._calStates.exp.selEnd=we;
+
+  window.onExpCalClientChange=()=>{
+    refreshBillingCal('exp');
+    renderCalEntries('exp');
   };
 
-  window.rebuildExpGenPreview = () => {
-    const cliId=document.getElementById('eg-cli').value;
-    const projId=document.getElementById('eg-proj').value;
-    let items=loadExpItems().filter(i=>i.clientId===cliId&&i.status==='filed');
-    if(projId) items=items.filter(i=>i.projectId===projId);
-    const el=document.getElementById('exp-gen-preview');
-    if(!items.length){el.innerHTML=`<div class="inv-preview-wrap"><p class="col2" style="text-align:center;padding:8px">No filed (unbilled) items for this selection.</p></div>`;return;}
-    let html=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Select items to include:</div>`;
-    let total=0;
-    items.forEach(item=>{
-      const c=calcItem(item); total+=c.clientTotal;
-      html+=`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
-        <input type="checkbox" id="chk-${item.id}" checked style="width:auto;cursor:pointer">
-        <label for="chk-${item.id}" style="flex:1;cursor:pointer;font-size:13px">
-          <strong>${esc(item.vendorName)}</strong> — ${esc(item.description)}<br>
-          <span class="col2 fs12">${CAT_LABELS[item.category]} · ${fmtDate(item.date||'')}</span>
-        </label>
-        <span class="gold-txt fw7">${cur(c.clientTotal)}</span>
-      </div>`;
-    });
-    html+=`<div class="inv-total-row" style="margin-top:8px"><span>Estimated Total</span><span id="eg-total" class="gold-txt">${cur(total)}</span></div>`;
-    el.innerHTML=`<div class="inv-preview-wrap">${html}</div>`;
-    items.forEach(item=>document.getElementById(`chk-${item.id}`)?.addEventListener('change',updateExpTotal));
+  window.onExpGenRange=()=>{
+    const k=document.querySelector('input[name="eg-r"]:checked').value;
+    window._expGen.rangeKey=k;
+    document.getElementById('eg-custom').style.display=k==='custom'?'block':'none';
+    if(k!=='custom'){
+      const[s,e]=rangeFromKey(k);
+      window._expGen.start=s; window._expGen.end=e;
+      window._calStates.exp.selStart=s;
+      window._calStates.exp.selEnd=e;
+      const sd=new Date(s+'T12:00:00');
+      window._calStates.exp.year=sd.getFullYear();
+      window._calStates.exp.month=sd.getMonth();
+      refreshBillingCal('exp');
+      renderCalEntries('exp');
+    }
   };
 
-  window.updateExpTotal = () => {
-    const cliId=document.getElementById('eg-cli').value;
-    const projId=document.getElementById('eg-proj').value;
-    let items=loadExpItems().filter(i=>i.clientId===cliId&&i.status==='filed');
-    if(projId) items=items.filter(i=>i.projectId===projId);
-    let total=0;
-    items.forEach(i=>{const chk=document.getElementById(`chk-${i.id}`);if(chk?.checked)total+=calcItem(i).clientTotal;});
-    const te=document.getElementById('eg-total'); if(te) te.textContent=cur(total);
+  window.onExpGenCustomDate=()=>{
+    const s=document.getElementById('eg-s').value;
+    const e=document.getElementById('eg-e').value;
+    if(s) window._expGen.start=s;
+    if(e) window._expGen.end=e;
+    window._calStates.exp.selStart=s||'';
+    window._calStates.exp.selEnd=e||'';
+    if(s){const sd=new Date(s+'T12:00:00'); window._calStates.exp.year=sd.getFullYear(); window._calStates.exp.month=sd.getMonth();}
+    refreshBillingCal('exp');
+    renderCalEntries('exp');
   };
 
-  rebuildExpGenPreview();
+  onExpGenRange();
 }
 
 /* ══════════════════════════════════════════════════════
@@ -4430,12 +4512,13 @@ function renderExpGenerate() {
 ══════════════════════════════════════════════════════ */
 function generateExpPDF() {
   if(isAtInvoiceLimit()){showUpgradeModal();return;}
-  const cliId  = document.getElementById('eg-cli').value;
-  const projId = document.getElementById('eg-proj').value;
-  let items=loadExpItems().filter(i=>i.clientId===cliId&&i.status==='filed');
-  if(projId) items=items.filter(i=>i.projectId===projId);
-  const selected=items.filter(i=>document.getElementById(`chk-${i.id}`)?.checked);
+  const cliId  = document.getElementById('exp-cal-cli').value;
+  if(!cliId){toast('Select a client first');return;}
+  // Use calendar-checked IDs
+  const checkedIds=window._expCalCheckedIds||new Set();
+  let selected=loadExpItems().filter(i=>checkedIds.has(i.id));
   if(!selected.length){toast('No items selected');return;}
+  const projId='';
 
   const c=getClientById(cliId), proj=projId?getProjectById(projId):null;
   const s=loadSettings(), es=loadExpSettings();
@@ -4674,12 +4757,10 @@ function renderExpAnalytics() {
 const CAL_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const CAL_DAYS=['Su','Mo','Tu','We','Th','Fr','Sa'];
 
-function buildBillingCalendarHTML(calKey, year, month, dateMap) {
+function buildBillingCalendarHTML(calKey, year, month, dateMap, selRange) {
   const today=todayStr();
   const first=new Date(year,month,1);
   const last=new Date(year,month+1,0);
-  const wrapId=calKey==='time'?'billing-cal-wrap':'exp-billing-cal-wrap';
-  const cliId=calKey==='time'?'cal-cli':'exp-cal-cli';
 
   let cells='';
   CAL_DAYS.forEach(d=>cells+=`<div class="cal-dow">${d}</div>`);
@@ -4707,7 +4788,13 @@ function buildBillingCalendarHTML(calKey, year, month, dateMap) {
       if(hasU) badges+=`<span class="cal-badge unbilled">${info.unbilled} unbilled</span>`;
       if(hasB) badges+=`<span class="cal-badge billed">${info.billed} billed</span>`;
     }
-    cells+=`<div class="${cls}"><span class="cal-day-num">${d}</span><div class="cal-badges">${badges}</div></div>`;
+    // Selection range highlighting
+    if(selRange && ds>=selRange.start && ds<=selRange.end) {
+      cls+=' cal-selected';
+      if(ds===selRange.start) cls+=' cal-range-start';
+      if(ds===selRange.end) cls+=' cal-range-end';
+    }
+    cells+=`<div class="${cls}" data-date="${ds}"><span class="cal-day-num">${d}</span><div class="cal-badges">${badges}</div></div>`;
   }
 
   // Trailing blanks
@@ -4720,7 +4807,7 @@ function buildBillingCalendarHTML(calKey, year, month, dateMap) {
       <span class="cal-nav-title">${CAL_MONTHS[month]} ${year}</span>
       <button class="cal-nav-btn" onclick="shiftBillingCal('${calKey}',1)">&#8250;</button>
     </div>
-    <div class="cal-grid">${cells}</div>
+    <div class="cal-grid" id="${calKey}-cal-grid">${cells}</div>
     <div class="cal-legend">
       <div class="cal-legend-item"><span class="cal-legend-swatch unbilled"></span> Needs billing</div>
       <div class="cal-legend-item"><span class="cal-legend-swatch billed"></span> Already invoiced</div>
@@ -4729,7 +4816,8 @@ function buildBillingCalendarHTML(calKey, year, month, dateMap) {
 }
 
 window.refreshBillingCal = calKey => {
-  const cliId=document.getElementById(calKey==='time'?'cal-cli':'exp-cal-cli').value;
+  const cliSel=calKey==='time'?document.getElementById('gi-cli'):document.getElementById('exp-cal-cli');
+  const cliId=cliSel?cliSel.value:'';
   const wrapId=calKey==='time'?'billing-cal-wrap':'exp-billing-cal-wrap';
   const wrap=document.getElementById(wrapId);
   if(!wrap) return;
@@ -4753,8 +4841,10 @@ window.refreshBillingCal = calKey => {
 
   if(!window._calStates) window._calStates={time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
   window._calStates[`${calKey}_dateMap`]=dateMap;
-  const {year,month}=window._calStates[calKey];
-  wrap.innerHTML=buildBillingCalendarHTML(calKey,year,month,dateMap);
+  const st=window._calStates[calKey];
+  const selRange=_calSelRange(calKey);
+  wrap.innerHTML=buildBillingCalendarHTML(calKey,st.year,st.month,dateMap,selRange);
+  attachCalendarInteraction(calKey);
 };
 
 window.shiftBillingCal = (calKey,dir) => {
@@ -4765,10 +4855,349 @@ window.shiftBillingCal = (calKey,dir) => {
   if(st.month<0){st.month=11;st.year--;}
   const dateMap=window._calStates[`${calKey}_dateMap`];
   if(!dateMap) return;
+  const selRange=_calSelRange(calKey);
   const wrapId=calKey==='time'?'billing-cal-wrap':'exp-billing-cal-wrap';
   const wrap=document.getElementById(wrapId);
-  if(wrap) wrap.innerHTML=buildBillingCalendarHTML(calKey,st.year,st.month,dateMap);
+  if(wrap){
+    wrap.innerHTML=buildBillingCalendarHTML(calKey,st.year,st.month,dateMap,selRange);
+    attachCalendarInteraction(calKey);
+  }
 };
+
+/* ── Calendar selection range helper ── */
+function _calSelRange(calKey) {
+  const st=window._calStates&&window._calStates[calKey];
+  if(!st||!st.selStart||!st.selEnd) return null;
+  const a=st.selStart, b=st.selEnd;
+  return {start:a<=b?a:b, end:a<=b?b:a};
+}
+
+/* ── Attach click/drag interaction to calendar grid ── */
+function attachCalendarInteraction(calKey) {
+  const grid=document.getElementById(calKey+'-cal-grid');
+  if(!grid) return;
+  const st=window._calStates[calKey];
+
+  const getDateFromEl = el => {
+    const day=el.closest('.cal-day[data-date]');
+    return day?day.getAttribute('data-date'):null;
+  };
+
+  // Mouse events
+  grid.addEventListener('mousedown', e => {
+    const ds=getDateFromEl(e.target);
+    if(!ds) return;
+    e.preventDefault();
+    st._isDragging=true;
+    st._dragStart=ds;
+    st.selStart=ds;
+    st.selEnd=ds;
+    _updateCalHighlight(calKey);
+  });
+
+  grid.addEventListener('mouseover', e => {
+    if(!st._isDragging) return;
+    const ds=getDateFromEl(e.target);
+    if(!ds) return;
+    st.selEnd=ds;
+    _updateCalHighlight(calKey);
+  });
+
+  const finishDrag = () => {
+    if(!st._isDragging) return;
+    st._isDragging=false;
+    // Normalize start/end
+    const a=st.selStart, b=st.selEnd;
+    st.selStart=a<=b?a:b;
+    st.selEnd=a<=b?b:a;
+    // Sync to radio buttons + custom inputs
+    _syncCalSelToForm(calKey);
+    renderCalEntries(calKey);
+  };
+
+  grid.addEventListener('mouseup', finishDrag);
+  document.addEventListener('mouseup', finishDrag, {once:false});
+
+  // Touch events for mobile
+  grid.addEventListener('touchstart', e => {
+    const t=e.touches[0];
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    const ds=el?getDateFromEl(el):null;
+    if(!ds) return;
+    st._isDragging=true;
+    st._dragStart=ds;
+    st.selStart=ds;
+    st.selEnd=ds;
+    _updateCalHighlight(calKey);
+  }, {passive:true});
+
+  grid.addEventListener('touchmove', e => {
+    if(!st._isDragging) return;
+    const t=e.touches[0];
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    const ds=el?getDateFromEl(el):null;
+    if(!ds) return;
+    st.selEnd=ds;
+    _updateCalHighlight(calKey);
+  }, {passive:true});
+
+  grid.addEventListener('touchend', finishDrag);
+}
+
+/* ── Fast DOM highlight update (no full re-render) ── */
+function _updateCalHighlight(calKey) {
+  const grid=document.getElementById(calKey+'-cal-grid');
+  if(!grid) return;
+  const range=_calSelRange(calKey);
+  grid.querySelectorAll('.cal-day[data-date]').forEach(el=>{
+    const ds=el.getAttribute('data-date');
+    el.classList.remove('cal-selected','cal-range-start','cal-range-end');
+    if(range && ds>=range.start && ds<=range.end){
+      el.classList.add('cal-selected');
+      if(ds===range.start) el.classList.add('cal-range-start');
+      if(ds===range.end)   el.classList.add('cal-range-end');
+    }
+  });
+}
+
+/* ── Sync calendar selection back to form inputs ── */
+function _syncCalSelToForm(calKey) {
+  if(calKey==='time'){
+    const st=window._calStates.time;
+    window._gen.start=st.selStart;
+    window._gen.end=st.selEnd;
+    window._gen.rangeKey='custom';
+    // Switch radio to custom
+    const radios=document.querySelectorAll('input[name="gi-r"]');
+    radios.forEach(r=>r.checked=r.value==='custom');
+    document.getElementById('gi-custom').style.display='block';
+    const sEl=document.getElementById('gi-s'), eEl=document.getElementById('gi-e');
+    if(sEl) sEl.value=st.selStart;
+    if(eEl) eEl.value=st.selEnd;
+  } else if(calKey==='exp'){
+    const st=window._calStates.exp;
+    window._expGen=window._expGen||{};
+    window._expGen.start=st.selStart;
+    window._expGen.end=st.selEnd;
+    const sEl=document.getElementById('eg-s'), eEl=document.getElementById('eg-e');
+    if(sEl) sEl.value=st.selStart;
+    if(eEl) eEl.value=st.selEnd;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   CALENDAR ENTRY PANEL — grouped entries with checkboxes
+══════════════════════════════════════════════════════ */
+function renderCalEntries(calKey) {
+  const panelId=calKey==='time'?'cal-entries-panel':'exp-cal-entries-panel';
+  const panel=document.getElementById(panelId);
+  if(!panel) return;
+
+  const st=window._calStates&&window._calStates[calKey];
+  const range=_calSelRange(calKey);
+  if(!range||!range.start||!range.end){ panel.innerHTML=''; _updateCalSummary(calKey); return; }
+
+  const start=range.start, end=range.end;
+
+  if(calKey==='time'){
+    const clientId=(document.getElementById('gi-cli')||{}).value||'';
+    const designerId=(document.getElementById('gi-des')||{}).value||'';
+    const projectId=(document.getElementById('gi-proj')||{}).value||'';
+
+    if(!clientId){ panel.innerHTML=''; _updateCalSummary(calKey); return; }
+
+    // Cache invoices for performance
+    const invoices=loadInvoices();
+    const _isInv=entry=>invoices.some(inv=>{
+      if(inv.entryIds) return inv.entryIds.includes(entry.id);
+      return inv.clientId===entry.clientId && entry.date>=inv.startDate && entry.date<=inv.endDate && (!inv.designerId||inv.designerId===entry.designerId);
+    });
+
+    const allEntries=filterEntries({clientId,designerId,projectId,start,end});
+    const unbilled=allEntries.filter(e=>!_isInv(e));
+    const billed=allEntries.filter(e=>_isInv(e));
+
+    if(!allEntries.length){
+      panel.innerHTML='<div class="cal-no-entries">No entries found for this period.</div>';
+      _updateCalSummary(calKey);
+      return;
+    }
+
+    // Auto-select all unbilled
+    window._calCheckedIds=new Set(unbilled.map(e=>e.id));
+
+    let html='';
+
+    // Unbilled section
+    if(unbilled.length){
+      html+=`<div class="cal-section-hdr unbilled">Unbilled <span class="cal-section-count">(${unbilled.length} entr${unbilled.length===1?'y':'ies'})</span></div>`;
+      html+=_buildEntryGroups(unbilled, false, calKey);
+    }
+
+    // Billed section
+    if(billed.length){
+      html+=`<div class="cal-section-hdr billed">Already Billed <span class="cal-section-count">(${billed.length} entr${billed.length===1?'y':'ies'})</span></div>`;
+      html+=_buildEntryGroups(billed, true, calKey);
+    }
+
+    panel.innerHTML=html;
+    // Show action buttons
+    const actEl=document.getElementById('gen-actions');
+    if(actEl) actEl.style.display='block';
+    _updateCalSummary(calKey);
+
+  } else {
+    // Expense calendar
+    const cliId=(document.getElementById('exp-cal-cli')||{}).value||'';
+    if(!cliId){ panel.innerHTML=''; _updateCalSummary(calKey); return; }
+
+    const allItems=loadExpItems().filter(i=>i.clientId===cliId&&i.date&&i.date>=start&&i.date<=end);
+    const unbilled=allItems.filter(i=>i.status!=='billed');
+    const billed=allItems.filter(i=>i.status==='billed');
+
+    if(!allItems.length){
+      panel.innerHTML='<div class="cal-no-entries">No expense items found for this period.</div>';
+      _updateCalSummary(calKey);
+      return;
+    }
+
+    window._expCalCheckedIds=new Set(unbilled.map(i=>i.id));
+
+    let html='';
+    if(unbilled.length){
+      html+=`<div class="cal-section-hdr unbilled">Unbilled <span class="cal-section-count">(${unbilled.length} item${unbilled.length===1?'':'s'})</span></div>`;
+      html+=_buildExpGroups(unbilled, false, calKey);
+    }
+    if(billed.length){
+      html+=`<div class="cal-section-hdr billed">Already Billed <span class="cal-section-count">(${billed.length} item${billed.length===1?'':'s'})</span></div>`;
+      html+=_buildExpGroups(billed, true, calKey);
+    }
+
+    panel.innerHTML=html;
+    const actEl=document.getElementById('exp-gen-actions');
+    if(actEl) actEl.style.display='block';
+    _updateCalSummary(calKey);
+  }
+}
+
+/* ── Build grouped time entry HTML ── */
+function _buildEntryGroups(entries, isBilled, calKey) {
+  const byProj={};
+  entries.forEach(e=>{
+    const pName=entryProjectName(e);
+    if(!byProj[pName]) byProj[pName]=[];
+    byProj[pName].push(e);
+  });
+
+  let html='';
+  Object.keys(byProj).sort().forEach(pName=>{
+    const group=byProj[pName];
+    const totH=group.reduce((s,e)=>s+e.hours,0);
+    const totA=group.reduce((s,e)=>s+entryAmount(e),0);
+    html+=`<div class="cal-entry-group">`;
+    html+=`<div class="cal-entry-group-hdr"><strong>${esc(pName)}</strong><span class="grp-totals">${totH.toFixed(1)}h · ${cur(totA)}</span></div>`;
+    group.sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
+      const d=e.designerId?getDesignerById(e.designerId):null;
+      const checked=isBilled?'':'checked';
+      const rowCls=isBilled?'cal-entry-row billed-row':'cal-entry-row';
+      html+=`<div class="${rowCls}">
+        <input type="checkbox" class="cal-entry-chk" data-entry-id="${e.id}" data-cal="${calKey}" ${checked} onchange="onCalEntryToggle(this,'${calKey}')">
+        <div class="cal-entry-info">
+          <div class="entry-date">${fmtDate(e.date)}${d?' · '+esc(d.name):''}</div>
+          <div class="entry-desc">${esc(e.description||'—')}</div>
+        </div>
+        <div class="cal-entry-amt">${e.hours}h · ${cur(entryAmount(e))}</div>
+      </div>`;
+    });
+    html+=`</div>`;
+  });
+  return html;
+}
+
+/* ── Build grouped expense item HTML ── */
+function _buildExpGroups(items, isBilled, calKey) {
+  const byProj={};
+  items.forEach(i=>{
+    const pName=i.projectId?((getProjectById(i.projectId)||{}).name||'—'):'No Project';
+    if(!byProj[pName]) byProj[pName]=[];
+    byProj[pName].push(i);
+  });
+
+  let html='';
+  Object.keys(byProj).sort().forEach(pName=>{
+    const group=byProj[pName];
+    const totA=group.reduce((s,i)=>s+calcItem(i).clientTotal,0);
+    html+=`<div class="cal-entry-group">`;
+    html+=`<div class="cal-entry-group-hdr"><strong>${esc(pName)}</strong><span class="grp-totals">${cur(totA)}</span></div>`;
+    group.sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(item=>{
+      const c=calcItem(item);
+      const checked=isBilled?'':'checked';
+      const rowCls=isBilled?'cal-entry-row billed-row':'cal-entry-row';
+      html+=`<div class="${rowCls}">
+        <input type="checkbox" class="cal-entry-chk" data-item-id="${item.id}" data-cal="${calKey}" ${checked} onchange="onCalEntryToggle(this,'${calKey}')">
+        <div class="cal-entry-info">
+          <div class="entry-date">${fmtDate(item.date||'')} · ${esc(item.vendorName||'—')}</div>
+          <div class="entry-desc">${esc(item.description||'—')}</div>
+        </div>
+        <div class="cal-entry-amt">${cur(c.clientTotal)}</div>
+      </div>`;
+    });
+    html+=`</div>`;
+  });
+  return html;
+}
+
+/* ── Checkbox toggle handler ── */
+window.onCalEntryToggle = (chk, calKey) => {
+  const id=chk.getAttribute('data-entry-id')||chk.getAttribute('data-item-id');
+  if(!id) return;
+  const checkedSet=calKey==='time'?window._calCheckedIds:window._expCalCheckedIds;
+  if(chk.checked) checkedSet.add(id); else checkedSet.delete(id);
+  _updateCalSummary(calKey);
+};
+
+/* ── Update summary bar ── */
+function _updateCalSummary(calKey) {
+  const barId=calKey==='time'?'cal-summary-bar':'exp-cal-summary-bar';
+  const countsId=calKey==='time'?'cal-summary-counts':'exp-cal-summary-counts';
+  const totalId=calKey==='time'?'cal-summary-total':'exp-cal-summary-total';
+  const bar=document.getElementById(barId);
+  const countsEl=document.getElementById(countsId);
+  const totalEl=document.getElementById(totalId);
+  if(!bar) return;
+
+  const checkedSet=calKey==='time'?window._calCheckedIds:window._expCalCheckedIds;
+  if(!checkedSet||checkedSet.size===0){
+    bar.style.display='none';
+    const actEl=document.getElementById(calKey==='time'?'gen-actions':'exp-gen-actions');
+    if(actEl) actEl.style.display='none';
+    return;
+  }
+
+  if(calKey==='time'){
+    const allEntries=loadEntries();
+    let totH=0, totA=0, cnt=0;
+    checkedSet.forEach(id=>{
+      const e=allEntries.find(x=>x.id===id);
+      if(e){ totH+=e.hours; totA+=entryAmount(e); cnt++; }
+    });
+    if(countsEl) countsEl.textContent=`${cnt} entr${cnt===1?'y':'ies'} · ${totH.toFixed(1)} hrs`;
+    if(totalEl) totalEl.textContent=cur(totA);
+  } else {
+    const allItems=loadExpItems();
+    let totA=0, cnt=0;
+    checkedSet.forEach(id=>{
+      const i=allItems.find(x=>x.id===id);
+      if(i){ totA+=calcItem(i).clientTotal; cnt++; }
+    });
+    if(countsEl) countsEl.textContent=`${cnt} item${cnt===1?'':'s'}`;
+    if(totalEl) totalEl.textContent=cur(totA);
+  }
+
+  bar.style.display='flex';
+  const actEl=document.getElementById(calKey==='time'?'gen-actions':'exp-gen-actions');
+  if(actEl) actEl.style.display='block';
+}
 
 /* ══════════════════════════════════════════════════════
    ROUTER

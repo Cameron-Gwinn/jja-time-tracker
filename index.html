@@ -4531,7 +4531,7 @@ function renderExpGenerate() {
       <div class="form-group" style="margin-bottom:10px">
         <label class="field-label">Client</label>
         <select id="exp-cal-cli" onchange="onExpCalClientChange()">
-          <option value="">— Select a client —</option>
+          <option value="">All Clients</option>
           ${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
         </select>
       </div>
@@ -4539,7 +4539,7 @@ function renderExpGenerate() {
         <div class="form-group"><label class="field-label" for="eg-s">From</label><input type="date" id="eg-s" value="${_expToday}" onchange="onExpGenCustomDate()"></div>
         <div class="form-group"><label class="field-label" for="eg-e">To</label><input type="date" id="eg-e" value="${_expToday}" onchange="onExpGenCustomDate()"></div>
       </div>
-      <div id="exp-billing-cal-wrap"><div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div></div>
+      <div id="exp-billing-cal-wrap"></div>
       <div id="exp-cal-entries-panel" class="cal-entries-panel"></div>
       <div id="exp-cal-summary-bar" class="cal-summary-bar" style="display:none">
         <span class="summary-left" id="exp-cal-summary-counts"></span>
@@ -4581,34 +4581,23 @@ function renderExpGenerate() {
 /* ══════════════════════════════════════════════════════
    EXPENSE PDF GENERATOR
 ══════════════════════════════════════════════════════ */
-function generateExpPDF() {
-  if(isAtInvoiceLimit()){showUpgradeModal();return;}
-  const cliId  = document.getElementById('exp-cal-cli').value;
-  if(!cliId){toast('Select a client first');return;}
-  // Use calendar-checked IDs
-  const checkedIds=window._expCalCheckedIds||new Set();
-  let selected=loadExpItems().filter(i=>checkedIds.has(i.id));
-  if(!selected.length){toast('No items selected');return;}
-  const projId='';
-
-  const c=getClientById(cliId), proj=projId?getProjectById(projId):null;
-  const s=loadSettings(), es=loadExpSettings();
+/* ── Build a single expense PDF for a group of items ── */
+function _buildExpPDFForGroup(selected, clientId, projectId, settings, es, invNum) {
+  const c=getClientById(clientId), proj=projectId?getProjectById(projectId):null;
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
   const PW=215.9, M=20, R=PW-M;
-  const invNum=`${es.invoicePrefix}-${String(es.invoiceNext).padStart(4,'0')}`;
   const issueDate=todayStr();
-  const _egTerms=s.paymentTerms!=null?s.paymentTerms:14;
+  const _egTerms=settings.paymentTerms!=null?settings.paymentTerms:14;
   let _egDueStr;
   if(_egTerms===0){ _egDueStr='Upon Receipt'; } else { const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+_egTerms); _egDueStr=fmtDateLong(dueD.toISOString().split('T')[0]); }
 
-  // Header
   doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);
-  doc.text(s.firmName||'Your Firm',M,26);
+  doc.text(settings.firmName||'Your Firm',M,26);
   doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
   let iy=32;
-  if(s.firmAddress){doc.text(s.firmAddress,M,iy);iy+=5;}
-  if(s.firmEmail){doc.text(s.firmEmail,M,iy);}
+  if(settings.firmAddress){doc.text(settings.firmAddress,M,iy);iy+=5;}
+  if(settings.firmEmail){doc.text(settings.firmEmail,M,iy);}
   doc.setFontSize(22);doc.setFont('helvetica','bold');doc.setTextColor(196,168,122);
   doc.text('INVOICE',R,26,{align:'right'});
   doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(100,100,95);
@@ -4617,14 +4606,13 @@ function generateExpPDF() {
   doc.text(`Due: ${_egDueStr}`,R,43,{align:'right'});
   doc.setDrawColor(220,215,205);doc.setLineWidth(0.4);doc.line(M,52,R,52);
   doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(130,125,118);doc.text('BILL TO',M,59);
-  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c.name,M,65);
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(20,20,18);doc.text(c?.name||'?',M,65);
   doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(90,85,80);
   let by=71;
-  if(c.contactName){doc.text(c.contactName,M,by);by+=5;}
-  if(c.email){doc.text(c.email,M,by);}
+  if(c?.contactName){doc.text(c.contactName,M,by);by+=5;}
+  if(c?.email){doc.text(c.email,M,by);}
   if(proj){doc.setFontSize(8.5);doc.text(`Project: ${proj.name}`,R,65,{align:'right'});}
 
-  // Table — client-facing only (no vendor prices shown)
   const body=selected.map(item=>{
     const ct=calcItem(item).clientTotal;
     return[item.date?fmtDate(item.date):'',CAT_LABELS[item.category]||item.category,item.description,cur(ct)];
@@ -4645,30 +4633,131 @@ function generateExpPDF() {
   doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(195,190,183);
   doc.text('Billed via jasejonesinvoicing.com',PW/2,268,{align:'center'});
 
-  // Save invoice record
-  const invRecord={id:uid(),invoiceNumber:invNum,clientId:cliId,projectId:projId||null,
-    itemIds:selected.map(i=>i.id),clientTotal:total,itemCount:selected.length,
-    items:selected.map(i=>({id:i.id,vendorName:i.vendorName,description:i.description,category:i.category,clientTotal:calcItem(i).clientTotal})),
-    generatedAt:new Date().toISOString()};
-  const il=loadExpInvoices(); il.push(invRecord); saveExpInvoices(il);
-  es.invoiceNext+=1; saveExpSettings(es);
+  return {doc, total, c, proj};
+}
 
-  // Mark items as billed
-  selected.forEach(item=>updateExpItem(item.id,{status:'billed',billedInvoiceId:invRecord.id}));
+function generateExpPDF() {
+  if(isAtInvoiceLimit()){showUpgradeModal();return;}
+  const checkedIds=window._expCalCheckedIds||new Set();
+  const allItems=loadExpItems();
+  const selected=allItems.filter(i=>checkedIds.has(i.id));
+  if(!selected.length){toast('No items selected');return;}
 
-  _pendingInvDoc=doc;
-  _pendingInvFilename=`${invNum}-${c.name.replace(/\s+/g,'-')}-Expenses.pdf`;
+  // Group by client + project
+  const groupMap=new Map();
+  selected.forEach(i=>{
+    const key=`${i.clientId}::${i.projectId||'_none'}`;
+    if(!groupMap.has(key)) groupMap.set(key,{clientId:i.clientId,projectId:i.projectId||'',items:[]});
+    groupMap.get(key).items.push(i);
+  });
+  const groups=[...groupMap.values()];
+
+  // If multiple groups, show confirmation
+  if(groups.length>1){
+    let summaryHtml='';
+    groups.forEach(g=>{
+      const c=getClientById(g.clientId);
+      const p=g.projectId?getProjectById(g.projectId):null;
+      const totA=g.items.reduce((s,i)=>s+calcItem(i).clientTotal,0);
+      summaryHtml+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div><strong>${esc(c?.name||'?')}</strong><span style="color:var(--text2);font-size:12px;margin-left:6px">${esc(p?.name||'General')}</span>
+          <div style="font-size:11px;color:var(--text2)">${g.items.length} item${g.items.length===1?'':'s'}</div></div>
+        <div style="font-weight:700">${cur(totA)}</div>
+      </div>`;
+    });
+    showModal(`
+      <div class="modal-hd"><h2>Create ${groups.length} Expense Invoices</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+      <div style="padding:20px 24px 8px">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:12px">The selected items span multiple clients/projects. Separate invoices will be created:</p>
+        <div style="margin-bottom:16px">${summaryHtml}</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-gold" onclick="closeModal();_executeMultiExpInvoice()">Create All Invoices</button>
+        </div>
+      </div>
+    `);
+    return;
+  }
+
+  _createAndShowExpInvoices(groups);
+}
+
+window._executeMultiExpInvoice = () => {
+  const checkedIds=window._expCalCheckedIds||new Set();
+  const selected=loadExpItems().filter(i=>checkedIds.has(i.id));
+  if(!selected.length) return;
+  const groupMap=new Map();
+  selected.forEach(i=>{
+    const key=`${i.clientId}::${i.projectId||'_none'}`;
+    if(!groupMap.has(key)) groupMap.set(key,{clientId:i.clientId,projectId:i.projectId||'',items:[]});
+    groupMap.get(key).items.push(i);
+  });
+  _createAndShowExpInvoices([...groupMap.values()]);
+};
+
+function _createAndShowExpInvoices(groups) {
+  const s=loadSettings(), es=loadExpSettings();
+  const il=loadExpInvoices();
+  const created=[];
+
+  _pendingInvBlobUrls.forEach(u=>URL.revokeObjectURL(u));
+  _pendingInvDocs=[]; _pendingInvBlobUrls=[];
+
+  groups.forEach(g=>{
+    const invNum=`${es.invoicePrefix}-${String(es.invoiceNext).padStart(4,'0')}`;
+    const {doc,total,c,proj}=_buildExpPDFForGroup(g.items, g.clientId, g.projectId, s, es, invNum);
+
+    const invRecord={id:uid(),invoiceNumber:invNum,clientId:g.clientId,projectId:g.projectId||null,
+      itemIds:g.items.map(i=>i.id),clientTotal:total,itemCount:g.items.length,
+      items:g.items.map(i=>({id:i.id,vendorName:i.vendorName,description:i.description,category:i.category,clientTotal:calcItem(i).clientTotal})),
+      generatedAt:new Date().toISOString()};
+    il.push(invRecord);
+    es.invoiceNext+=1;
+
+    // Mark items as "invoiced" (not yet billed/paid)
+    g.items.forEach(item=>updateExpItem(item.id,{status:'invoiced',billedInvoiceId:invRecord.id}));
+
+    const blob=doc.output('blob');
+    const blobUrl=URL.createObjectURL(blob);
+    _pendingInvDocs.push({doc, filename:`${invNum}-${(c?.name||'invoice').replace(/\s+/g,'-')}-Expenses.pdf`});
+    _pendingInvBlobUrls.push(blobUrl);
+    created.push({invNum, clientName:c?.name||'?', projName:proj?.name||'General', totA:total, blobUrl});
+  });
+
+  saveExpInvoices(il);
+  saveExpSettings(es);
+
+  let previewHtml='';
+  if(created.length===1){
+    previewHtml=`<p style="font-size:14px;margin-bottom:12px"><strong>${created[0].invNum}</strong> has been saved to Invoice History.</p>
+      <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px;background:#f5f5f5">
+        <iframe src="${created[0].blobUrl}" style="width:100%;height:380px;border:none;display:block"></iframe>
+      </div>`;
+  } else {
+    previewHtml=`<p style="font-size:14px;margin-bottom:14px"><strong>${created.length} expense invoices</strong> have been saved to Invoice History.</p>`;
+    created.forEach(inv=>{
+      previewHtml+=`<div style="margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px">${esc(inv.invNum)} — ${esc(inv.clientName)} · ${esc(inv.projName)} <span style="color:var(--text2);font-weight:400">${cur(inv.totA)}</span></div>
+        <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:#f5f5f5">
+          <iframe src="${inv.blobUrl}" style="width:100%;height:280px;border:none;display:block"></iframe>
+        </div>
+      </div>`;
+    });
+  }
+
   showModal(`
-    <div class="modal-hd"><h2>Invoice Saved</h2><button class="modal-x" onclick="closeModal()">×</button></div>
-    <div style="padding:20px 24px 8px">
-      <p style="font-size:14px;margin-bottom:6px"><strong>${invNum}</strong> has been saved to Invoice History.</p>
-      <p style="font-size:13px;color:var(--text2);margin-bottom:20px">Would you like to download a PDF of this invoice now?</p>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal();_pendingInvDoc=null;">No, maybe later</button>
-        <button class="btn btn-gold" onclick="if(_pendingInvDoc){_pendingInvDoc.save(_pendingInvFilename);toast(_pendingInvFilename.split('/').pop()+' downloaded');_pendingInvDoc=null;}closeModal();">Yes, Download PDF</button>
+    <div class="modal-hd"><h2>Invoice${created.length>1?'s':''} Saved</h2><button class="modal-x" onclick="_cleanupInvBlobs();closeModal()">×</button></div>
+    <div style="padding:20px 24px 8px;max-height:70vh;overflow-y:auto">
+      ${previewHtml}
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+        <button class="btn btn-ghost" onclick="_cleanupInvBlobs();closeModal();">Close</button>
+        <button class="btn btn-gold" onclick="_downloadAllPendingInvs()">⬇ Download ${created.length>1?'All PDFs':'PDF'}</button>
       </div>
     </div>
   `);
+
+  refreshBillingCal('exp');
+  renderCalEntries('exp');
 }
 
 /* ══════════════════════════════════════════════════════
@@ -4894,8 +4983,7 @@ window.refreshBillingCal = calKey => {
   const wrapId=calKey==='time'?'billing-cal-wrap':'exp-billing-cal-wrap';
   const wrap=document.getElementById(wrapId);
   if(!wrap) return;
-  // Expense calendar still requires a client
-  if(calKey==='exp'&&!cliId){wrap.innerHTML=`<div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div>`;return;}
+  // No client required — show all entries on calendar
 
   // Build dateMap with 3 tiers
   const dateMap=new Map();
@@ -5147,9 +5235,8 @@ function renderCalEntries(calKey) {
   } else {
     // Expense calendar
     const cliId=(document.getElementById('exp-cal-cli')||{}).value||'';
-    if(!cliId){ panel.innerHTML=''; _updateCalSummary(calKey); return; }
 
-    const allItems=loadExpItems().filter(i=>i.clientId===cliId&&i.date&&i.date>=start&&i.date<=end);
+    const allItems=loadExpItems().filter(i=>(!cliId||i.clientId===cliId)&&i.date&&i.date>=start&&i.date<=end);
     const unbilled=allItems.filter(i=>!i.status||i.status==='pending');
     const invCreated=allItems.filter(i=>i.status==='invoiced');
     const billed=allItems.filter(i=>i.status==='billed');
@@ -5260,33 +5347,67 @@ function _buildEntryGroups(entries, statusTier, calKey, showAllClients) {
 function _buildExpGroups(items, statusTier, calKey) {
   const checked=statusTier==='unbilled'?'checked':'';
   const rowCls=statusTier==='billed'?'cal-entry-row billed-row':statusTier==='invoiceCreated'?'cal-entry-row inv-created-row':'cal-entry-row';
-  const byProj={};
-  items.forEach(i=>{
-    const pName=i.projectId?((getProjectById(i.projectId)||{}).name||'—'):'No Project';
-    if(!byProj[pName]) byProj[pName]=[];
-    byProj[pName].push(i);
-  });
+  const showAllClients=!(document.getElementById('exp-cal-cli')||{}).value;
 
-  let html='';
-  Object.keys(byProj).sort().forEach(pName=>{
-    const group=byProj[pName];
+  function _expItemRowHtml(item) {
+    const c=calcItem(item);
+    return `<div class="${rowCls}">
+      <input type="checkbox" class="cal-entry-chk" data-item-id="${item.id}" data-cal="${calKey}" ${checked} onchange="onCalEntryToggle(this,'${calKey}')">
+      <div class="cal-entry-info">
+        <div class="entry-date">${fmtDate(item.date||'')} · ${esc(item.vendorName||'—')}</div>
+        <div class="entry-desc">${esc(item.description||'—')}</div>
+      </div>
+      <div class="cal-entry-amt">${cur(c.clientTotal)}</div>
+    </div>`;
+  }
+
+  function _expProjGroupHtml(pName, group) {
     const totA=group.reduce((s,i)=>s+calcItem(i).clientTotal,0);
-    html+=`<div class="cal-entry-group">`;
-    html+=`<div class="cal-entry-group-hdr"><strong>${esc(pName)}</strong><span class="grp-totals">${cur(totA)}</span></div>`;
-    group.sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(item=>{
-      const c=calcItem(item);
-      html+=`<div class="${rowCls}">
-        <input type="checkbox" class="cal-entry-chk" data-item-id="${item.id}" data-cal="${calKey}" ${checked} onchange="onCalEntryToggle(this,'${calKey}')">
-        <div class="cal-entry-info">
-          <div class="entry-date">${fmtDate(item.date||'')} · ${esc(item.vendorName||'—')}</div>
-          <div class="entry-desc">${esc(item.description||'—')}</div>
-        </div>
-        <div class="cal-entry-amt">${cur(c.clientTotal)}</div>
-      </div>`;
+    let h=`<div class="cal-entry-group">`;
+    h+=`<div class="cal-entry-group-hdr"><strong>${esc(pName)}</strong><span class="grp-totals">${cur(totA)}</span></div>`;
+    group.sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(item=>{ h+=_expItemRowHtml(item); });
+    h+=`</div>`;
+    return h;
+  }
+
+  if(showAllClients){
+    const byClient={};
+    items.forEach(i=>{
+      const cId=i.clientId||'_none';
+      if(!byClient[cId]) byClient[cId]=[];
+      byClient[cId].push(i);
     });
-    html+=`</div>`;
-  });
-  return html;
+    let html='';
+    Object.keys(byClient).sort((a,b)=>{
+      const ca=getClientById(a), cb=getClientById(b);
+      return (ca?.name||'').localeCompare(cb?.name||'');
+    }).forEach(cId=>{
+      const cli=getClientById(cId);
+      const cItems=byClient[cId];
+      const cTotA=cItems.reduce((s,i)=>s+calcItem(i).clientTotal,0);
+      html+=`<div class="cal-client-group">`;
+      html+=`<div class="cal-client-group-hdr">${esc(cli?.name||'Unknown Client')} <span style="font-weight:400;font-size:12px;color:var(--text2);margin-left:8px">${cur(cTotA)}</span></div>`;
+      const byProj={};
+      cItems.forEach(i=>{
+        const pName=i.projectId?((getProjectById(i.projectId)||{}).name||'—'):'No Project';
+        if(!byProj[pName]) byProj[pName]=[];
+        byProj[pName].push(i);
+      });
+      Object.keys(byProj).sort().forEach(pName=>{ html+=_expProjGroupHtml(pName, byProj[pName]); });
+      html+=`</div>`;
+    });
+    return html;
+  } else {
+    const byProj={};
+    items.forEach(i=>{
+      const pName=i.projectId?((getProjectById(i.projectId)||{}).name||'—'):'No Project';
+      if(!byProj[pName]) byProj[pName]=[];
+      byProj[pName].push(i);
+    });
+    let html='';
+    Object.keys(byProj).sort().forEach(pName=>{ html+=_expProjGroupHtml(pName, byProj[pName]); });
+    return html;
+  }
 }
 
 /* ── Checkbox toggle handler ── */
@@ -5331,11 +5452,14 @@ function _updateCalSummary(calKey) {
   } else {
     const allItems=loadExpItems();
     let totA=0, cnt=0;
+    const expGroups=new Set();
     checkedSet.forEach(id=>{
       const i=allItems.find(x=>x.id===id);
-      if(i){ totA+=calcItem(i).clientTotal; cnt++; }
+      if(i){ totA+=calcItem(i).clientTotal; cnt++; expGroups.add(`${i.clientId}::${i.projectId||'_none'}`); }
     });
-    if(countsEl) countsEl.textContent=`${cnt} item${cnt===1?'':'s'}`;
+    const expInvCount=expGroups.size;
+    const expInvHint=expInvCount>1?` · ${expInvCount} invoices`:'';
+    if(countsEl) countsEl.textContent=`${cnt} item${cnt===1?'':'s'}${expInvHint}`;
     if(totalEl) totalEl.textContent=cur(totA);
   }
 

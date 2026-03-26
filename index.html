@@ -948,6 +948,12 @@
     .cal-summary-bar .summary-right { font-weight: 700; color: var(--accent-dk); font-size: 15px; }
     .cal-no-entries { text-align: center; padding: 20px; color: var(--text2); font-size: 13px; }
 
+    /* ── Invoice Type Toggle ─────────────────────────── */
+    .inv-toggle { display: inline-flex; gap: 0; border: 1.5px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; }
+    .inv-toggle-btn { padding: 8px 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: var(--text2); transition: all .15s; }
+    .inv-toggle-btn.active { background: var(--accent); color: #fff; }
+    .inv-toggle-btn:not(.active):hover { background: var(--bg2); }
+
     /* ── Invoice Template Selector ───────────────────── */
     .tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
     .tpl-card { border: 2px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; transition: border-color .15s, box-shadow .15s; position: relative; }
@@ -2218,18 +2224,97 @@ function confirmDelClient(id){const c=getClientById(id);const n=loadEntries().fi
 /* ══════════════════════════════════════════════════════
    VIEW — INVOICES
 ══════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   CONSOLIDATED INVOICES PAGE — Generate + History with Time/Expense toggle
+══════════════════════════════════════════════════════ */
+let _invPageMode = 'time'; // 'time' or 'expense'
+
 function renderInvoices(){
-  const invoices=[...loadInvoices()].sort((a,b)=>b.generatedAt.localeCompare(a.generatedAt));
+  const mode = _invPageMode;
   document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Invoices</h1><div class="sub">All generated invoices and billing history</div></div>${selBtnHtml('invoice')}</div>
+    <div class="page-head"><div><h1>Invoices</h1><div class="sub">Generate invoices and manage billing history</div></div></div>
+    <div class="inv-toggle">
+      <button class="inv-toggle-btn${mode==='time'?' active':''}" onclick="_invPageMode='time';renderInvoices()">⏱ Time</button>
+      <button class="inv-toggle-btn${mode==='expense'?' active':''}" onclick="_invPageMode='expense';renderInvoices()">💳 Expenses</button>
+    </div>
+    <div id="inv-generate-section"></div>
+    <div id="inv-history-section" style="margin-top:28px"></div>`;
+
+  if(mode==='time'){
+    _renderTimeGenerate(document.getElementById('inv-generate-section'));
+    _renderTimeHistory(document.getElementById('inv-history-section'));
+  } else {
+    _renderExpGenerate(document.getElementById('inv-generate-section'));
+    _renderExpHistory(document.getElementById('inv-history-section'));
+  }
+}
+
+/* ── Time Generate (into container) ── */
+function _renderTimeGenerate(container){
+  const clients=loadClients();
+  if(!clients.length){container.innerHTML=`<div class="empty"><div class="e-icon">↗</div><p>Add clients and log time first.</p><button class="btn btn-gold" onclick="navigate('#clients')">Go to Clients</button></div>`;return;}
+  const _today=todayStr();
+  container.innerHTML=`
+    <div class="section-hd">Generate Invoice</div>
+    <div class="card" style="max-width:660px;margin-bottom:16px">
+      <div class="form-row" style="margin-bottom:10px">
+        <div class="form-group"><label class="field-label">Client</label>
+          <select id="gi-cli" onchange="onGenClientChange()">
+            <option value="">All Clients</option>
+            ${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label class="field-label">Designer</label><select id="gi-des" onchange="onGenFilterChange()">${designerOpts('','All Designers')}</select></div>
+        <div class="form-group"><label class="field-label">Project</label><select id="gi-proj" onchange="onGenFilterChange()">${allProjectOpts('','All Projects')}</select></div>
+      </div>
+      <div class="form-row" style="margin-bottom:12px">
+        <div class="form-group"><label class="field-label" for="gi-s">From</label><input type="date" id="gi-s" value="${_today}" onchange="onGenCustomDate()"></div>
+        <div class="form-group"><label class="field-label" for="gi-e">To</label><input type="date" id="gi-e" value="${_today}" onchange="onGenCustomDate()"></div>
+      </div>
+      <div id="billing-cal-wrap"></div>
+      <div id="cal-entries-panel" class="cal-entries-panel"></div>
+      <div id="cal-summary-bar" class="cal-summary-bar" style="display:none">
+        <span class="summary-left" id="cal-summary-counts"></span>
+        <span class="summary-right" id="cal-summary-total"></span>
+      </div>
+      <div id="gen-actions" style="display:none;margin-top:14px">
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-ghost" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="previewGeneratedPDF()">👁 Preview Invoice</button>
+          <button class="btn btn-dark" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="generatePDF()">✓ Save Invoice</button>
+        </div>
+      </div>
+    </div>`;
+
+  window._gen={rangeKey:'custom',start:_today,end:_today};
+  window._calCheckedIds=new Set();
+  window._calStates=window._calStates||{time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
+  window._calStates.time.selStart=_today;
+  window._calStates.time.selEnd=_today;
+
+  window.onGenClientChange=()=>{ refreshBillingCal('time'); renderCalEntries('time'); };
+  window.onGenFilterChange=()=>{ renderCalEntries('time'); };
+  window.onGenCustomDate=()=>{
+    const s=document.getElementById('gi-s').value, e=document.getElementById('gi-e').value;
+    if(s) window._gen.start=s; if(e) window._gen.end=e;
+    window._calStates.time.selStart=s||''; window._calStates.time.selEnd=e||'';
+    if(s){const sd=new Date(s+'T12:00:00'); window._calStates.time.year=sd.getFullYear(); window._calStates.time.month=sd.getMonth();}
+    refreshBillingCal('time'); renderCalEntries('time');
+  };
+  refreshBillingCal('time'); renderCalEntries('time');
+}
+
+/* ── Time History (into container) ── */
+function _renderTimeHistory(container){
+  const invoices=[...loadInvoices()].sort((a,b)=>b.generatedAt.localeCompare(a.generatedAt));
+  container.innerHTML=`
+    <div class="section-hd" style="display:flex;justify-content:space-between;align-items:center">Invoice History ${selBtnHtml('invoice')}</div>
     <div class="filters"><label class="field-label">Client</label><select id="inv-f-cli" onchange="rebuildInvList()">${clientOpts('','All Clients')}</select></div>
     <div id="inv-list"></div>`;
 
   window.rebuildInvList=()=>{
-    const cliId=document.getElementById('inv-f-cli').value;
+    const cliId=(document.getElementById('inv-f-cli')||{}).value||'';
     const list=invoices.filter(i=>!cliId||i.clientId===cliId);
     const el=document.getElementById('inv-list');
-    if(!list.length){el.innerHTML=`<div class="empty"><div class="e-icon">◻</div><p>No invoices yet.</p><button class="btn btn-gold" onclick="navigate('#generate')">Generate First Invoice</button></div>`;return;}
+    if(!list.length){el.innerHTML=`<div class="empty" style="padding:20px 0"><div class="e-icon">◻</div><p>No invoices yet.</p></div>`;return;}
     el.innerHTML=list.map(inv=>{
       const c=getClientById(inv.clientId), d=inv.designerId?getDesignerById(inv.designerId):null;
       const covered=filterEntries({clientId:inv.clientId,designerId:inv.designerId||'',start:inv.startDate,end:inv.endDate});
@@ -2270,75 +2355,8 @@ function renderInvoices(){
   rebuildInvList();
 }
 
-/* ══════════════════════════════════════════════════════
-   VIEW — GENERATE INVOICE
-══════════════════════════════════════════════════════ */
-function renderGenerate(){
-  const clients=loadClients();
-  if(!clients.length){document.getElementById('app').innerHTML=`<div class="page-head"><div><h1>Generate Invoice</h1></div></div><div class="empty"><div class="e-icon">↗</div><p>Add clients and log time first.</p><button class="btn btn-gold" onclick="navigate('#clients')">Go to Clients</button></div>`;return;}
-  const _today=todayStr();
-  document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Generate Invoice</h1><div class="sub">Select a client and period to create a PDF invoice</div></div></div>
-    <div class="card" style="max-width:660px;margin-bottom:16px">
-      <div class="form-row" style="margin-bottom:10px">
-        <div class="form-group"><label class="field-label">Client</label>
-          <select id="gi-cli" onchange="onGenClientChange()">
-            <option value="">All Clients</option>
-            ${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
-          </select></div>
-        <div class="form-group"><label class="field-label">Designer</label><select id="gi-des" onchange="onGenFilterChange()">${designerOpts('','All Designers')}</select></div>
-        <div class="form-group"><label class="field-label">Project</label><select id="gi-proj" onchange="onGenFilterChange()">${allProjectOpts('','All Projects')}</select></div>
-      </div>
-      <div class="form-row" style="margin-bottom:12px">
-        <div class="form-group"><label class="field-label" for="gi-s">From</label><input type="date" id="gi-s" value="${_today}" onchange="onGenCustomDate()"></div>
-        <div class="form-group"><label class="field-label" for="gi-e">To</label><input type="date" id="gi-e" value="${_today}" onchange="onGenCustomDate()"></div>
-      </div>
-      <div id="billing-cal-wrap"></div>
-      <div id="cal-entries-panel" class="cal-entries-panel"></div>
-      <div id="cal-summary-bar" class="cal-summary-bar" style="display:none">
-        <span class="summary-left" id="cal-summary-counts"></span>
-        <span class="summary-right" id="cal-summary-total"></span>
-      </div>
-      <div id="gen-actions" style="display:none;margin-top:14px">
-        <div style="display:flex;gap:10px">
-          <button class="btn btn-ghost" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="previewGeneratedPDF()">👁 Preview Invoice</button>
-          <button class="btn btn-dark" style="flex:1;justify-content:center;padding:12px;font-size:14px" onclick="generatePDF()">✓ Save Invoice</button>
-        </div>
-      </div>
-    </div>`;
-
-  window._gen={rangeKey:'custom',start:_today,end:_today};
-  window._calCheckedIds=new Set();
-  window._calStates=window._calStates||{time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
-  window._calStates.time.selStart=_today;
-  window._calStates.time.selEnd=_today;
-
-  /* ── Client change: refresh calendar + entries ── */
-  window.onGenClientChange=()=>{
-    refreshBillingCal('time');
-    renderCalEntries('time');
-  };
-
-  /* ── Designer/project filter change ── */
-  window.onGenFilterChange=()=>{ renderCalEntries('time'); };
-
-  /* ── Date inputs ── */
-  window.onGenCustomDate=()=>{
-    const s=document.getElementById('gi-s').value;
-    const e=document.getElementById('gi-e').value;
-    if(s) window._gen.start=s;
-    if(e) window._gen.end=e;
-    window._calStates.time.selStart=s||'';
-    window._calStates.time.selEnd=e||'';
-    if(s){const sd=new Date(s+'T12:00:00'); window._calStates.time.year=sd.getFullYear(); window._calStates.time.month=sd.getMonth();}
-    refreshBillingCal('time');
-    renderCalEntries('time');
-  };
-
-  // Initial render with this week's dates
-  refreshBillingCal('time');
-  renderCalEntries('time');
-}
+// Legacy route handler — redirect to consolidated page
+function renderGenerate(){ _invPageMode='time'; renderInvoices(); }
 
 /* ══════════════════════════════════════════════════════
    PDF GENERATOR — template-driven
@@ -3638,12 +3656,8 @@ const NAV_EXPENSES = `
   <a href="#exp-settings"><span class="icon">◦</span> Settings</a>`;
 
 const NAV_INVOICING = `
-  <div class="nav-section">Time Invoices</div>
-  <a href="#invoices"><span class="icon">◻</span> Invoice History</a>
-  <a href="#generate"><span class="icon">↗</span> Generate Invoice</a>
-  <div class="nav-section">Expense Invoices</div>
-  <a href="#exp-invoices"><span class="icon">◻</span> Expense History</a>
-  <a href="#exp-generate"><span class="icon">↗</span> Generate Expense</a>
+  <div class="nav-section">Invoicing</div>
+  <a href="#invoices"><span class="icon">◻</span> Invoices</a>
   <div class="nav-section">System</div>
   <a href="#inv-settings"><span class="icon">◦</span> Invoice Settings</a>`;
 
@@ -4450,27 +4464,27 @@ function buildInternalExpPDFDoc(inv) {
 /* ══════════════════════════════════════════════════════
    VIEW — EXPENSE INVOICES HISTORY
 ══════════════════════════════════════════════════════ */
-function renderExpInvoices() {
+// Legacy route handler — redirect to consolidated page
+function renderExpInvoices(){ _invPageMode='expense'; renderInvoices(); }
+
+/* ── Expense History (into container) ── */
+function _renderExpHistory(container){
   const invoices=[...loadExpInvoices()].sort((a,b)=>b.generatedAt.localeCompare(a.generatedAt));
-  document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Expense Invoices</h1><div class="sub">All generated expense invoices</div></div>${selBtnHtml('expInvoice')}</div>
-    <div class="filters">
-      <label class="field-label">Client</label>
-      <select id="exinv-f-cli" onchange="rebuildExpInvList()">${clientOpts('','All Clients')}</select>
-    </div>
+  container.innerHTML=`
+    <div class="section-hd" style="display:flex;justify-content:space-between;align-items:center">Invoice History ${selBtnHtml('expInvoice')}</div>
+    <div class="filters"><label class="field-label">Client</label><select id="exinv-f-cli" onchange="rebuildExpInvList()">${clientOpts('','All Clients')}</select></div>
     <div id="exp-inv-list"></div>`;
 
   window.rebuildExpInvList = () => {
-    const cliId=document.getElementById('exinv-f-cli').value;
+    const cliId=(document.getElementById('exinv-f-cli')||{}).value||'';
     const list=invoices.filter(i=>!cliId||i.clientId===cliId);
     const el=document.getElementById('exp-inv-list');
     if(!list.length){
-      el.innerHTML=`<div class="empty"><div class="e-icon">◻</div><p>No expense invoices yet.</p><button class="btn btn-gold" onclick="navigate('#exp-generate')">Generate First Invoice</button></div>`;
+      el.innerHTML=`<div class="empty" style="padding:20px 0"><div class="e-icon">◻</div><p>No expense invoices yet.</p></div>`;
       return;
     }
     el.innerHTML=list.map(inv=>{
       const c=getClientById(inv.clientId), proj=inv.projectId?getProjectById(inv.projectId):null;
-      // Build inline detail rows for the dropdown
       const detailItems=_getExpInvItems(inv);
       const detailRows=detailItems.map(item=>{
         const liveItem=getExpItemById(item.id)||item;
@@ -4535,13 +4549,17 @@ function renderExpInvoices() {
 /* ══════════════════════════════════════════════════════
    VIEW — GENERATE EXPENSE INVOICE
 ══════════════════════════════════════════════════════ */
-function renderExpGenerate() {
+// Legacy route handler — redirect to consolidated page
+function renderExpGenerate(){ _invPageMode='expense'; renderInvoices(); }
+
+/* ── Expense Generate (into container) ── */
+function _renderExpGenerate(container){
   const clients=loadClients();
-  if(!clients.length){document.getElementById('app').innerHTML=`<div class="page-head"><div><h1>Generate Expense Invoice</h1></div></div><div class="empty"><div class="e-icon">↗</div><p>Add clients and expense items first.</p><button class="btn btn-gold" onclick="switchApp('time');navigate('#clients')">Go to Clients</button></div>`;return;}
+  if(!clients.length){container.innerHTML=`<div class="empty"><div class="e-icon">↗</div><p>Add clients and expense items first.</p><button class="btn btn-gold" onclick="switchApp('time');navigate('#clients')">Go to Clients</button></div>`;return;}
   const _expToday=todayStr();
 
-  document.getElementById('app').innerHTML=`
-    <div class="page-head"><div><h1>Generate Expense Invoice</h1><div class="sub">Select a client and period to invoice expense items</div></div></div>
+  container.innerHTML=`
+    <div class="section-hd">Generate Expense Invoice</div>
     <div class="card" style="max-width:660px;margin-bottom:16px">
       <div class="form-group" style="margin-bottom:10px">
         <label class="field-label">Client</label>
@@ -4571,26 +4589,15 @@ function renderExpGenerate() {
   window._calStates.exp.selStart=_expToday;
   window._calStates.exp.selEnd=_expToday;
 
-  window.onExpCalClientChange=()=>{
-    refreshBillingCal('exp');
-    renderCalEntries('exp');
-  };
-
+  window.onExpCalClientChange=()=>{ refreshBillingCal('exp'); renderCalEntries('exp'); };
   window.onExpGenCustomDate=()=>{
-    const s=document.getElementById('eg-s').value;
-    const e=document.getElementById('eg-e').value;
-    if(s) window._expGen.start=s;
-    if(e) window._expGen.end=e;
-    window._calStates.exp.selStart=s||'';
-    window._calStates.exp.selEnd=e||'';
+    const s=document.getElementById('eg-s').value, e=document.getElementById('eg-e').value;
+    if(s) window._expGen.start=s; if(e) window._expGen.end=e;
+    window._calStates.exp.selStart=s||''; window._calStates.exp.selEnd=e||'';
     if(s){const sd=new Date(s+'T12:00:00'); window._calStates.exp.year=sd.getFullYear(); window._calStates.exp.month=sd.getMonth();}
-    refreshBillingCal('exp');
-    renderCalEntries('exp');
+    refreshBillingCal('exp'); renderCalEntries('exp');
   };
-
-  // Initial render with this week's dates
-  refreshBillingCal('exp');
-  renderCalEntries('exp');
+  refreshBillingCal('exp'); renderCalEntries('exp');
 }
 
 /* ══════════════════════════════════════════════════════

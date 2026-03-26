@@ -2251,24 +2251,24 @@ function renderInvoices(){
 function renderGenerate(){
   const clients=loadClients();
   if(!clients.length){document.getElementById('app').innerHTML=`<div class="page-head"><div><h1>Generate Invoice</h1></div></div><div class="empty"><div class="e-icon">↗</div><p>Add clients and log time first.</p><button class="btn btn-gold" onclick="navigate('#clients')">Go to Clients</button></div>`;return;}
-  const [ws,we]=weekRange(0);
+  const _today=todayStr();
   document.getElementById('app').innerHTML=`
     <div class="page-head"><div><h1>Generate Invoice</h1><div class="sub">Select a client and period to create a PDF invoice</div></div></div>
     <div class="card" style="max-width:660px;margin-bottom:16px">
       <div class="form-row" style="margin-bottom:10px">
         <div class="form-group"><label class="field-label">Client</label>
           <select id="gi-cli" onchange="onGenClientChange()">
-            <option value="">— Select a client —</option>
+            <option value="">All Clients</option>
             ${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
           </select></div>
         <div class="form-group"><label class="field-label">Designer</label><select id="gi-des" onchange="onGenFilterChange()">${designerOpts('','All Designers')}</select></div>
         <div class="form-group"><label class="field-label">Project</label><select id="gi-proj" onchange="onGenFilterChange()">${allProjectOpts('','All Projects')}</select></div>
       </div>
       <div class="form-row" style="margin-bottom:12px">
-        <div class="form-group"><label class="field-label" for="gi-s">From</label><input type="date" id="gi-s" value="${ws}" onchange="onGenCustomDate()"></div>
-        <div class="form-group"><label class="field-label" for="gi-e">To</label><input type="date" id="gi-e" value="${we}" onchange="onGenCustomDate()"></div>
+        <div class="form-group"><label class="field-label" for="gi-s">From</label><input type="date" id="gi-s" value="${_today}" onchange="onGenCustomDate()"></div>
+        <div class="form-group"><label class="field-label" for="gi-e">To</label><input type="date" id="gi-e" value="${_today}" onchange="onGenCustomDate()"></div>
       </div>
-      <div id="billing-cal-wrap"><div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div></div>
+      <div id="billing-cal-wrap"></div>
       <div id="cal-entries-panel" class="cal-entries-panel"></div>
       <div id="cal-summary-bar" class="cal-summary-bar" style="display:none">
         <span class="summary-left" id="cal-summary-counts"></span>
@@ -2282,11 +2282,11 @@ function renderGenerate(){
       </div>
     </div>`;
 
-  window._gen={rangeKey:'custom',start:ws,end:we};
+  window._gen={rangeKey:'custom',start:_today,end:_today};
   window._calCheckedIds=new Set();
   window._calStates=window._calStates||{time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
-  window._calStates.time.selStart=ws;
-  window._calStates.time.selEnd=we;
+  window._calStates.time.selStart=_today;
+  window._calStates.time.selEnd=_today;
 
   /* ── Client change: refresh calendar + entries ── */
   window.onGenClientChange=()=>{
@@ -2446,6 +2446,7 @@ function buildTimePDF(entries, settings, invMeta, tplId) {
 
 function _buildGeneratedPDFDoc() {
   const clientId=document.getElementById('gi-cli').value;
+  if(!clientId){toast('Please select a specific client to generate an invoice');return null;}
   const designerId=document.getElementById('gi-des').value;
   const projectId=document.getElementById('gi-proj').value;
   let {rangeKey,start,end}=window._gen;
@@ -2475,7 +2476,7 @@ function previewGeneratedPDF() {
   showPDFPreview(doc, `Preview: ${invNum}`, `${invNum}-${c.name.replace(/\s+/g,'-')}.pdf`);
 }
 
-let _pendingInvDoc=null, _pendingInvFilename='';
+let _pendingInvDoc=null, _pendingInvFilename='', _pendingInvBlobUrl=null;
 async function generatePDF(){
   if(isAtInvoiceLimit()){showUpgradeModal();return;}
   const result=_buildGeneratedPDFDoc();
@@ -2486,18 +2487,25 @@ async function generatePDF(){
   settings.invoiceNext+=1; saveSettings(settings);
   _pendingInvDoc=doc;
   _pendingInvFilename=`${invNum}-${c.name.replace(/\s+/g,'-')}.pdf`;
+  // Create blob URL for preview
+  if(_pendingInvBlobUrl){URL.revokeObjectURL(_pendingInvBlobUrl);_pendingInvBlobUrl=null;}
+  const blob=doc.output('blob');
+  _pendingInvBlobUrl=URL.createObjectURL(blob);
   showModal(`
-    <div class="modal-hd"><h2>Invoice Saved</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="modal-hd"><h2>Invoice Saved</h2><button class="modal-x" onclick="_cleanupInvBlob();closeModal()">×</button></div>
     <div style="padding:20px 24px 8px">
-      <p style="font-size:14px;margin-bottom:6px"><strong>${invNum}</strong> has been saved to Invoice History.</p>
-      <p style="font-size:13px;color:var(--text2);margin-bottom:20px">Would you like to download a PDF of this invoice now?</p>
+      <p style="font-size:14px;margin-bottom:12px"><strong>${invNum}</strong> has been saved to Invoice History.</p>
+      <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px;background:#f5f5f5">
+        <iframe src="${_pendingInvBlobUrl}" style="width:100%;height:380px;border:none;display:block"></iframe>
+      </div>
       <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal();_pendingInvDoc=null;">No, maybe later</button>
-        <button class="btn btn-gold" onclick="if(_pendingInvDoc){_pendingInvDoc.save(_pendingInvFilename);toast(_pendingInvFilename.split('/').pop()+' downloaded');_pendingInvDoc=null;}closeModal();">Yes, Download PDF</button>
+        <button class="btn btn-ghost" onclick="_cleanupInvBlob();closeModal();">Close</button>
+        <button class="btn btn-gold" onclick="if(_pendingInvDoc){_pendingInvDoc.save(_pendingInvFilename);toast(_pendingInvFilename.split('/').pop()+' downloaded');}">⬇ Download PDF</button>
       </div>
     </div>
   `);
 }
+function _cleanupInvBlob(){if(_pendingInvBlobUrl){URL.revokeObjectURL(_pendingInvBlobUrl);_pendingInvBlobUrl=null;}_pendingInvDoc=null;}
 
 // QuickBooks Online CSV export — Time Invoice
 window.exportTimeInvQBO = invId => {
@@ -4402,7 +4410,7 @@ function renderExpInvoices() {
 function renderExpGenerate() {
   const clients=loadClients();
   if(!clients.length){document.getElementById('app').innerHTML=`<div class="page-head"><div><h1>Generate Expense Invoice</h1></div></div><div class="empty"><div class="e-icon">↗</div><p>Add clients and expense items first.</p><button class="btn btn-gold" onclick="switchApp('time');navigate('#clients')">Go to Clients</button></div>`;return;}
-  const [ws,we]=weekRange(0);
+  const _expToday=todayStr();
 
   document.getElementById('app').innerHTML=`
     <div class="page-head"><div><h1>Generate Expense Invoice</h1><div class="sub">Select a client and period to invoice expense items</div></div></div>
@@ -4415,8 +4423,8 @@ function renderExpGenerate() {
         </select>
       </div>
       <div class="form-row" style="margin-bottom:12px">
-        <div class="form-group"><label class="field-label" for="eg-s">From</label><input type="date" id="eg-s" value="${ws}" onchange="onExpGenCustomDate()"></div>
-        <div class="form-group"><label class="field-label" for="eg-e">To</label><input type="date" id="eg-e" value="${we}" onchange="onExpGenCustomDate()"></div>
+        <div class="form-group"><label class="field-label" for="eg-s">From</label><input type="date" id="eg-s" value="${_expToday}" onchange="onExpGenCustomDate()"></div>
+        <div class="form-group"><label class="field-label" for="eg-e">To</label><input type="date" id="eg-e" value="${_expToday}" onchange="onExpGenCustomDate()"></div>
       </div>
       <div id="exp-billing-cal-wrap"><div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div></div>
       <div id="exp-cal-entries-panel" class="cal-entries-panel"></div>
@@ -4431,9 +4439,9 @@ function renderExpGenerate() {
 
   window._calStates = window._calStates || {time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
   window._expCalCheckedIds=new Set();
-  window._expGen={rangeKey:'custom',start:ws,end:we};
-  window._calStates.exp.selStart=ws;
-  window._calStates.exp.selEnd=we;
+  window._expGen={rangeKey:'custom',start:_expToday,end:_expToday};
+  window._calStates.exp.selStart=_expToday;
+  window._calStates.exp.selEnd=_expToday;
 
   window.onExpCalClientChange=()=>{
     refreshBillingCal('exp');
@@ -4772,18 +4780,19 @@ window.refreshBillingCal = calKey => {
   const wrapId=calKey==='time'?'billing-cal-wrap':'exp-billing-cal-wrap';
   const wrap=document.getElementById(wrapId);
   if(!wrap) return;
-  if(!cliId){wrap.innerHTML=`<div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div>`;return;}
+  // Expense calendar still requires a client
+  if(calKey==='exp'&&!cliId){wrap.innerHTML=`<div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div>`;return;}
 
   // Build dateMap
   const dateMap=new Map();
   if(calKey==='time'){
-    loadEntries().filter(e=>e.clientId===cliId).forEach(e=>{
+    loadEntries().filter(e=>!cliId||e.clientId===cliId).forEach(e=>{
       if(!dateMap.has(e.date)) dateMap.set(e.date,{unbilled:0,billed:0});
       const m=dateMap.get(e.date);
       isInvoiced(e)?m.billed++:m.unbilled++;
     });
   } else {
-    loadExpItems().filter(i=>i.clientId===cliId&&i.date).forEach(i=>{
+    loadExpItems().filter(i=>(!cliId||i.clientId===cliId)&&i.date).forEach(i=>{
       if(!dateMap.has(i.date)) dateMap.set(i.date,{unbilled:0,billed:0});
       const m=dateMap.get(i.date);
       i.status==='billed'?m.billed++:m.unbilled++;
@@ -4977,8 +4986,6 @@ function renderCalEntries(calKey) {
     const designerId=(document.getElementById('gi-des')||{}).value||'';
     const projectId=(document.getElementById('gi-proj')||{}).value||'';
 
-    if(!clientId){ panel.innerHTML=''; _updateCalSummary(calKey); return; }
-
     // Cache invoices for performance
     const invoices=loadInvoices();
     const _isInv=entry=>invoices.some(inv=>{
@@ -5073,14 +5080,16 @@ function _buildEntryGroups(entries, isBilled, calKey) {
     const totA=group.reduce((s,e)=>s+entryAmount(e),0);
     html+=`<div class="cal-entry-group">`;
     html+=`<div class="cal-entry-group-hdr"><strong>${esc(pName)}</strong><span class="grp-totals">${totH.toFixed(1)}h · ${cur(totA)}</span></div>`;
+    const showCli=!(document.getElementById('gi-cli')||{}).value;
     group.sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
       const d=e.designerId?getDesignerById(e.designerId):null;
+      const cli=showCli?getClientById(e.clientId):null;
       const checked=isBilled?'':'checked';
       const rowCls=isBilled?'cal-entry-row billed-row':'cal-entry-row';
       html+=`<div class="${rowCls}">
         <input type="checkbox" class="cal-entry-chk" data-entry-id="${e.id}" data-cal="${calKey}" ${checked} onchange="onCalEntryToggle(this,'${calKey}')">
         <div class="cal-entry-info">
-          <div class="entry-date">${fmtDate(e.date)}${d?' · '+esc(d.name):''}</div>
+          <div class="entry-date">${fmtDate(e.date)}${cli?' · <strong>'+esc(cli.name)+'</strong>':''}${d?' · '+esc(d.name):''}</div>
           <div class="entry-desc">${esc(e.description||'—')}</div>
         </div>
         <div class="cal-entry-amt">${e.hours}h · ${cur(entryAmount(e))}</div>

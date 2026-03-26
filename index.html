@@ -877,24 +877,30 @@
     .cal-day.other-month { opacity: 0.22; }
     .cal-day.today { outline: 2px solid var(--text); outline-offset: 1px; }
     .cal-day-num { line-height: 1; margin-bottom: 5px; font-size: 13px; }
-    /* Unbilled — amber/gold */
-    .cal-day.has-unbilled { background: #FBF3E2; border-color: var(--accent); }
-    .cal-day.has-unbilled .cal-day-num { color: var(--accent-dk); font-weight: 700; }
-    /* Billed — green */
+    /* Unbilled — red */
+    .cal-day.has-unbilled { background: #FDE8E8; border-color: #C75050; }
+    .cal-day.has-unbilled .cal-day-num { color: #8B3030; font-weight: 700; }
+    /* Invoice Created — yellow/amber */
+    .cal-day.has-inv-created { background: #FFF8E1; border-color: #D4A017; }
+    .cal-day.has-inv-created .cal-day-num { color: #8B6914; font-weight: 700; }
+    /* Billed/Paid — green */
     .cal-day.has-billed { background: #E8F4EC; border-color: #4D9966; }
     .cal-day.has-billed .cal-day-num { color: #2D6B42; font-weight: 700; }
-    /* Both on same day */
-    .cal-day.has-both { background: linear-gradient(140deg, #FBF3E2 55%, #E8F4EC 55%); border-color: var(--accent); }
-    .cal-day.has-both .cal-day-num { color: var(--accent-dk); font-weight: 700; }
+    /* Multi-status days — use the most urgent color */
+    .cal-day.has-unbilled.has-inv-created, .cal-day.has-unbilled.has-billed,
+    .cal-day.has-unbilled.has-inv-created.has-billed { background: linear-gradient(140deg, #FDE8E8 50%, #FFF8E1 50%); border-color: #C75050; }
+    .cal-day.has-inv-created.has-billed:not(.has-unbilled) { background: linear-gradient(140deg, #FFF8E1 50%, #E8F4EC 50%); border-color: #D4A017; }
     .cal-badges { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
     .cal-badge { font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 10px; white-space: nowrap; line-height: 1.5; }
-    .cal-badge.unbilled { background: var(--accent-dk); color: #fff; }
-    .cal-badge.billed   { background: #3D6B4F; color: #fff; }
+    .cal-badge.unbilled    { background: #C75050; color: #fff; }
+    .cal-badge.inv-created { background: #D4A017; color: #fff; }
+    .cal-badge.billed      { background: #3D6B4F; color: #fff; }
     .cal-legend { display: flex; gap: 18px; margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text2); flex-wrap: wrap; }
     .cal-legend-item { display: flex; align-items: center; gap: 7px; }
     .cal-legend-swatch { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid; flex-shrink: 0; }
-    .cal-legend-swatch.unbilled { background: #FBF3E2; border-color: var(--accent); }
-    .cal-legend-swatch.billed   { background: #E8F4EC; border-color: #4D9966; }
+    .cal-legend-swatch.unbilled    { background: #FDE8E8; border-color: #C75050; }
+    .cal-legend-swatch.inv-created { background: #FFF8E1; border-color: #D4A017; }
+    .cal-legend-swatch.billed      { background: #E8F4EC; border-color: #4D9966; }
     .cal-empty-msg { text-align: center; padding: 28px 16px; color: var(--text2); font-size: 14px; }
     .cal-empty-msg .cal-ei { font-size: 30px; margin-bottom: 8px; opacity: 0.4; }
 
@@ -910,8 +916,14 @@
     .cal-entries-panel { margin-top: 18px; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.22,0.61,0.36,1), opacity 0.35s ease; }
     .cal-hint { text-align: center; font-size: 11px; color: var(--text2); margin-top: 6px; opacity: 0.7; letter-spacing: 0.2px; }
     .cal-section-hdr { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; padding: 10px 0 8px; display: flex; align-items: center; gap: 8px; }
-    .cal-section-hdr.unbilled { color: var(--accent-dk); border-bottom: 2px solid var(--accent); }
-    .cal-section-hdr.billed   { color: #3D6B4F; border-bottom: 2px solid #4D9966; margin-top: 18px; }
+    .cal-section-hdr.unbilled     { color: #8B3030; border-bottom: 2px solid #C75050; }
+    .cal-section-hdr.inv-created  { color: #8B6914; border-bottom: 2px solid #D4A017; margin-top: 18px; }
+    .cal-section-hdr.billed       { color: #3D6B4F; border-bottom: 2px solid #4D9966; margin-top: 18px; }
+    .cal-client-group { margin: 12px 0 8px; }
+    .cal-client-group-hdr { font-size: 14px; font-weight: 700; padding: 10px 12px; background: var(--bg2); border-radius: 8px 8px 0 0; border-bottom: 1.5px solid var(--border); }
+    .cal-client-group .cal-entry-group { margin: 0 0 0 0; }
+    .cal-client-group .cal-entry-group-hdr { border-radius: 0; padding-left: 20px; font-size: 12px; background: rgba(0,0,0,0.02); }
+    .cal-client-group .cal-entry-row { padding-left: 20px; }
     .cal-section-count { font-weight: 400; font-size: 11px; color: var(--text2); }
     .cal-entry-group { margin: 10px 0 6px; }
     .cal-entry-group-hdr { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: var(--bg2); border-radius: 8px 8px 0 0; border-bottom: 1px solid var(--border); }
@@ -920,8 +932,10 @@
     .cal-entry-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: 13px; transition: background .12s; }
     .cal-entry-row:last-child { border-bottom: none; }
     .cal-entry-row:hover { background: rgba(196,168,122,0.05); }
-    .cal-entry-row.billed-row { opacity: 0.5; }
-    .cal-entry-row.billed-row:hover { opacity: 0.7; }
+    .cal-entry-row.inv-created-row { opacity: 0.65; border-left: 3px solid #D4A017; }
+    .cal-entry-row.inv-created-row:hover { opacity: 0.8; }
+    .cal-entry-row.billed-row { opacity: 0.45; border-left: 3px solid #4D9966; }
+    .cal-entry-row.billed-row:hover { opacity: 0.65; }
     .cal-entry-chk { width: auto !important; flex-shrink: 0; cursor: pointer; accent-color: var(--accent); }
     .cal-entry-info { flex: 1; min-width: 0; }
     .cal-entry-info .entry-date { font-size: 11px; color: var(--text2); }
@@ -1462,15 +1476,20 @@ function entryRate(e) {
 const entryAmount = e => e.hours * entryRate(e);
 
 function isInvoiced(entry) {
-  return loadInvoices().some(inv => {
-    // New invoices: exact entry ID match (created after the fix)
+  return getEntryBillingStatus(entry, loadInvoices()) !== 'unbilled';
+}
+
+// Returns 'unbilled', 'invoiceCreated', or 'billed'
+function getEntryBillingStatus(entry, invoices) {
+  const inv = invoices.find(inv => {
     if (inv.entryIds) return inv.entryIds.includes(entry.id);
-    // Legacy invoices: fall back to date-range check for backward compatibility
     return inv.clientId === entry.clientId &&
       entry.date >= inv.startDate &&
       entry.date <= inv.endDate &&
       (!inv.designerId || inv.designerId === entry.designerId);
   });
+  if (!inv) return 'unbilled';
+  return inv.paidAt ? 'billed' : 'invoiceCreated';
 }
 
 /* ══════════════════════════════════════════════════════
@@ -2444,68 +2463,162 @@ function buildTimePDF(entries, settings, invMeta, tplId) {
   return {doc, totH, totA};
 }
 
-function _buildGeneratedPDFDoc() {
-  const clientId=document.getElementById('gi-cli').value;
-  if(!clientId){toast('Please select a specific client to generate an invoice');return null;}
-  const designerId=document.getElementById('gi-des').value;
-  const projectId=document.getElementById('gi-proj').value;
-  let {rangeKey,start,end}=window._gen;
-  if(rangeKey==='custom'){start=document.getElementById('gi-s').value;end=document.getElementById('gi-e').value;}
-  const c=getClientById(clientId), designer=designerId?getDesignerById(designerId):null;
-  let entries=filterEntries({clientId,designerId,projectId,start,end});
-  // Filter to only checked entries from calendar panel
-  if(window._calCheckedIds && window._calCheckedIds.size>0){
-    entries=entries.filter(e=>window._calCheckedIds.has(e.id));
-  }
-  const settings=loadSettings();
-  if(!entries.length){toast('No entries for this period');return null;}
-  const invNum=`${settings.invoicePrefix}-${String(settings.invoiceNext).padStart(4,'0')}`;
+/* ── Gather checked entries grouped by client+project ── */
+function _getCheckedInvoiceGroups() {
+  if(!window._calCheckedIds || window._calCheckedIds.size===0){ toast('No entries selected'); return null; }
+  const allEntries=loadEntries();
+  const checked=allEntries.filter(e=>window._calCheckedIds.has(e.id));
+  if(!checked.length){ toast('No entries selected'); return null; }
+
+  // Group by clientId + projectId
+  const groups=new Map();
+  checked.forEach(e=>{
+    const key=`${e.clientId}::${e.projectId||'_none'}`;
+    if(!groups.has(key)) groups.set(key,{clientId:e.clientId,projectId:e.projectId||'',entries:[]});
+    groups.get(key).entries.push(e);
+  });
+  return [...groups.values()];
+}
+
+/* ── Build a single PDF for a group of entries ── */
+function _buildPDFForGroup(entries, clientId, projectId, settings, invNum) {
+  const c=getClientById(clientId);
+  const designerIds=[...new Set(entries.map(e=>e.designerId).filter(Boolean))];
+  const designer=designerIds.length===1?getDesignerById(designerIds[0]):null;
+  const dates=entries.map(e=>e.date).sort();
+  const start=dates[0], end=dates[dates.length-1];
   const issueDate=todayStr();
   const payTerms=settings.paymentTerms!=null?settings.paymentTerms:14;
   let dueDate;
   if(payTerms===0){ dueDate='upon-receipt'; }
   else { const dueD=new Date(issueDate); dueD.setDate(dueD.getDate()+payTerms); dueDate=dueD.toISOString().split('T')[0]; }
   const {doc,totH,totA}=buildTimePDF(entries,settings,{invNum,client:c,designer,start,end,issueDate,dueDate},settings.invoiceTemplate||'classic');
-  return {doc,totH,totA,invNum,c,clientId,designerId,projectId,start,end,settings,entries};
+  return {doc,totH,totA,invNum,c,clientId,designerId:designer?designer.id:'',projectId,start,end,entries};
+}
+
+function _buildGeneratedPDFDoc() {
+  const groups=_getCheckedInvoiceGroups();
+  if(!groups) return null;
+  if(groups.length>1){ toast('Preview not available for multiple invoices — use Save'); return null; }
+  const g=groups[0];
+  const settings=loadSettings();
+  const invNum=`${settings.invoicePrefix}-${String(settings.invoiceNext).padStart(4,'0')}`;
+  return _buildPDFForGroup(g.entries, g.clientId, g.projectId, settings, invNum);
 }
 
 function previewGeneratedPDF() {
   const result=_buildGeneratedPDFDoc();
   if(!result) return;
   const {doc, invNum, c} = result;
-  showPDFPreview(doc, `Preview: ${invNum}`, `${invNum}-${c.name.replace(/\s+/g,'-')}.pdf`);
+  showPDFPreview(doc, `Preview: ${invNum}`, `${invNum}-${(c?.name||'invoice').replace(/\s+/g,'-')}.pdf`);
 }
 
-let _pendingInvDoc=null, _pendingInvFilename='', _pendingInvBlobUrl=null;
+let _pendingInvDocs=[], _pendingInvBlobUrls=[];
 async function generatePDF(){
   if(isAtInvoiceLimit()){showUpgradeModal();return;}
-  const result=_buildGeneratedPDFDoc();
-  if(!result) return;
-  const {doc,totH,totA,invNum,c,clientId,designerId,projectId,start,end,settings,entries}=result;
-  const invRecord={id:uid(),invoiceNumber:invNum,clientId,designerId:designerId||null,projectId:projectId||null,startDate:start,endDate:end,totalHours:totH,totalAmount:totA,entryIds:entries.map(e=>e.id),generatedAt:new Date().toISOString()};
-  const il=loadInvoices(); il.push(invRecord); saveInvoices(il);
-  settings.invoiceNext+=1; saveSettings(settings);
-  _pendingInvDoc=doc;
-  _pendingInvFilename=`${invNum}-${c.name.replace(/\s+/g,'-')}.pdf`;
-  // Create blob URL for preview
-  if(_pendingInvBlobUrl){URL.revokeObjectURL(_pendingInvBlobUrl);_pendingInvBlobUrl=null;}
-  const blob=doc.output('blob');
-  _pendingInvBlobUrl=URL.createObjectURL(blob);
-  showModal(`
-    <div class="modal-hd"><h2>Invoice Saved</h2><button class="modal-x" onclick="_cleanupInvBlob();closeModal()">×</button></div>
-    <div style="padding:20px 24px 8px">
-      <p style="font-size:14px;margin-bottom:12px"><strong>${invNum}</strong> has been saved to Invoice History.</p>
-      <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px;background:#f5f5f5">
-        <iframe src="${_pendingInvBlobUrl}" style="width:100%;height:380px;border:none;display:block"></iframe>
+  const groups=_getCheckedInvoiceGroups();
+  if(!groups) return;
+
+  // If multiple groups, show confirmation first
+  if(groups.length>1){
+    let summaryHtml='';
+    groups.forEach(g=>{
+      const c=getClientById(g.clientId);
+      const p=g.projectId?getProjectById(g.projectId):null;
+      const totH=g.entries.reduce((s,e)=>s+e.hours,0);
+      const totA=g.entries.reduce((s,e)=>s+entryAmount(e),0);
+      summaryHtml+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div><strong>${esc(c?.name||'?')}</strong><span style="color:var(--text2);font-size:12px;margin-left:6px">${esc(p?.name||'General')}</span>
+          <div style="font-size:11px;color:var(--text2)">${g.entries.length} entr${g.entries.length===1?'y':'ies'} · ${totH.toFixed(1)}h</div></div>
+        <div style="font-weight:700">${cur(totA)}</div>
+      </div>`;
+    });
+    showModal(`
+      <div class="modal-hd"><h2>Create ${groups.length} Invoices</h2><button class="modal-x" onclick="closeModal()">×</button></div>
+      <div style="padding:20px 24px 8px">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:12px">The selected entries span multiple clients/projects. Separate invoices will be created for each:</p>
+        <div style="margin-bottom:16px">${summaryHtml}</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-gold" onclick="closeModal();_executeMultiInvoice()">Create All Invoices</button>
+        </div>
       </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="_cleanupInvBlob();closeModal();">Close</button>
-        <button class="btn btn-gold" onclick="if(_pendingInvDoc){_pendingInvDoc.save(_pendingInvFilename);toast(_pendingInvFilename.split('/').pop()+' downloaded');}">⬇ Download PDF</button>
+    `);
+    return;
+  }
+
+  // Single group — create immediately
+  _createAndShowInvoices(groups);
+}
+
+window._executeMultiInvoice = () => {
+  const groups=_getCheckedInvoiceGroups();
+  if(!groups) return;
+  _createAndShowInvoices(groups);
+};
+
+function _createAndShowInvoices(groups) {
+  const settings=loadSettings();
+  const il=loadInvoices();
+  const created=[];
+
+  // Clean up old blobs
+  _pendingInvBlobUrls.forEach(u=>URL.revokeObjectURL(u));
+  _pendingInvDocs=[]; _pendingInvBlobUrls=[];
+
+  groups.forEach(g=>{
+    const invNum=`${settings.invoicePrefix}-${String(settings.invoiceNext).padStart(4,'0')}`;
+    const result=_buildPDFForGroup(g.entries, g.clientId, g.projectId, settings, invNum);
+    const invRecord={id:uid(),invoiceNumber:invNum,clientId:g.clientId,designerId:result.designerId||null,projectId:g.projectId||null,startDate:result.start,endDate:result.end,totalHours:result.totH,totalAmount:result.totA,entryIds:g.entries.map(e=>e.id),generatedAt:new Date().toISOString()};
+    il.push(invRecord);
+    settings.invoiceNext+=1;
+    const blob=result.doc.output('blob');
+    const blobUrl=URL.createObjectURL(blob);
+    _pendingInvDocs.push({doc:result.doc, filename:`${invNum}-${(result.c?.name||'invoice').replace(/\s+/g,'-')}.pdf`});
+    _pendingInvBlobUrls.push(blobUrl);
+    created.push({invNum, clientName:result.c?.name||'?', projName:g.projectId?(getProjectById(g.projectId)?.name||'General'):'General', totA:result.totA, blobUrl});
+  });
+
+  saveInvoices(il);
+  saveSettings(settings);
+
+  // Build modal with preview(s)
+  let previewHtml='';
+  if(created.length===1){
+    previewHtml=`<p style="font-size:14px;margin-bottom:12px"><strong>${created[0].invNum}</strong> has been saved to Invoice History.</p>
+      <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px;background:#f5f5f5">
+        <iframe src="${created[0].blobUrl}" style="width:100%;height:380px;border:none;display:block"></iframe>
+      </div>`;
+  } else {
+    previewHtml=`<p style="font-size:14px;margin-bottom:14px"><strong>${created.length} invoices</strong> have been saved to Invoice History.</p>`;
+    created.forEach((inv,i)=>{
+      previewHtml+=`<div style="margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px">${esc(inv.invNum)} — ${esc(inv.clientName)} · ${esc(inv.projName)} <span style="color:var(--text2);font-weight:400">${cur(inv.totA)}</span></div>
+        <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:#f5f5f5">
+          <iframe src="${inv.blobUrl}" style="width:100%;height:280px;border:none;display:block"></iframe>
+        </div>
+      </div>`;
+    });
+  }
+
+  showModal(`
+    <div class="modal-hd"><h2>Invoice${created.length>1?'s':''} Saved</h2><button class="modal-x" onclick="_cleanupInvBlobs();closeModal()">×</button></div>
+    <div style="padding:20px 24px 8px;max-height:70vh;overflow-y:auto">
+      ${previewHtml}
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+        <button class="btn btn-ghost" onclick="_cleanupInvBlobs();closeModal();">Close</button>
+        <button class="btn btn-gold" onclick="_downloadAllPendingInvs()">⬇ Download ${created.length>1?'All PDFs':'PDF'}</button>
       </div>
     </div>
   `);
+
+  // Refresh calendar to show entries as "Invoice Created"
+  refreshBillingCal('time');
+  renderCalEntries('time');
 }
-function _cleanupInvBlob(){if(_pendingInvBlobUrl){URL.revokeObjectURL(_pendingInvBlobUrl);_pendingInvBlobUrl=null;}_pendingInvDoc=null;}
+
+function _cleanupInvBlobs(){_pendingInvBlobUrls.forEach(u=>URL.revokeObjectURL(u));_pendingInvBlobUrls=[];_pendingInvDocs=[];}
+function _downloadAllPendingInvs(){_pendingInvDocs.forEach(d=>{d.doc.save(d.filename);});toast(`${_pendingInvDocs.length} PDF${_pendingInvDocs.length>1?'s':''} downloaded`);}
 
 // QuickBooks Online CSV export — Time Invoice
 window.exportTimeInvQBO = invId => {
@@ -4739,12 +4852,12 @@ function buildBillingCalendarHTML(calKey, year, month, dateMap, selRange) {
     if(isT) cls+=' today';
     let badges='';
     if(info){
-      const hasU=info.unbilled>0, hasB=info.billed>0;
-      if(hasU&&hasB) cls+=' has-both';
-      else if(hasU)  cls+=' has-unbilled';
-      else if(hasB)  cls+=' has-billed';
-      if(hasU) badges+=`<span class="cal-badge unbilled">${info.unbilled} unbilled</span>`;
-      if(hasB) badges+=`<span class="cal-badge billed">${info.billed} billed</span>`;
+      if(info.unbilled>0) cls+=' has-unbilled';
+      if(info.invoiceCreated>0) cls+=' has-inv-created';
+      if(info.billed>0) cls+=' has-billed';
+      if(info.unbilled>0) badges+=`<span class="cal-badge unbilled">${info.unbilled}</span>`;
+      if(info.invoiceCreated>0) badges+=`<span class="cal-badge inv-created">${info.invoiceCreated}</span>`;
+      if(info.billed>0) badges+=`<span class="cal-badge billed">${info.billed}</span>`;
     }
     // Selection range highlighting
     if(selRange && ds>=selRange.start && ds<=selRange.end) {
@@ -4767,8 +4880,9 @@ function buildBillingCalendarHTML(calKey, year, month, dateMap, selRange) {
     </div>
     <div class="cal-grid" id="${calKey}-cal-grid">${cells}</div>
     <div class="cal-legend">
-      <div class="cal-legend-item"><span class="cal-legend-swatch unbilled"></span> Needs billing</div>
-      <div class="cal-legend-item"><span class="cal-legend-swatch billed"></span> Already invoiced</div>
+      <div class="cal-legend-item"><span class="cal-legend-swatch unbilled"></span> Unbilled</div>
+      <div class="cal-legend-item"><span class="cal-legend-swatch inv-created"></span> Invoice Created</div>
+      <div class="cal-legend-item"><span class="cal-legend-swatch billed"></span> Billed / Paid</div>
     </div>
     <div class="cal-hint">Click a day or click & drag to select a date range</div>
   </div>`;
@@ -4783,19 +4897,25 @@ window.refreshBillingCal = calKey => {
   // Expense calendar still requires a client
   if(calKey==='exp'&&!cliId){wrap.innerHTML=`<div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div>`;return;}
 
-  // Build dateMap
+  // Build dateMap with 3 tiers
   const dateMap=new Map();
   if(calKey==='time'){
+    const invoices=loadInvoices();
     loadEntries().filter(e=>!cliId||e.clientId===cliId).forEach(e=>{
-      if(!dateMap.has(e.date)) dateMap.set(e.date,{unbilled:0,billed:0});
+      if(!dateMap.has(e.date)) dateMap.set(e.date,{unbilled:0,invoiceCreated:0,billed:0});
       const m=dateMap.get(e.date);
-      isInvoiced(e)?m.billed++:m.unbilled++;
+      const st=getEntryBillingStatus(e,invoices);
+      if(st==='billed') m.billed++;
+      else if(st==='invoiceCreated') m.invoiceCreated++;
+      else m.unbilled++;
     });
   } else {
     loadExpItems().filter(i=>(!cliId||i.clientId===cliId)&&i.date).forEach(i=>{
-      if(!dateMap.has(i.date)) dateMap.set(i.date,{unbilled:0,billed:0});
+      if(!dateMap.has(i.date)) dateMap.set(i.date,{unbilled:0,invoiceCreated:0,billed:0});
       const m=dateMap.get(i.date);
-      i.status==='billed'?m.billed++:m.unbilled++;
+      if(i.status==='billed') m.billed++;
+      else if(i.status==='invoiced') m.invoiceCreated++;
+      else m.unbilled++;
     });
   }
 
@@ -4986,16 +5106,11 @@ function renderCalEntries(calKey) {
     const designerId=(document.getElementById('gi-des')||{}).value||'';
     const projectId=(document.getElementById('gi-proj')||{}).value||'';
 
-    // Cache invoices for performance
     const invoices=loadInvoices();
-    const _isInv=entry=>invoices.some(inv=>{
-      if(inv.entryIds) return inv.entryIds.includes(entry.id);
-      return inv.clientId===entry.clientId && entry.date>=inv.startDate && entry.date<=inv.endDate && (!inv.designerId||inv.designerId===entry.designerId);
-    });
-
     const allEntries=filterEntries({clientId,designerId,projectId,start,end});
-    const unbilled=allEntries.filter(e=>!_isInv(e));
-    const billed=allEntries.filter(e=>_isInv(e));
+    const unbilled=allEntries.filter(e=>getEntryBillingStatus(e,invoices)==='unbilled');
+    const invCreated=allEntries.filter(e=>getEntryBillingStatus(e,invoices)==='invoiceCreated');
+    const billed=allEntries.filter(e=>getEntryBillingStatus(e,invoices)==='billed');
 
     if(!allEntries.length){
       _smoothPanelUpdate(panel, '<div class="cal-no-entries">No entries found for this period.</div>');
@@ -5008,22 +5123,23 @@ function renderCalEntries(calKey) {
     // Auto-select all unbilled
     window._calCheckedIds=new Set(unbilled.map(e=>e.id));
 
+    const showAllClients=!clientId;
     let html='';
 
-    // Unbilled section
     if(unbilled.length){
       html+=`<div class="cal-section-hdr unbilled">Unbilled <span class="cal-section-count">(${unbilled.length} entr${unbilled.length===1?'y':'ies'})</span></div>`;
-      html+=_buildEntryGroups(unbilled, false, calKey);
+      html+=_buildEntryGroups(unbilled, 'unbilled', calKey, showAllClients);
     }
-
-    // Billed section
+    if(invCreated.length){
+      html+=`<div class="cal-section-hdr inv-created">Invoice Created <span class="cal-section-count">(${invCreated.length} entr${invCreated.length===1?'y':'ies'})</span></div>`;
+      html+=_buildEntryGroups(invCreated, 'invoiceCreated', calKey, showAllClients);
+    }
     if(billed.length){
-      html+=`<div class="cal-section-hdr billed">Already Billed <span class="cal-section-count">(${billed.length} entr${billed.length===1?'y':'ies'})</span></div>`;
-      html+=_buildEntryGroups(billed, true, calKey);
+      html+=`<div class="cal-section-hdr billed">Billed / Paid <span class="cal-section-count">(${billed.length} entr${billed.length===1?'y':'ies'})</span></div>`;
+      html+=_buildEntryGroups(billed, 'billed', calKey, showAllClients);
     }
 
     _smoothPanelUpdate(panel, html);
-    // Show action buttons
     const actEl=document.getElementById('gen-actions');
     if(actEl) actEl.style.display='block';
     _updateCalSummary(calKey);
@@ -5034,7 +5150,8 @@ function renderCalEntries(calKey) {
     if(!cliId){ panel.innerHTML=''; _updateCalSummary(calKey); return; }
 
     const allItems=loadExpItems().filter(i=>i.clientId===cliId&&i.date&&i.date>=start&&i.date<=end);
-    const unbilled=allItems.filter(i=>i.status!=='billed');
+    const unbilled=allItems.filter(i=>!i.status||i.status==='pending');
+    const invCreated=allItems.filter(i=>i.status==='invoiced');
     const billed=allItems.filter(i=>i.status==='billed');
 
     if(!allItems.length){
@@ -5050,11 +5167,15 @@ function renderCalEntries(calKey) {
     let html='';
     if(unbilled.length){
       html+=`<div class="cal-section-hdr unbilled">Unbilled <span class="cal-section-count">(${unbilled.length} item${unbilled.length===1?'':'s'})</span></div>`;
-      html+=_buildExpGroups(unbilled, false, calKey);
+      html+=_buildExpGroups(unbilled, 'unbilled', calKey);
+    }
+    if(invCreated.length){
+      html+=`<div class="cal-section-hdr inv-created">Invoice Created <span class="cal-section-count">(${invCreated.length} item${invCreated.length===1?'':'s'})</span></div>`;
+      html+=_buildExpGroups(invCreated, 'invoiceCreated', calKey);
     }
     if(billed.length){
-      html+=`<div class="cal-section-hdr billed">Already Billed <span class="cal-section-count">(${billed.length} item${billed.length===1?'':'s'})</span></div>`;
-      html+=_buildExpGroups(billed, true, calKey);
+      html+=`<div class="cal-section-hdr billed">Billed / Paid <span class="cal-section-count">(${billed.length} item${billed.length===1?'':'s'})</span></div>`;
+      html+=_buildExpGroups(billed, 'billed', calKey);
     }
 
     _smoothPanelUpdate(panel, html);
@@ -5065,43 +5186,80 @@ function renderCalEntries(calKey) {
 }
 
 /* ── Build grouped time entry HTML ── */
-function _buildEntryGroups(entries, isBilled, calKey) {
-  const byProj={};
-  entries.forEach(e=>{
-    const pName=entryProjectName(e);
-    if(!byProj[pName]) byProj[pName]=[];
-    byProj[pName].push(e);
-  });
+function _buildEntryGroups(entries, statusTier, calKey, showAllClients) {
+  const checked=statusTier==='unbilled'?'checked':'';
+  const rowCls=statusTier==='billed'?'cal-entry-row billed-row':statusTier==='invoiceCreated'?'cal-entry-row inv-created-row':'cal-entry-row';
 
-  let html='';
-  Object.keys(byProj).sort().forEach(pName=>{
-    const group=byProj[pName];
+  function _entryRowHtml(e) {
+    const d=e.designerId?getDesignerById(e.designerId):null;
+    return `<div class="${rowCls}">
+      <input type="checkbox" class="cal-entry-chk" data-entry-id="${e.id}" data-cal="${calKey}" ${checked} onchange="onCalEntryToggle(this,'${calKey}')">
+      <div class="cal-entry-info">
+        <div class="entry-date">${fmtDate(e.date)}${d?' · '+esc(d.name):''}</div>
+        <div class="entry-desc">${esc(e.description||'—')}</div>
+      </div>
+      <div class="cal-entry-amt">${e.hours}h · ${cur(entryAmount(e))}</div>
+    </div>`;
+  }
+
+  function _projGroupHtml(pName, group) {
     const totH=group.reduce((s,e)=>s+e.hours,0);
     const totA=group.reduce((s,e)=>s+entryAmount(e),0);
-    html+=`<div class="cal-entry-group">`;
-    html+=`<div class="cal-entry-group-hdr"><strong>${esc(pName)}</strong><span class="grp-totals">${totH.toFixed(1)}h · ${cur(totA)}</span></div>`;
-    const showCli=!(document.getElementById('gi-cli')||{}).value;
-    group.sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
-      const d=e.designerId?getDesignerById(e.designerId):null;
-      const cli=showCli?getClientById(e.clientId):null;
-      const checked=isBilled?'':'checked';
-      const rowCls=isBilled?'cal-entry-row billed-row':'cal-entry-row';
-      html+=`<div class="${rowCls}">
-        <input type="checkbox" class="cal-entry-chk" data-entry-id="${e.id}" data-cal="${calKey}" ${checked} onchange="onCalEntryToggle(this,'${calKey}')">
-        <div class="cal-entry-info">
-          <div class="entry-date">${fmtDate(e.date)}${cli?' · <strong>'+esc(cli.name)+'</strong>':''}${d?' · '+esc(d.name):''}</div>
-          <div class="entry-desc">${esc(e.description||'—')}</div>
-        </div>
-        <div class="cal-entry-amt">${e.hours}h · ${cur(entryAmount(e))}</div>
-      </div>`;
+    let h=`<div class="cal-entry-group">`;
+    h+=`<div class="cal-entry-group-hdr"><strong>${esc(pName)}</strong><span class="grp-totals">${totH.toFixed(1)}h · ${cur(totA)}</span></div>`;
+    group.sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{ h+=_entryRowHtml(e); });
+    h+=`</div>`;
+    return h;
+  }
+
+  if(showAllClients){
+    // Group by client → project
+    const byClient={};
+    entries.forEach(e=>{
+      const cId=e.clientId||'_none';
+      if(!byClient[cId]) byClient[cId]=[];
+      byClient[cId].push(e);
     });
-    html+=`</div>`;
-  });
-  return html;
+    let html='';
+    Object.keys(byClient).sort((a,b)=>{
+      const ca=getClientById(a), cb=getClientById(b);
+      return (ca?.name||'').localeCompare(cb?.name||'');
+    }).forEach(cId=>{
+      const cli=getClientById(cId);
+      const cEntries=byClient[cId];
+      const cTotH=cEntries.reduce((s,e)=>s+e.hours,0);
+      const cTotA=cEntries.reduce((s,e)=>s+entryAmount(e),0);
+      html+=`<div class="cal-client-group">`;
+      html+=`<div class="cal-client-group-hdr">${esc(cli?.name||'Unknown Client')} <span style="font-weight:400;font-size:12px;color:var(--text2);margin-left:8px">${cTotH.toFixed(1)}h · ${cur(cTotA)}</span></div>`;
+      // Sub-group by project
+      const byProj={};
+      cEntries.forEach(e=>{
+        const pName=entryProjectName(e);
+        if(!byProj[pName]) byProj[pName]=[];
+        byProj[pName].push(e);
+      });
+      Object.keys(byProj).sort().forEach(pName=>{ html+=_projGroupHtml(pName, byProj[pName]); });
+      html+=`</div>`;
+    });
+    return html;
+  } else {
+    // Flat project grouping
+    const byProj={};
+    entries.forEach(e=>{
+      const pName=entryProjectName(e);
+      if(!byProj[pName]) byProj[pName]=[];
+      byProj[pName].push(e);
+    });
+    let html='';
+    Object.keys(byProj).sort().forEach(pName=>{ html+=_projGroupHtml(pName, byProj[pName]); });
+    return html;
+  }
 }
 
 /* ── Build grouped expense item HTML ── */
-function _buildExpGroups(items, isBilled, calKey) {
+function _buildExpGroups(items, statusTier, calKey) {
+  const checked=statusTier==='unbilled'?'checked':'';
+  const rowCls=statusTier==='billed'?'cal-entry-row billed-row':statusTier==='invoiceCreated'?'cal-entry-row inv-created-row':'cal-entry-row';
   const byProj={};
   items.forEach(i=>{
     const pName=i.projectId?((getProjectById(i.projectId)||{}).name||'—'):'No Project';
@@ -5117,8 +5275,6 @@ function _buildExpGroups(items, isBilled, calKey) {
     html+=`<div class="cal-entry-group-hdr"><strong>${esc(pName)}</strong><span class="grp-totals">${cur(totA)}</span></div>`;
     group.sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(item=>{
       const c=calcItem(item);
-      const checked=isBilled?'':'checked';
-      const rowCls=isBilled?'cal-entry-row billed-row':'cal-entry-row';
       html+=`<div class="${rowCls}">
         <input type="checkbox" class="cal-entry-chk" data-item-id="${item.id}" data-cal="${calKey}" ${checked} onchange="onCalEntryToggle(this,'${calKey}')">
         <div class="cal-entry-info">
@@ -5163,11 +5319,14 @@ function _updateCalSummary(calKey) {
   if(calKey==='time'){
     const allEntries=loadEntries();
     let totH=0, totA=0, cnt=0;
+    const invGroups=new Set();
     checkedSet.forEach(id=>{
       const e=allEntries.find(x=>x.id===id);
-      if(e){ totH+=e.hours; totA+=entryAmount(e); cnt++; }
+      if(e){ totH+=e.hours; totA+=entryAmount(e); cnt++; invGroups.add(`${e.clientId}::${e.projectId||'_none'}`); }
     });
-    if(countsEl) countsEl.textContent=`${cnt} entr${cnt===1?'y':'ies'} · ${totH.toFixed(1)} hrs`;
+    const invCount=invGroups.size;
+    const invHint=invCount>1?` · ${invCount} invoices`:'';
+    if(countsEl) countsEl.textContent=`${cnt} entr${cnt===1?'y':'ies'} · ${totH.toFixed(1)} hrs${invHint}`;
     if(totalEl) totalEl.textContent=cur(totA);
   } else {
     const allItems=loadExpItems();

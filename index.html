@@ -1447,7 +1447,13 @@ function bulkDelete() {
   } else if(_selectType==='expItem') {
     ids.forEach(id=>{const item=getExpItemById(id);if(item?.filePath)deleteSupabaseFile(item.filePath);deleteExpItem(id);});
   } else if(_selectType==='expInvoice') {
-    saveExpInvoices(loadExpInvoices().filter(i=>!ids.includes(i.id)));
+    // Revert associated expense items back to unbilled
+    const expInvs=loadExpInvoices();
+    ids.forEach(invId=>{
+      const inv=expInvs.find(i=>i.id===invId);
+      if(inv && inv.itemIds) inv.itemIds.forEach(itemId=>updateExpItem(itemId,{status:undefined,billedInvoiceId:undefined}));
+    });
+    saveExpInvoices(expInvs.filter(i=>!ids.includes(i.id)));
   }
   toast(`${n} ${label} deleted`);
   _selectMode = false; _selectedIds.clear(); _selectType = '';
@@ -3465,6 +3471,10 @@ function markExpInvoicePaid(invId, paid=true) {
   inv.paid=paid;
   inv.paidAt=paid?new Date().toISOString():null;
   saveExpInvoices(invs);
+  // Update expense item statuses: paid → 'billed', unpaid → 'invoiced'
+  if(inv.itemIds){
+    inv.itemIds.forEach(itemId=>updateExpItem(itemId,{status:paid?'billed':'invoiced'}));
+  }
   toast(paid?'Invoice marked as paid':'Invoice marked as unpaid');
   renderExpInvoices();
 }
@@ -3477,6 +3487,11 @@ function deleteInvoice(invId) {
 }
 function deleteExpInvoice(invId) {
   if(!confirm('Delete this expense invoice? This cannot be undone.')) return;
+  // Revert associated expense items back to unbilled
+  const inv=loadExpInvoices().find(i=>i.id===invId);
+  if(inv && inv.itemIds){
+    inv.itemIds.forEach(itemId=>updateExpItem(itemId,{status:undefined,billedInvoiceId:undefined}));
+  }
   saveExpInvoices(loadExpInvoices().filter(i=>i.id!==invId));
   toast('Expense invoice deleted');
   renderExpInvoices();
@@ -3985,7 +4000,7 @@ const saveExpSettings = v  => store(KE.settings, v);
    CRUD — EXPENSE ITEMS
 ══════════════════════════════════════════════════════ */
 const getExpItemById  = id    => loadExpItems().find(i=>i.id===id);
-const addExpItem      = item  => { const l=loadExpItems(); l.push({...item,id:uid(),createdAt:new Date().toISOString(),status:'filed'}); saveExpItems(l); };
+const addExpItem      = item  => { const l=loadExpItems(); l.push({...item,id:uid(),createdAt:new Date().toISOString()}); saveExpItems(l); };
 const updateExpItem   = (id,c)=> saveExpItems(loadExpItems().map(i=>i.id===id?{...i,...c}:i));
 const deleteExpItem   = id    => { saveExpItems(loadExpItems().filter(i=>i.id!==id)); idbDelete(id).catch(()=>{}); };
 
@@ -5237,7 +5252,7 @@ function renderCalEntries(calKey) {
     const cliId=(document.getElementById('exp-cal-cli')||{}).value||'';
 
     const allItems=loadExpItems().filter(i=>(!cliId||i.clientId===cliId)&&i.date&&i.date>=start&&i.date<=end);
-    const unbilled=allItems.filter(i=>!i.status||i.status==='pending');
+    const unbilled=allItems.filter(i=>!i.status||i.status==='pending'||i.status==='filed');
     const invCreated=allItems.filter(i=>i.status==='invoiced');
     const billed=allItems.filter(i=>i.status==='billed');
 

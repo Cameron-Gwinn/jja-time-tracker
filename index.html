@@ -907,7 +907,8 @@
     .cal-day.cal-dragging { background: rgba(196,168,122,0.10) !important; }
 
     /* ── Calendar Entry Panel ────────────────────────── */
-    .cal-entries-panel { margin-top: 18px; }
+    .cal-entries-panel { margin-top: 18px; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.22,0.61,0.36,1), opacity 0.35s ease; }
+    .cal-hint { text-align: center; font-size: 11px; color: var(--text2); margin-top: 6px; opacity: 0.7; letter-spacing: 0.2px; }
     .cal-section-hdr { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; padding: 10px 0 8px; display: flex; align-items: center; gap: 8px; }
     .cal-section-hdr.unbilled { color: var(--accent-dk); border-bottom: 2px solid var(--accent); }
     .cal-section-hdr.billed   { color: #3D6B4F; border-bottom: 2px solid #4D9966; margin-top: 18px; }
@@ -2263,19 +2264,10 @@ function renderGenerate(){
         <div class="form-group"><label class="field-label">Designer</label><select id="gi-des" onchange="onGenFilterChange()">${designerOpts('','All Designers')}</select></div>
         <div class="form-group"><label class="field-label">Project</label><select id="gi-proj" onchange="onGenFilterChange()">${allProjectOpts('','All Projects')}</select></div>
       </div>
-      <div class="form-group" style="margin-bottom:12px">
-        <label class="field-label">Billing Period</label>
-        <div class="radio-group">
-          <label class="radio-opt"><input type="radio" name="gi-r" value="week" checked onchange="onGenRange()"> This week</label>
-          <label class="radio-opt"><input type="radio" name="gi-r" value="lastweek" onchange="onGenRange()"> Last week</label>
-          <label class="radio-opt"><input type="radio" name="gi-r" value="month" onchange="onGenRange()"> This month</label>
-          <label class="radio-opt"><input type="radio" name="gi-r" value="custom" onchange="onGenRange()"> Custom</label>
-        </div>
-      </div>
-      <div id="gi-custom" style="display:none;margin-bottom:12px"><div class="form-row">
+      <div class="form-row" style="margin-bottom:12px">
         <div class="form-group"><label class="field-label" for="gi-s">From</label><input type="date" id="gi-s" value="${ws}" onchange="onGenCustomDate()"></div>
         <div class="form-group"><label class="field-label" for="gi-e">To</label><input type="date" id="gi-e" value="${we}" onchange="onGenCustomDate()"></div>
-      </div></div>
+      </div>
       <div id="billing-cal-wrap"><div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div></div>
       <div id="cal-entries-panel" class="cal-entries-panel"></div>
       <div id="cal-summary-bar" class="cal-summary-bar" style="display:none">
@@ -2290,7 +2282,7 @@ function renderGenerate(){
       </div>
     </div>`;
 
-  window._gen={rangeKey:'week',start:ws,end:we};
+  window._gen={rangeKey:'custom',start:ws,end:we};
   window._calCheckedIds=new Set();
   window._calStates=window._calStates||{time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
   window._calStates.time.selStart=ws;
@@ -2305,26 +2297,7 @@ function renderGenerate(){
   /* ── Designer/project filter change ── */
   window.onGenFilterChange=()=>{ renderCalEntries('time'); };
 
-  /* ── Radio button range change ── */
-  window.onGenRange=()=>{
-    const k=document.querySelector('input[name="gi-r"]:checked').value;
-    window._gen.rangeKey=k;
-    document.getElementById('gi-custom').style.display=k==='custom'?'block':'none';
-    if(k!=='custom'){
-      const[s,e]=rangeFromKey(k);
-      window._gen.start=s; window._gen.end=e;
-      window._calStates.time.selStart=s;
-      window._calStates.time.selEnd=e;
-      // Navigate calendar to show the start date's month
-      const sd=new Date(s+'T12:00:00');
-      window._calStates.time.year=sd.getFullYear();
-      window._calStates.time.month=sd.getMonth();
-      refreshBillingCal('time');
-      renderCalEntries('time');
-    }
-  };
-
-  /* ── Custom date inputs ── */
+  /* ── Date inputs ── */
   window.onGenCustomDate=()=>{
     const s=document.getElementById('gi-s').value;
     const e=document.getElementById('gi-e').value;
@@ -2337,8 +2310,9 @@ function renderGenerate(){
     renderCalEntries('time');
   };
 
-  // Initial render with "This week" selected
-  onGenRange();
+  // Initial render with this week's dates
+  refreshBillingCal('time');
+  renderCalEntries('time');
 }
 
 /* ══════════════════════════════════════════════════════
@@ -4440,19 +4414,10 @@ function renderExpGenerate() {
           ${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group" style="margin-bottom:12px">
-        <label class="field-label">Billing Period</label>
-        <div class="radio-group">
-          <label class="radio-opt"><input type="radio" name="eg-r" value="week" checked onchange="onExpGenRange()"> This week</label>
-          <label class="radio-opt"><input type="radio" name="eg-r" value="lastweek" onchange="onExpGenRange()"> Last week</label>
-          <label class="radio-opt"><input type="radio" name="eg-r" value="month" onchange="onExpGenRange()"> This month</label>
-          <label class="radio-opt"><input type="radio" name="eg-r" value="custom" onchange="onExpGenRange()"> Custom</label>
-        </div>
-      </div>
-      <div id="eg-custom" style="display:none;margin-bottom:12px"><div class="form-row">
+      <div class="form-row" style="margin-bottom:12px">
         <div class="form-group"><label class="field-label" for="eg-s">From</label><input type="date" id="eg-s" value="${ws}" onchange="onExpGenCustomDate()"></div>
         <div class="form-group"><label class="field-label" for="eg-e">To</label><input type="date" id="eg-e" value="${we}" onchange="onExpGenCustomDate()"></div>
-      </div></div>
+      </div>
       <div id="exp-billing-cal-wrap"><div class="cal-empty-msg"><div class="cal-ei">📅</div>Select a client to view their billing calendar</div></div>
       <div id="exp-cal-entries-panel" class="cal-entries-panel"></div>
       <div id="exp-cal-summary-bar" class="cal-summary-bar" style="display:none">
@@ -4466,30 +4431,13 @@ function renderExpGenerate() {
 
   window._calStates = window._calStates || {time:{year:new Date().getFullYear(),month:new Date().getMonth()},exp:{year:new Date().getFullYear(),month:new Date().getMonth()}};
   window._expCalCheckedIds=new Set();
-  window._expGen={rangeKey:'week',start:ws,end:we};
+  window._expGen={rangeKey:'custom',start:ws,end:we};
   window._calStates.exp.selStart=ws;
   window._calStates.exp.selEnd=we;
 
   window.onExpCalClientChange=()=>{
     refreshBillingCal('exp');
     renderCalEntries('exp');
-  };
-
-  window.onExpGenRange=()=>{
-    const k=document.querySelector('input[name="eg-r"]:checked').value;
-    window._expGen.rangeKey=k;
-    document.getElementById('eg-custom').style.display=k==='custom'?'block':'none';
-    if(k!=='custom'){
-      const[s,e]=rangeFromKey(k);
-      window._expGen.start=s; window._expGen.end=e;
-      window._calStates.exp.selStart=s;
-      window._calStates.exp.selEnd=e;
-      const sd=new Date(s+'T12:00:00');
-      window._calStates.exp.year=sd.getFullYear();
-      window._calStates.exp.month=sd.getMonth();
-      refreshBillingCal('exp');
-      renderCalEntries('exp');
-    }
   };
 
   window.onExpGenCustomDate=()=>{
@@ -4504,7 +4452,9 @@ function renderExpGenerate() {
     renderCalEntries('exp');
   };
 
-  onExpGenRange();
+  // Initial render with this week's dates
+  refreshBillingCal('exp');
+  renderCalEntries('exp');
 }
 
 /* ══════════════════════════════════════════════════════
@@ -4812,6 +4762,7 @@ function buildBillingCalendarHTML(calKey, year, month, dateMap, selRange) {
       <div class="cal-legend-item"><span class="cal-legend-swatch unbilled"></span> Needs billing</div>
       <div class="cal-legend-item"><span class="cal-legend-swatch billed"></span> Already invoiced</div>
     </div>
+    <div class="cal-hint">Click a day or click & drag to select a date range</div>
   </div>`;
 }
 
@@ -4967,10 +4918,6 @@ function _syncCalSelToForm(calKey) {
     window._gen.start=st.selStart;
     window._gen.end=st.selEnd;
     window._gen.rangeKey='custom';
-    // Switch radio to custom
-    const radios=document.querySelectorAll('input[name="gi-r"]');
-    radios.forEach(r=>r.checked=r.value==='custom');
-    document.getElementById('gi-custom').style.display='block';
     const sEl=document.getElementById('gi-s'), eEl=document.getElementById('gi-e');
     if(sEl) sEl.value=st.selStart;
     if(eEl) eEl.value=st.selEnd;
@@ -4988,6 +4935,32 @@ function _syncCalSelToForm(calKey) {
 /* ══════════════════════════════════════════════════════
    CALENDAR ENTRY PANEL — grouped entries with checkboxes
 ══════════════════════════════════════════════════════ */
+function _smoothPanelUpdate(panel, newHtml) {
+  // Measure current height
+  const oldH = panel.scrollHeight;
+  panel.style.maxHeight = oldH + 'px';
+  panel.style.opacity = '1';
+  // Fade out quickly
+  panel.style.transition = 'opacity 0.15s ease';
+  panel.style.opacity = '0';
+  setTimeout(() => {
+    panel.innerHTML = newHtml;
+    // Measure new content height
+    panel.style.maxHeight = 'none';
+    const newH = panel.scrollHeight;
+    panel.style.maxHeight = oldH + 'px';
+    panel.style.opacity = '0';
+    // Force reflow
+    panel.offsetHeight;
+    // Animate to new height + fade in
+    panel.style.transition = 'max-height 0.4s cubic-bezier(0.22,0.61,0.36,1), opacity 0.35s ease';
+    panel.style.maxHeight = newH + 'px';
+    panel.style.opacity = '1';
+    // Clean up
+    setTimeout(() => { panel.style.transition = ''; panel.style.maxHeight = ''; panel.style.opacity = ''; }, 420);
+  }, 160);
+}
+
 function renderCalEntries(calKey) {
   const panelId=calKey==='time'?'cal-entries-panel':'exp-cal-entries-panel';
   const panel=document.getElementById(panelId);
@@ -4995,7 +4968,7 @@ function renderCalEntries(calKey) {
 
   const st=window._calStates&&window._calStates[calKey];
   const range=_calSelRange(calKey);
-  if(!range||!range.start||!range.end){ panel.innerHTML=''; _updateCalSummary(calKey); return; }
+  if(!range||!range.start||!range.end){ _smoothPanelUpdate(panel, ''); _updateCalSummary(calKey); return; }
 
   const start=range.start, end=range.end;
 
@@ -5018,7 +4991,9 @@ function renderCalEntries(calKey) {
     const billed=allEntries.filter(e=>_isInv(e));
 
     if(!allEntries.length){
-      panel.innerHTML='<div class="cal-no-entries">No entries found for this period.</div>';
+      _smoothPanelUpdate(panel, '<div class="cal-no-entries">No entries found for this period.</div>');
+      const actEl=document.getElementById('gen-actions');
+      if(actEl) actEl.style.display='none';
       _updateCalSummary(calKey);
       return;
     }
@@ -5040,7 +5015,7 @@ function renderCalEntries(calKey) {
       html+=_buildEntryGroups(billed, true, calKey);
     }
 
-    panel.innerHTML=html;
+    _smoothPanelUpdate(panel, html);
     // Show action buttons
     const actEl=document.getElementById('gen-actions');
     if(actEl) actEl.style.display='block';
@@ -5056,7 +5031,9 @@ function renderCalEntries(calKey) {
     const billed=allItems.filter(i=>i.status==='billed');
 
     if(!allItems.length){
-      panel.innerHTML='<div class="cal-no-entries">No expense items found for this period.</div>';
+      _smoothPanelUpdate(panel, '<div class="cal-no-entries">No expense items found for this period.</div>');
+      const actEl=document.getElementById('exp-gen-actions');
+      if(actEl) actEl.style.display='none';
       _updateCalSummary(calKey);
       return;
     }
@@ -5073,7 +5050,7 @@ function renderCalEntries(calKey) {
       html+=_buildExpGroups(billed, true, calKey);
     }
 
-    panel.innerHTML=html;
+    _smoothPanelUpdate(panel, html);
     const actEl=document.getElementById('exp-gen-actions');
     if(actEl) actEl.style.display='block';
     _updateCalSummary(calKey);
